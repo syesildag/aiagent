@@ -59,5 +59,43 @@ export const functions: { [fnName: string]: FunctionDefinition } = {
             .map((row: any) => `-> ${row.question}`)
             .join('\n');
       },
+   },
+   fetchCurrentWeatherInformation: {
+      name: "fetchCurrentWeatherInformation",
+      description: "fetch Current Weather Information",
+      parameters: zodToJsonSchema(Query, "schema").definitions?.schema,
+      implementation: async ({ query }: Query) => {
+         const data = {
+            "location": {
+               "name": query,
+               "localtime_epoch": 1632169731,
+               "localtime": "2021-09-21 14:15"
+            },
+            "current": {
+               "last_updated_epoch": 1632169200,
+               "last_updated": "2021-09-21 14:06",
+               "temp_c": 21.0,
+               "temp_f": 69.8,
+               "is_day": 1,
+               "condition": {
+                  "text": "Partly cloudy",
+               },
+               "wind_mph": 5.6,
+               "wind_kph": 9.0,
+               "wind_degree": 340,
+               "wind_dir": "NNW",
+               "pressure_mb": 1016.0,
+               "pressure_in": 30.5,
+               "precip_mm": 0.0,
+               "precip_in": 0.0,
+               "humidity": 64,
+               "cloud": 75,
+               "feelslike_c": 21.0,
+               "feelslike_f": 69.8,
+               "vis_km": 16.0,
+            }
+         }
+         return JSON.stringify(data);
+      },
    }
 };
