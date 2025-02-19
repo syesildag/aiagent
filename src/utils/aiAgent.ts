@@ -37,7 +37,7 @@ You are a helpful assistant with tool calling capabilities.
    }];
 
    const functionCallData = await client.chat({
-      model: "llama3.2:3b",
+      model: String(process.env.OLLAMA_MODEL),
       messages,
       stream: false,
       tools
@@ -85,7 +85,7 @@ You are a helpful assistant with tool calling capabilities.
 
    // Step 6: Generate the final answer using Ollama
    const answerData = await client.chat({
-      model: "llama3.2:3b",
+      model: String(process.env.OLLAMA_MODEL),
       messages,
       stream: false,
       options: {
