@@ -1,4 +1,4 @@
-import { queryDB } from './pgClient';
+import { pool, queryDB } from './pgClient';
 import { getEmbeddings } from './embeddingHelper';
 
 const insertDocuments = async () => {
@@ -8,6 +8,7 @@ const insertDocuments = async () => {
       "Deep learning is a subset of machine learning.",
       "Resalys is a french company that specializes in Hospitality.",
       "The temperature at Paris is 12 degrees celsius.",
+      "My name is Serkan.",
       "Stock: Apple: 5 units",
       "Stock: Banana: 5 units",
       "Stock: Orange: 2 units",
@@ -23,6 +24,8 @@ const insertDocuments = async () => {
    }
 
    console.log("Documents inserted successfully.");
+
+   pool.end();
 };
 
 insertDocuments().catch((err) => console.error(err));
