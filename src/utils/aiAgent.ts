@@ -14,19 +14,30 @@ export const askQuestionWithFunctions = async (question: string): Promise<string
       }
    }));
 
-   const functionCallPrompt = `
-    You are an AI assistant with access to the following tools:
-    Given a user question, decide which tool to use. Respond with the name of the tool and its inputs in JSON format.
-    User question: "${question}"
+   const systemPrompt = `
+Cutting Knowledge Date: December 2023
+Today Date: 23 July 2024
+
+When you receive a tool call response, use the output to format an answer to the orginal user question.
+
+You are a helpful assistant with tool calling capabilities.
   `;
 
+   const userPrompt = `
+  Question: ${question}
+    `;
+
    const messages = [{
+      role: "system",
+      content: systemPrompt
+   },
+   {
       role: "user",
-      content: functionCallPrompt
+      content: userPrompt
    }];
 
    const functionCallData = await client.chat({
-      model: "llama3.2",
+      model: "llama3.2:3b",
       messages,
       stream: false,
       tools
@@ -61,24 +72,20 @@ export const askQuestionWithFunctions = async (question: string): Promise<string
       return functionCallData.message.content;
    }
 
-   // Step 5: Build the final answer prompt
-   const finalPrompt = `${question}`;
-
-   console.log("Final Prompt:", finalPrompt);
-
-   messages.push({
-      role: "user",
-      content: finalPrompt
-   });
-
    for (let toolContent of toolContents)
       messages.push({ role: "tool", content: toolContent });
+
+   // Step 5: Build the final answer prompt
+   messages.push({
+      role: "user",
+      content: userPrompt
+   });
 
    console.log("Messages:", messages);
 
    // Step 6: Generate the final answer using Ollama
    const answerData = await client.chat({
-      model: "llama3.2",
+      model: "llama3.2:3b",
       messages,
       stream: false,
       options: {
