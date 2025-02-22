@@ -1,3 +1,4 @@
+import { Message } from 'ollama';
 import { functions } from './aiFunctions';
 import client from './ollama';
 import { queryDB } from './pgClient';
@@ -27,7 +28,7 @@ You are a helpful assistant with tool calling capabilities.
   Question: ${question}
     `;
 
-   const messages = [{
+   let messages: Message[] = [{
       role: "system",
       content: systemPrompt
    },
@@ -36,7 +37,7 @@ You are a helpful assistant with tool calling capabilities.
       content: userPrompt
    }];
 
-   const functionCallData = await client.chat({
+   let functionCallData = await client.chat({
       model: String(process.env.OLLAMA_MODEL),
       messages,
       stream: false,
@@ -44,6 +45,39 @@ You are a helpful assistant with tool calling capabilities.
    });
 
    console.log("Function Call Data tool calls", JSON.stringify(functionCallData.message.tool_calls));
+
+   if (functionCallData.message.tool_calls?.some((toolCall: any) => toolCall.function.name === "fetchSQL")) {
+      messages = [{
+            role: "system",
+            content: systemPrompt
+         },
+         {
+            role: "assistant",
+            content: `SQL SCHEMA ->
+   CREATE TABLE IF NOT EXISTS public.country
+   (
+      id integer NOT NULL DEFAULT nextval('country_id_seq'::regclass),
+      iso character(2) COLLATE pg_catalog."default" NOT NULL,
+      name character varying(80) COLLATE pg_catalog."default" NOT NULL,
+      nicename character varying(80) COLLATE pg_catalog."default" NOT NULL,
+      iso3 character(3) COLLATE pg_catalog."default" DEFAULT NULL::bpchar,
+      numcode smallint,
+      phonecode integer NOT NULL,
+      CONSTRAINT country_pkey PRIMARY KEY (id)
+   );`
+         },
+         {
+            role: "user",
+            content: userPrompt
+         },
+      ];
+      functionCallData = await client.chat({
+         model: String(process.env.OLLAMA_MODEL),
+         messages,
+         stream: false,
+         tools
+      });
+   }
 
    let toolContents: any[] = [];
    let toolCalls = functionCallData.message.tool_calls;

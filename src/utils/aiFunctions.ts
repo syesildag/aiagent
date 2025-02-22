@@ -11,7 +11,7 @@ interface FunctionDefinition {
 }
 
 const Query = z.object({
-   query: z.string(),
+   query: z.string().describe("Query to be executed"),
 });
 
 type Query = z.infer<typeof Query>;
