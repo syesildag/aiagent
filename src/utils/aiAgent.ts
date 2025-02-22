@@ -1,19 +1,9 @@
 import { Message } from 'ollama';
-import { functions } from './aiFunctions';
+import { functions, tools } from './aiFunctionsAndTools';
 import client from './ollama';
 import { queryDB } from './pgClient';
 
 export const askQuestionWithFunctions = async (question: string): Promise<string> => {
-
-   // Step 2: Build the prompt for function calling
-   const tools = Object.values(functions).map(fn => ({
-      type: "function",
-      function: {
-         name: fn.name,
-         description: fn.description,
-         parameters: fn.parameters,
-      }
-   }));
 
    const systemPrompt = `
 Cutting Knowledge Date: December 2023
@@ -24,15 +14,12 @@ When you receive a tool call response, use the output to format an answer to the
 You are a helpful assistant with tool calling capabilities.
   `;
 
-   const userPrompt = `
-  Question: ${question}
-    `;
+   const userPrompt = `Question: ${question}`;
 
    let messages: Message[] = [{
       role: "system",
       content: systemPrompt
-   },
-   {
+   }, {
       role: "user",
       content: userPrompt
    }];
@@ -50,8 +37,7 @@ You are a helpful assistant with tool calling capabilities.
       messages = [{
             role: "system",
             content: systemPrompt
-         },
-         {
+         }, {
             role: "assistant",
             content: `SQL SCHEMA ->
    CREATE TABLE IF NOT EXISTS public.country
@@ -65,8 +51,7 @@ You are a helpful assistant with tool calling capabilities.
       phonecode integer NOT NULL,
       CONSTRAINT country_pkey PRIMARY KEY (id)
    );`
-         },
-         {
+         }, {
             role: "user",
             content: userPrompt
          },
@@ -88,7 +73,6 @@ You are a helpful assistant with tool calling capabilities.
             const func = toolCall.function;
             const name = func.name;
             const args = func.arguments;
-            // Step 4: Execute the selected function
             const selectedFunction = functions[name];
             if (!selectedFunction)
                throw new Error(`Invalid tool selected: ${name}`);
@@ -110,7 +94,6 @@ You are a helpful assistant with tool calling capabilities.
    for (let toolContent of toolContents)
       messages.push({ role: "tool", content: toolContent });
 
-   // Step 5: Build the final answer prompt
    messages.push({
       role: "user",
       content: userPrompt
@@ -129,10 +112,11 @@ You are a helpful assistant with tool calling capabilities.
       }
    });
 
-   // Step 6: Save the current conversation to the database
-   await saveConversation(question, answerData.message.content);
+   const finalAnswer = answerData.message.content;
 
-   return answerData.message.content; // Assuming Ollama returns the answer in `data.text`
+   await saveConversation(question, finalAnswer);
+
+   return finalAnswer;
 };
 
 export const saveConversation = async (question: string, answer: string) => {
