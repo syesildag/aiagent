@@ -49,6 +49,7 @@ You are a helpful assistant with tool calling capabilities.
    let toolCalls = functionCallData.message.tool_calls;
    if (!!toolCalls) {
       try {
+         console.log("Tool Calls: ", JSON.stringify(toolCalls));
          var results = await Promise.all(toolCalls.map(async (toolCall) => {
             const func = toolCall.function;
             const name = func.name;

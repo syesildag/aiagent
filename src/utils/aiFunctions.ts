@@ -16,9 +16,12 @@ const Query = z.object({
 
 type Query = z.infer<typeof Query>;
 
-const Question = z.void();
+const WeatherParams = z.object({
+   location: z.string().describe("Location for which weather information is needed"),
+   units: z.enum(["celcius", "fahrenheit"]).optional().describe("Units for temperature. Default is celcius"),
+});
 
-type Question = z.infer<typeof Question>;
+type WeatherParams = z.infer<typeof WeatherParams>;
 
 export const functions: { [fnName: string]: FunctionDefinition } = {
    fetchRelevantDocuments: {
@@ -45,8 +48,8 @@ export const functions: { [fnName: string]: FunctionDefinition } = {
    fetchConversationHistory: {
       name: "fetchConversationHistory",
       description: "Retrieve relevant conversations from question.",
-      parameters: zodToJsonSchema(Question, "schema").definitions?.schema,
-      implementation: async () => {
+      parameters: zodToJsonSchema(Query, "schema").definitions?.schema,
+      implementation: async ({ query }: Query) => {
 
          const sqlQuery = `
             SELECT question
@@ -60,42 +63,24 @@ export const functions: { [fnName: string]: FunctionDefinition } = {
             .join('\n');
       },
    },
+   fetchSQL: {
+      name: "fetchSQL",
+      description: "Retrieve relevant data using SQL from database.",
+      parameters: zodToJsonSchema(Query, "schema").definitions?.schema,
+      implementation: async ({ query }: Query) => {
+         const results = await queryDB(query);
+         return "SQL result:\n" + JSON.stringify(results);
+      },
+   },
    fetchCurrentWeatherInformation: {
       name: "fetchCurrentWeatherInformation",
       description: "fetch Current Weather Information",
-      parameters: zodToJsonSchema(Query, "schema").definitions?.schema,
-      implementation: async ({ query }: Query) => {
-         const data = {
-            "location": {
-               "name": query,
-               "localtime_epoch": 1632169731,
-               "localtime": "2021-09-21 14:15"
-            },
-            "current": {
-               "last_updated_epoch": 1632169200,
-               "last_updated": "2021-09-21 14:06",
-               "temp_c": 21.0,
-               "temp_f": 69.8,
-               "is_day": 1,
-               "condition": {
-                  "text": "Partly cloudy",
-               },
-               "wind_mph": 5.6,
-               "wind_kph": 9.0,
-               "wind_degree": 340,
-               "wind_dir": "NNW",
-               "pressure_mb": 1016.0,
-               "pressure_in": 30.5,
-               "precip_mm": 0.0,
-               "precip_in": 0.0,
-               "humidity": 64,
-               "cloud": 75,
-               "feelslike_c": 21.0,
-               "feelslike_f": 69.8,
-               "vis_km": 16.0,
-            }
-         }
-         return JSON.stringify(data);
+      parameters: zodToJsonSchema(WeatherParams, "schema").definitions?.schema,
+      implementation: async ({ location, units }: WeatherParams) => {
+         const apiKey = process.env.OPENWEATHER_API_KEY;
+         const url = `https://api.openweathermap.org/data/2.5/weather?q=${location}&appid=${apiKey}&units=metric`;
+         const response = await fetch(url);
+         return "Units in metric: " + JSON.stringify(await response.json());
       },
    }
 };
