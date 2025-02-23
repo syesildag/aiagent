@@ -54,10 +54,12 @@ app.use(express.text({ limit: '1mb' }));
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
 app.post("/:page", async (req: Request, res: Response) => {
+   var cancelled = false;
+   req.on('close', () => cancelled = true );
    let answer: string = "";
    let session = req.body?.session ?? randomAlphaNumeric(2);
    try {
-      answer = await askQuestionWithFunctions(session, req.params.page, req.body?.question);
+      answer = await askQuestionWithFunctions(session, req.params.page, req.body?.question, () => cancelled);
    } catch (error) {
       res.status(500).send("Error: " + error);
    }
