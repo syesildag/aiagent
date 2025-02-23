@@ -23,8 +23,6 @@ const insertDocuments = async () => {
       );
    }
 
-   console.log("Documents inserted successfully.");
-
    closeDatabase();
 };
 

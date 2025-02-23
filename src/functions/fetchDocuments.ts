@@ -20,10 +20,7 @@ const fetchDocuments: Description<typeof Query> = {
             FROM documents
          ) T WHERE score < 1 ORDER BY score LIMIT 5;
          `;
-      console.log("Executing function: fetchRelevantDocuments");
-      console.log("Executing query: ", sqlQuery);
       const results = await queryDatabase(sqlQuery, [JSON.stringify(embedding)]);
-      console.log("fetchRelevantDocuments results: ", results);
       return "Relevant documents:\n" + results
          .map((row: any) => `-> ${row.content}`).join('\n');
    }

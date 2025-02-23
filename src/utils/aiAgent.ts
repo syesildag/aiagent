@@ -31,8 +31,6 @@ You are a helpful assistant with tool calling capabilities.
       tools
    });
 
-   console.log("Function Call Data tool calls", JSON.stringify(functionCallData.message.tool_calls));
-
    if (functionCallData.message.tool_calls?.some((toolCall: any) => toolCall.function.name === "fetchSQL")) {
       messages = [{
             role: "system",
@@ -68,7 +66,6 @@ You are a helpful assistant with tool calling capabilities.
    let toolCalls = functionCallData.message.tool_calls;
    if (!!toolCalls) {
       try {
-         console.log("Tool Calls: ", JSON.stringify(toolCalls));
          var results = await Promise.all(toolCalls.map(async (toolCall) => {
             const func = toolCall.function;
             const name = func.name;
@@ -78,7 +75,6 @@ You are a helpful assistant with tool calling capabilities.
                throw new Error(`Invalid tool selected: ${name}`);
             return await selectedFunction.implementation(args);
          }));
-         console.log("Results: ", results);
          toolContents.push(...results);
       }
       catch (error) {
@@ -99,9 +95,6 @@ You are a helpful assistant with tool calling capabilities.
       content: userPrompt
    });
 
-   console.log("Messages:", messages);
-
-   // Step 6: Generate the final answer using Ollama
    const answerData = await client.chat({
       model: String(process.env.OLLAMA_MODEL),
       messages,
@@ -126,8 +119,6 @@ export const saveConversation = async (question: string, answer: string) => {
     VALUES ($1, $2)
     RETURNING id;
   `;
-
-   console.log("saveConversation");
 
    const result = await queryDatabase(query, [question, answer]);
 

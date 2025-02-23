@@ -1,15 +1,5 @@
 import { askQuestionWithFunctions } from './utils/aiAgent';
 import {closeDatabase} from "./utils/pgClient";
-//
-//const main = async () => {
-//   const question = process.argv[2];
-//   console.log("Question:", question);
-//   const answer = await askQuestionWithFunctions(question);
-//   console.log("Answer:", answer);
-//   pool.end();
-//};
-//
-//main().catch((err) => console.error(err));
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import "dotenv/config";
