@@ -3,7 +3,7 @@ import { functions, tools } from './aiFunctionsAndTools';
 import client from './ollama';
 import { queryDatabase } from './pgClient';
 
-export const askQuestionWithFunctions = async (session: string, page: string, question: string): Promise<string> => {
+export const askQuestionWithFunctions = async (session: string, agentName: string, question: string): Promise<string> => {
 
    const systemPrompt = `
 Cutting Knowledge Date: December 2023
