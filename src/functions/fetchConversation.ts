@@ -1,7 +1,7 @@
 
 import { z } from "zod";
 import { Description } from "../utils/makeTool";
-import { queryDB } from "../utils/pgClient";
+import { queryDatabase } from "../utils/pgClient";
 
 const Query = z.object({
    query: z.string().describe("Search query to be executed"),
@@ -17,7 +17,7 @@ const fetchConversations: Description<typeof Query> = {
             FROM conversations
             ORDER BY timestamp DESC LIMIT 10;
          `;
-      const results = await queryDB(sqlQuery);
+      const results = await queryDatabase(sqlQuery);
       return "Previous Conversations:\n" + results
          .map((row: any) => `-> ${row.question}`)
          .join('\n');

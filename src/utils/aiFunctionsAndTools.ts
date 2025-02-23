@@ -1,15 +1,15 @@
 
-import fetchConversations from '../functions/fetchConversation';
+//import fetchConversations from '../functions/fetchConversation';
 import fetchCurrentWeather from '../functions/fetchCurrentWeather';
-import fetchDocuments from '../functions/fetchDocuments';
-import fetchSQL from '../functions/fetchSQL';
+//import fetchDocuments from '../functions/fetchDocuments';
+//import fetchSQL from '../functions/fetchSQL';
 import { makeTool } from './makeTool';
 
 export const functions = [
-   fetchConversations,
    fetchCurrentWeather,
-   fetchSQL,
-   fetchDocuments
+   //fetchConversations,
+   //fetchSQL,
+   //fetchDocuments
 ].reduce((acc, d) => {
    acc[d.name] = makeTool(d);
    return acc;

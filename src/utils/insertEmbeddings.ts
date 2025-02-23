@@ -1,4 +1,4 @@
-import { pool, queryDB } from './pgClient';
+import { closeDatabase, queryDatabase } from './pgClient';
 import { getEmbeddings } from './embeddingHelper';
 
 const insertDocuments = async () => {
@@ -17,7 +17,7 @@ const insertDocuments = async () => {
 
    for (const content of documents) {
       const embedding = await getEmbeddings(content);
-      await queryDB(
+      await queryDatabase(
          `INSERT INTO documents (content, embedding) VALUES ($1, $2)`,
          [content, JSON.stringify(embedding)]
       );
@@ -25,7 +25,7 @@ const insertDocuments = async () => {
 
    console.log("Documents inserted successfully.");
 
-   pool.end();
+   closeDatabase();
 };
 
 insertDocuments().catch((err) => console.error(err));

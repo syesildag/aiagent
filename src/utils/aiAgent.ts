@@ -1,9 +1,9 @@
 import { Message } from 'ollama';
 import { functions, tools } from './aiFunctionsAndTools';
 import client from './ollama';
-import { queryDB } from './pgClient';
+import { queryDatabase } from './pgClient';
 
-export const askQuestionWithFunctions = async (question: string): Promise<string> => {
+export const askQuestionWithFunctions = async (session: string, page: string, question: string): Promise<string> => {
 
    const systemPrompt = `
 Cutting Knowledge Date: December 2023
@@ -129,7 +129,7 @@ export const saveConversation = async (question: string, answer: string) => {
 
    console.log("saveConversation");
 
-   const result = await queryDB(query, [question, answer]);
+   const result = await queryDatabase(query, [question, answer]);
 
    return result[0]?.id;
 };

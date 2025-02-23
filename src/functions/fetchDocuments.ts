@@ -1,7 +1,7 @@
 
 import { z } from "zod";
 import { Description } from "../utils/makeTool";
-import { queryDB } from "../utils/pgClient";
+import { queryDatabase } from "../utils/pgClient";
 import { getEmbeddings } from "../utils/embeddingHelper";
 
 const Query = z.object({
@@ -22,7 +22,7 @@ const fetchDocuments: Description<typeof Query> = {
          `;
       console.log("Executing function: fetchRelevantDocuments");
       console.log("Executing query: ", sqlQuery);
-      const results = await queryDB(sqlQuery, [JSON.stringify(embedding)]);
+      const results = await queryDatabase(sqlQuery, [JSON.stringify(embedding)]);
       console.log("fetchRelevantDocuments results: ", results);
       return "Relevant documents:\n" + results
          .map((row: any) => `-> ${row.content}`).join('\n');
