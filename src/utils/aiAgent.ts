@@ -3,7 +3,7 @@ import { functions, tools } from './aiFunctionsAndTools';
 import client from './ollama';
 import { queryDatabase } from './pgClient';
 
-export const askQuestionWithFunctions = async (session: string, agentName: string, question: string, isCancelled: () => boolean): Promise<string> => {
+export const askQuestionWithFunctions = async (session: string, agentName: string, question: string): Promise<string> => {
 
    const systemPrompt = `
 Cutting Knowledge Date: December 2023
@@ -31,8 +31,6 @@ You are a helpful assistant like JARVIS in Iron Man with tool calling capabiliti
       tools
    });
 
-   if(isCancelled())
-      return "";
    if (functionCallData.message.tool_calls?.some((toolCall: any) => toolCall.function.name === "fetchSQL")) {
       messages = [{
             role: "system",
@@ -62,8 +60,6 @@ You are a helpful assistant like JARVIS in Iron Man with tool calling capabiliti
          stream: false,
          tools
       });
-      if (isCancelled())
-         return "";
    }
 
    let toolContents: any[] = [];
@@ -84,10 +80,6 @@ You are a helpful assistant like JARVIS in Iron Man with tool calling capabiliti
       catch (error) {
          console.error("Error: ", error);
          return "";
-      }
-      finally {
-         if (isCancelled())
-            return "";
       }
    }
    else {
