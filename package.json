@@ -30,7 +30,6 @@
    },
    "dependencies": {
       "compression": "^1.7.4",
-      "cookie-parser": "^1.4.6",
       "express": "^4.19.2",
       "dotenv": "^16.4.5",
       "ollama": "^0.5.13",

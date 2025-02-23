@@ -1,18 +1,38 @@
-import { Message } from 'ollama';
-import { functions, tools } from './aiFunctionsAndTools';
+import { Message, Options } from 'ollama';
+import Instrumentation from './instrumentation';
 import client from './ollama';
 import { queryDatabase } from './pgClient';
 
+import WeatherAgent from '../agents/weather';
+
+export type AIAgentName =
+"weather" |
+"sql" |
+"conversation";
+
+export interface AIAgent {
+   getSystemPrompt(): string;
+   getName(): AIAgentName;
+   getInstrumentation(): Instrumentation;
+   getOptions?(): Partial<Options>;
+}
+
+const AIAgents: Record<AIAgentName, AIAgent> = [
+   WeatherAgent
+].reduce((acc, agent) => {
+   acc[agent.getName()] = agent;
+   return acc;
+} , {} as Record<AIAgentName, AIAgent>);
+
 export const askQuestionWithFunctions = async (session: string, agentName: string, question: string): Promise<string> => {
 
-   const systemPrompt = `
-Cutting Knowledge Date: December 2023
-Today Date: 23 July 2024
+   const agent = AIAgents[agentName as AIAgentName];
+   if (!agent)
+      throw new Error(`Invalid agent selected: ${agentName}`);
 
-When you receive a tool call response, use the output to format an answer to the orginal user question.
+   const {tools, functions} = agent.getInstrumentation().extract();
 
-You are a helpful assistant like JARVIS in Iron Man with tool calling capabilities.
-  `;
+   const systemPrompt = agent.getSystemPrompt();
 
    const userPrompt = `Question: ${question}`;
 
@@ -30,37 +50,6 @@ You are a helpful assistant like JARVIS in Iron Man with tool calling capabiliti
       stream: false,
       tools
    });
-
-   if (functionCallData.message.tool_calls?.some((toolCall: any) => toolCall.function.name === "fetchSQL")) {
-      messages = [{
-            role: "system",
-            content: systemPrompt
-         }, {
-            role: "assistant",
-            content: `SQL SCHEMA ->
-   CREATE TABLE IF NOT EXISTS public.country
-   (
-      id integer NOT NULL DEFAULT nextval('country_id_seq'::regclass),
-      iso character(2) COLLATE pg_catalog."default" NOT NULL,
-      name character varying(80) COLLATE pg_catalog."default" NOT NULL,
-      nicename character varying(80) COLLATE pg_catalog."default" NOT NULL,
-      iso3 character(3) COLLATE pg_catalog."default" DEFAULT NULL::bpchar,
-      numcode smallint,
-      phonecode integer NOT NULL,
-      CONSTRAINT country_pkey PRIMARY KEY (id)
-   );`
-         }, {
-            role: "user",
-            content: userPrompt
-         },
-      ];
-      functionCallData = await client.chat({
-         model: String(process.env.OLLAMA_MODEL),
-         messages,
-         stream: false,
-         tools
-      });
-   }
 
    let toolContents: any[] = [];
    let toolCalls = functionCallData.message.tool_calls;
@@ -83,36 +72,28 @@ You are a helpful assistant like JARVIS in Iron Man with tool calling capabiliti
       }
    }
    else {
-      await saveConversation(question, functionCallData.message.content);
+      await saveConversation(session, question, functionCallData.message.content);
       return functionCallData.message.content;
    }
 
    for (let toolContent of toolContents)
       messages.push({ role: "tool", content: toolContent });
 
-   messages.push({
-      role: "user",
-      content: userPrompt
-   });
-
    const answerData = await client.chat({
       model: String(process.env.OLLAMA_MODEL),
       messages,
       stream: false,
-      options: {
-         seed: 101,
-         temperature: 0,
-      }
+      options: agent.getOptions?.()
    });
 
    const finalAnswer = answerData.message.content;
 
-   await saveConversation(question, finalAnswer);
+   await saveConversation(session, question, finalAnswer);
 
    return finalAnswer;
 };
 
-export const saveConversation = async (question: string, answer: string) => {
+export const saveConversation = async (session: string, question: string, answer: string) => {
 
    const query = `
     INSERT INTO conversations (question, answer)

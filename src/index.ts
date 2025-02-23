@@ -1,12 +1,28 @@
 import { askQuestionWithFunctions } from './utils/aiAgent';
-import {closeDatabase} from "./utils/pgClient";
+import {closeDatabase, queryDatabase} from "./utils/pgClient";
 import compression from "compression";
-import cookieParser from "cookie-parser";
+import crypto from 'crypto';
+
 import "dotenv/config";
 import express, { NextFunction, Request, Response } from "express";
 import { Socket } from "net";
 import path from 'path';
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
+import { z } from 'zod';
+
+const AIQuery = z.object({
+   session: z.string().optional().describe('The session id'),
+   question: z.string().describe('The question to ask the AI')
+});
+
+export type AIQuery = z.infer<typeof AIQuery>;
+
+const AIResponse = z.object({
+   session: z.string().optional().describe('The session id'),
+   answer: z.string().describe('The answer to the question')
+});
+
+export type AIResponse = z.infer<typeof AIResponse>;
 
 const app = express();
 
@@ -20,20 +36,6 @@ function shouldCompress(req: express.Request, res: express.Response) {
    // fallback to standard filter function
    return compression.filter(req, res);
 }
-
-// load the cookie-parsing middleware
-app.use(cookieParser(process.env.COOKIE_SECRET));
-
-// Serve static files
-app.use('/static', express.static(path.join(__dirname, 'static'), {
-   index: false,
-   etag: true,
-   maxAge: '1d',
-   redirect: false,
-   setHeaders: function (res, path, stat) {
-      res.setHeader('x-timestamp', Date.now());
-   },
-}));
 
 // Error-handling middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
@@ -53,15 +55,48 @@ app.use(express.text({ limit: '1mb' }));
 // URLENCODED parsing middleware
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
-app.post("/:page", async (req: Request, res: Response) => {
+app.post("/login", async (req: Request, res: Response) => {
+   
+   // parse login and password from headers
+   const b64auth = (req.headers.authorization ?? '').split(' ')[1] ?? ''
+   const [login, password] = Buffer.from(b64auth, 'base64').toString().split(':')
+   var hash = crypto.createHash('sha256');
+   const sqlQuery = ` SELECT id FROM "user" WHERE login = $1 AND password = $2`;
+   const results = await queryDatabase(sqlQuery, [login, hash.update(password).digest('base64')]);
+   if(results.length === 0)
+      sendAuthenticationRequired(res); // custom message
+
+   //save session to database
+   const session = randomAlphaNumeric(2);
+   await queryDatabase(`INSERT INTO session (name, username) VALUES ($1, $2)`, [session, login]);
+
+   res.writeHead(200, {'Content-Type': 'application/json'}).end(JSON.stringify({session}));
+});
+
+app.post("/:agent", async (req: Request, res: Response) => {
    let answer: string = "";
-   let session = req.body?.session ?? randomAlphaNumeric(2);
+
+   const {session, question} = AIQuery.parse(req.body);
+
+   if (!session)
+      sendAuthenticationRequired(res);
+
+   const sqlQuery = ` SELECT username FROM session WHERE name = $1`;
+   const results = await queryDatabase(sqlQuery, [session]);
+   if (results.length === 0)
+      throw new Error("Session not found");
+
+   //const username = results[0].username;
+
    try {
-      answer = await askQuestionWithFunctions(session, req.params.page, req.body?.question);
+      const agentName = req.params.agent;
+      answer = await askQuestionWithFunctions(session!, agentName, question);
    } catch (error) {
       res.status(500).send("Error: " + error);
    }
-   res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({answer, session}));
+
+   const response: AIResponse = {answer, session};
+   res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(response));
 });
 const PORT: number = +process.env.PORT!;
 const HOST: string = process.env.HOST!;
@@ -82,6 +117,11 @@ server.on('connection', connection => {
 process.on('SIGTERM', gracefulShutdown);
 
 process.on('SIGINT', gracefulShutdown);
+
+function sendAuthenticationRequired(res: Response) {
+   res.set('WWW-Authenticate', 'Basic realm="401"'); // change this
+   res.status(401).send('Authentication required.');
+}
 
 function gracefulShutdown(event: NodeJS.Signals) {
 

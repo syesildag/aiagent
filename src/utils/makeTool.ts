@@ -8,7 +8,7 @@ export interface Description<T extends z.ZodObject<any>> {
    implementation: (params: z.infer<T>) => Promise<any>;
 }
 
-export function makeTool(d: Description<any>) {
+export function makeTool(d: Description<z.ZodObject<any>>) {
    return {
       name: d.name,
       description: d.description,
