@@ -55,7 +55,7 @@ app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
 app.post("/:page", async (req: Request, res: Response) => {
    let answer: string = "";
-   let session = req.body?.session ?? randomAlphaNumeric;
+   let session = req.body?.session ?? randomAlphaNumeric(2);
    try {
       answer = await askQuestionWithFunctions(session, req.params.page, req.body?.question);
    } catch (error) {

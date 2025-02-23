@@ -11,7 +11,7 @@ Today Date: 23 July 2024
 
 When you receive a tool call response, use the output to format an answer to the orginal user question.
 
-You are a helpful assistant with tool calling capabilities.
+You are a helpful assistant like JARVIS in Iron Man with tool calling capabilities.
   `;
 
    const userPrompt = `Question: ${question}`;
