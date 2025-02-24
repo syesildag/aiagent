@@ -4,21 +4,24 @@ import client from './ollama';
 import { queryDatabase } from './pgClient';
 
 import WeatherAgent from '../agents/weather';
+import DatabaseAgent from '../agents/database';
 
 export type AIAgentName =
 "weather" |
-"sql" |
-"conversation";
+"database";
 
 export interface AIAgent {
    getSystemPrompt(): string;
+   getUserPrompt(question: string): string;
+   getAssistantPrompt?(): string;
    getName(): AIAgentName;
    getInstrumentation(): Instrumentation;
    getOptions?(): Partial<Options>;
 }
 
 const AIAgents: Record<AIAgentName, AIAgent> = [
-   WeatherAgent
+   WeatherAgent,
+   DatabaseAgent
 ].reduce((acc, agent) => {
    acc[agent.getName()] = agent;
    return acc;
@@ -34,7 +37,7 @@ export const askQuestionWithFunctions = async (session: string, agentName: strin
 
    const systemPrompt = agent.getSystemPrompt();
 
-   const userPrompt = `Question: ${question}`;
+   const userPrompt = agent.getUserPrompt(question);
 
    let messages: Message[] = [{
       role: "system",
@@ -43,6 +46,14 @@ export const askQuestionWithFunctions = async (session: string, agentName: strin
       role: "user",
       content: userPrompt
    }];
+
+   const assistantPrompt = agent.getAssistantPrompt?.();
+   if(assistantPrompt) {
+      messages.push({
+         role: "assistant",
+         content: assistantPrompt
+      });
+   }
 
    let functionCallData = await client.chat({
       model: String(process.env.OLLAMA_MODEL),

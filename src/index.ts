@@ -1,28 +1,18 @@
-import { askQuestionWithFunctions } from './utils/aiAgent';
-import {closeDatabase, queryDatabase} from "./utils/pgClient";
 import compression from "compression";
 import crypto from 'crypto';
+import { askQuestionWithFunctions } from './utils/aiAgent';
+import { closeDatabase, queryDatabase } from "./utils/pgClient";
 
 import "dotenv/config";
 import express, { NextFunction, Request, Response } from "express";
 import { Socket } from "net";
-import path from 'path';
-import randomAlphaNumeric from './utils/randomAlphaNumeric';
 import { z } from 'zod';
+import randomAlphaNumeric from './utils/randomAlphaNumeric';
 
 const AIQuery = z.object({
    session: z.string().optional().describe('The session id'),
    question: z.string().describe('The question to ask the AI')
 });
-
-export type AIQuery = z.infer<typeof AIQuery>;
-
-const AIResponse = z.object({
-   session: z.string().optional().describe('The session id'),
-   answer: z.string().describe('The answer to the question')
-});
-
-export type AIResponse = z.infer<typeof AIResponse>;
 
 const app = express();
 
@@ -84,19 +74,22 @@ app.post("/:agent", async (req: Request, res: Response) => {
    const sqlQuery = ` SELECT username FROM session WHERE name = $1`;
    const results = await queryDatabase(sqlQuery, [session]);
    if (results.length === 0)
-      throw new Error("Session not found");
+      sendAuthenticationRequired(res);
 
    //const username = results[0].username;
 
+   let error;
    try {
       const agentName = req.params.agent;
       answer = await askQuestionWithFunctions(session!, agentName, question);
-   } catch (error) {
-      res.status(500).send("Error: " + error);
+   } catch (e) {
+      error = e;
    }
 
-   const response: AIResponse = {answer, session};
-   res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(response));
+   if(error)
+      res.status(500).send("Error: " + error);
+   else
+   res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ answer, session }));
 });
 const PORT: number = +process.env.PORT!;
 const HOST: string = process.env.HOST!;
