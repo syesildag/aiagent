@@ -56,7 +56,7 @@ app.post("/login", async (req: Request, res: Response) => {
       sendAuthenticationRequired(res); // custom message
 
    //save session to database
-   const session = randomAlphaNumeric(2);
+   const session = randomAlphaNumeric(3);
    await queryDatabase(`INSERT INTO session (name, username) VALUES ($1, $2)`, [session, login]);
 
    res.writeHead(200, {'Content-Type': 'application/json'}).end(JSON.stringify({session}));
