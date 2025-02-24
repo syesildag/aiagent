@@ -50,9 +50,8 @@ app.post("/login", async (req: Request, res: Response) => {
    // parse login and password from headers
    const b64auth = (req.headers.authorization ?? '').split(' ')[1] ?? ''
    const [login, password] = Buffer.from(b64auth, 'base64').toString().split(':')
-   var hash = crypto.createHash('sha256');
    const sqlQuery = ` SELECT id FROM "user" WHERE login = $1 AND password = $2`;
-   const results = await queryDatabase(sqlQuery, [login, hash.update(password).digest('base64')]);
+   const results = await queryDatabase(sqlQuery, [login, crypto.createHash('sha256').update(password).digest('base64')]);
    if(results.length === 0)
       sendAuthenticationRequired(res); // custom message
 
@@ -71,10 +70,13 @@ app.post("/:agent", async (req: Request, res: Response) => {
    if (!session)
       sendAuthenticationRequired(res);
 
-   const sqlQuery = ` SELECT username FROM session WHERE name = $1`;
+   let sqlQuery = `SELECT username FROM session WHERE name = $1`;
    const results = await queryDatabase(sqlQuery, [session]);
    if (results.length === 0)
       sendAuthenticationRequired(res);
+
+   sqlQuery = `UPDATE session SET ping = NOW() WHERE name = $1`;
+   await queryDatabase(sqlQuery, [session]);
 
    //const username = results[0].username;
 
