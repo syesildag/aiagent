@@ -3,8 +3,8 @@ import Instrumentation from './instrumentation';
 import client from './ollama';
 import { queryDatabase } from './pgClient';
 
-import WeatherAgent from '../agents/weather';
-import DatabaseAgent from '../agents/database';
+import WeatherAgent from '../agents/weatherAgent';
+import DatabaseAgent from '../agents/databaseAgent';
 
 export type AIAgentName =
 "weather" |

@@ -1,7 +1,7 @@
 import fetchSQL from "../descriptions/sql";
 import { AIAgentName } from "../utils/aiAgent";
 import Instrumentation from "../utils/instrumentation";
-import AbstractAgent from "./abstract";
+import AbstractAgent from "./abstractAgent";
 
 class DatabaseAgent extends AbstractAgent {
 

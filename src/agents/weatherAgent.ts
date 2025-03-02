@@ -1,7 +1,7 @@
 import fetchCurrentWeather from "../descriptions/currentWeather";
 import { AIAgentName } from "../utils/aiAgent";
 import Instrumentation from "../utils/instrumentation";
-import AbstractAgent from "./abstract";
+import AbstractAgent from "./abstractAgent";
 
 class WeatherAgent extends AbstractAgent {
 
