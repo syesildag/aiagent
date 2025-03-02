@@ -57,15 +57,15 @@ app.post("/login", async (req: Request, res: Response) => {
    
    // parse login and password from headers
    const b64auth = (req.headers.authorization ?? '').split(' ')[1] ?? ''
-   const [login, password] = Buffer.from(b64auth, 'base64').toString().split(':')
+   const [username, password] = Buffer.from(b64auth, 'base64').toString().split(':')
    const sqlQuery = ` SELECT id FROM "user" WHERE login = $1 AND password = $2`;
-   const results = await queryDatabase(sqlQuery, [login, crypto.createHash('sha256').update(password).digest('base64')]);
+   const results = await queryDatabase(sqlQuery, [username, crypto.createHash('sha256').update(password).digest('base64')]);
    if(results.length === 0)
       sendAuthenticationRequired(res); // custom message
 
    //save session to database
    const session = randomAlphaNumeric(3);
-   await queryDatabase(`INSERT INTO session (name, username) VALUES ($1, $2)`, [session, login]);
+   await queryDatabase(`INSERT INTO session (name, username) VALUES ($1, $2)`, [session, username]);
 
    res.writeHead(200, {'Content-Type': 'application/json'}).end(JSON.stringify({session}));
 });
@@ -78,13 +78,11 @@ app.post("/:agent", async (req: Request, res: Response) => {
    if (!session)
       sendAuthenticationRequired(res);
 
-   let sqlQuery = `SELECT username FROM session WHERE name = $1`;
-   const results = await queryDatabase(sqlQuery, [session]);
+   const results = await queryDatabase(`SELECT username FROM session WHERE name = $1`, [session]);
    if (results.length === 0)
       sendAuthenticationRequired(res);
 
-   sqlQuery = `UPDATE session SET ping = NOW() WHERE name = $1`;
-   await queryDatabase(sqlQuery, [session]);
+   await queryDatabase(`UPDATE session SET ping = NOW() WHERE name = $1`, [session]);
 
    //const username = results[0].username;
 
