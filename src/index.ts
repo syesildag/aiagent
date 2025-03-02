@@ -1,13 +1,21 @@
 import compression from "compression";
 import crypto from 'crypto';
+import fs from 'fs';
+import https from 'https';
 import { askQuestionWithFunctions } from './utils/aiAgent';
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
 
 import "dotenv/config";
 import express, { NextFunction, Request, Response } from "express";
-import { Socket } from "net";
+import { Duplex } from "stream";
 import { z } from 'zod';
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
+
+// Load SSL certificate and private key
+const options = {
+   key: fs.readFileSync('server.key'),
+   cert: fs.readFileSync('server.cert')
+};
 
 const AIQuery = z.object({
    session: z.string().optional().describe('The session id'),
@@ -95,17 +103,22 @@ app.post("/:agent", async (req: Request, res: Response) => {
 });
 const PORT: number = +process.env.PORT!;
 const HOST: string = process.env.HOST!;
-const server = app.listen(PORT, HOST, async () => {
+const server = https.createServer(options, app).listen(PORT, HOST, async () => {
    console.log(`[server]: Server is running at http://${HOST}:${PORT}`);
 });
 
-let connections: Array<Socket> = [];
+let connections: Array<Duplex> = [];
 server.on('connection', connection => {
    connections.push(connection);
-   connection.on('close', hadError => {
-      if (hadError)
-         console.error('Socket closed with an error');
+   const filterConnections = () => {
       connections = connections.filter(curr => curr !== connection)
+   };
+   connection.on('error', (err: Error) => {
+      console.error(`Error in connection: ${err.message}`);
+      filterConnections();
+   });
+   connection.on('close', () => {
+      filterConnections();
    });
 });
 
@@ -128,7 +141,7 @@ function gracefulShutdown(event: NodeJS.Signals) {
    closeDatabase();
 
    connections.forEach(connection => {
-      console.log(`Closing active connection ${connection.remoteAddress}:${connection.remotePort}`);
+      console.log(`Closing active connection ${connection}`);
       connection.end();
    });
 
