@@ -9,9 +9,9 @@ import "dotenv/config";
 import express, { NextFunction, Request, Response } from "express";
 import { Duplex } from "stream";
 import { z } from 'zod';
-import randomAlphaNumeric from './utils/randomAlphaNumeric';
-import { registry } from "./repository/registry";
 import { Session } from "./repository/entities/session";
+import { registry } from "./repository/registry";
+import randomAlphaNumeric from './utils/randomAlphaNumeric';
 
 // Load SSL certificate and private key
 const options = {

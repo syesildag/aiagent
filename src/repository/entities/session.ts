@@ -1,5 +1,6 @@
 import { AbstractRepository, Entity } from "../abstractRepository";
 import { Column } from "../annotations/Column";
+import { Find } from "../annotations/find";
 import { Id } from "../annotations/Id";
 import { registry } from "../registry";
 
@@ -46,9 +47,14 @@ export class Session extends Entity {
    }
 }
 
-class SessionRepository extends AbstractRepository<Session> {
+export class SessionRepository extends AbstractRepository<Session> {
    constructor() {
       super('session', Session);
+   }
+
+   @Find()
+   public async findByUsername(username: string): Promise<Session | null> {
+      return null;
    }
 }
 

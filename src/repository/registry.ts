@@ -1,3 +1,6 @@
 import { AbstractRepository, Constructor, Entity } from "./abstractRepository";
 
-export const registry: WeakMap<Constructor<Entity>, AbstractRepository<Entity>>  = new WeakMap();
+class Registry<C extends Entity> extends WeakMap<Constructor<C>, AbstractRepository<C>> {
+}
+
+export const registry  = new Registry();

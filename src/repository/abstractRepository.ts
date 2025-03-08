@@ -63,7 +63,13 @@ export abstract class AbstractRepository<C extends Entity> {
 
    public async getByUniqueValues(...uniqueValues: any[]): Promise<C | null> {
       const record = Object.fromEntries(this.getUniqueColumns().map((columnName, index) => [columnName, uniqueValues[index]]));
-      return this.getByColumnValues(record);
+      const result = await this.getByColumnValues(record, true);
+      return result ? result[0] : null;
+   }
+
+   public async getByFieldValues(fieldValues: Record<string, any>) {
+      const columnValues = Object.fromEntries(Object.entries(fieldValues).map(([fieldName, value]) => [this.getColumnName(fieldName), value]));
+      return this.getByColumnValues(columnValues);
    }
 
    public async save(entity: C) {
@@ -88,16 +94,20 @@ export abstract class AbstractRepository<C extends Entity> {
       return this.createEntity(rows[0]);
    }
 
-   public async getByColumnValues(uniqueValues: Record<string, any>): Promise<C | null> {
+   public async getByColumnValues(columnValues: Record<string, any>, unique?: boolean) {
       const sqlQuery = `
             SELECT *
               FROM ${this.table}
-             WHERE ${Object.keys(uniqueValues).map((columnName, index) => `${columnName} = $${index + 1}`).join(' AND ')}
+             WHERE ${Object.keys(columnValues).map((columnName, index) => `${columnName} = $${index + 1}`).join(' AND ')}
          `;
-      const rows = await queryDatabase(sqlQuery, Object.values(uniqueValues));
+      const rows = await queryDatabase(sqlQuery, Object.values(columnValues));
       if (rows.length === 0)
          return null;
-      return this.createEntity(rows[0]);
+
+      if(unique && rows.length > 1)
+         throw new Error('Multiple rows found for unique query');
+
+      return rows.map((row: any) => this.createEntity(row));
    }
 
    public async getById(id: number): Promise<C | null> {
