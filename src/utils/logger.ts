@@ -16,7 +16,6 @@ export interface Logger {
    error: (message: string) => void;
 }
 
-//create class ConsoleLogger which implements Logger interface
 export class ConsoleLogger implements Logger {
 
    createLogMessage(message: string) {
@@ -48,7 +47,6 @@ export class ConsoleLogger implements Logger {
    }
 }
 
-//create class DummyLogger which implements Logger interface
 export class DummyLogger implements Logger {
    //create a method trace which logs
    trace(message: string) {
