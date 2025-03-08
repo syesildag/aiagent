@@ -52,13 +52,14 @@ export abstract class AbstractRepository<C extends Entity> {
    }
 
    private createEntity(row: any): C | PromiseLike<C | null> | null {
-      return Object.keys(row).reduce((acc: any, columnName: string) => {
+      const parameters = Object.keys(row).reduce((acc: any, columnName: string) => {
          const fieldName = this.getFieldName(columnName);
          if (!fieldName)
             throw new Error(`No field name found for column name: ${columnName}`);
          acc[fieldName] = row[columnName];
          return acc;
       }, {});
+      return new this.clazz(parameters);
    }
 
    public async getByUniqueValues(...uniqueValues: any[]): Promise<C | null> {

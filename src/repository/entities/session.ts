@@ -22,28 +22,32 @@ export class Session extends Entity {
    }
 
    @Id('id')
-   getId(): number {
+   public getId(): number {
       return this.id;
    }
 
    @Column({ columnName: 'name', notNull: true, unique: true })
-   getName(): string {
+   public getName(): string {
       return this.name;
    }
 
    @Column({ columnName: 'username', notNull: true })
-   getUsername(): string {
+   public getUsername(): string {
       return this.username;
    }
 
    @Column({ columnName: 'timestamp', notNull: true })
-   getTimestamp(): Date {
+   public getTimestamp(): Date {
       return this.timestamp;
    }
 
    @Column({ columnName: 'ping' })
-   getPing(): Date | undefined {
+   public getPing(): Date | undefined {
       return this.ping;
+   }
+
+   public setPing(ping?: Date) {
+      this.ping = ping;
    }
 }
 

@@ -9,9 +9,9 @@ import "dotenv/config";
 import express, { NextFunction, Request, Response } from "express";
 import { Duplex } from "stream";
 import { z } from 'zod';
-import { Session } from "./repository/entities/session";
-import { registry } from "./repository/registry";
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
+import { registry } from "./repository/registry";
+import { Session } from "./repository/entities/session";
 
 // Load SSL certificate and private key
 const options = {
@@ -86,7 +86,9 @@ app.post("/:agent", async (req: Request, res: Response) => {
    if (!sessionEntity)
       sendAuthenticationRequired(res);
 
-   await queryDatabase(`UPDATE session SET ping = NOW() WHERE name = $1`, [session]);
+   sessionEntity!.setPing(new Date());
+
+   sessionEntity!.save();
 
    let error;
    try {
