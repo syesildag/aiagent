@@ -6,13 +6,13 @@ import { registry } from "../registry";
 
 export class Session extends Entity {
 
-   private id: number;
+   private id?: number;
    private name: string;
    private username: string;
-   private timestamp: Date;
+   private timestamp?: Date;
    private ping?: Date;
 
-   constructor({ id, name, username, timestamp, ping }: { id: number, name: string, username: string, timestamp: Date, ping?: Date }) {
+   constructor({ id, name, username, timestamp, ping }: { id?: number, name: string, username: string, timestamp?: Date, ping?: Date }) {
       super();
       this.id = id;
       this.name = name;
@@ -22,7 +22,7 @@ export class Session extends Entity {
    }
 
    @Id('id')
-   public getId(): number {
+   public getId(): number | undefined {
       return this.id;
    }
 
@@ -36,8 +36,8 @@ export class Session extends Entity {
       return this.username;
    }
 
-   @Column({ columnName: 'timestamp', notNull: true })
-   public getTimestamp(): Date {
+   @Column({ columnName: 'timestamp' })
+   public getTimestamp(): Date | undefined {
       return this.timestamp;
    }
 
@@ -52,6 +52,7 @@ export class Session extends Entity {
 }
 
 export class SessionRepository extends AbstractRepository<Session> {
+
    constructor() {
       super('session', Session);
    }

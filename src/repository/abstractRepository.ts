@@ -6,7 +6,7 @@ import { registry } from "./registry";
 import { Table } from "./table";
 
 export abstract class Entity {
-   abstract getId(): number;
+   abstract getId(): number | undefined;
    public save() {
       return registry.get(this.constructor as Constructor<Entity>)?.save(this);
    }
@@ -24,6 +24,8 @@ export abstract class AbstractRepository<C extends Entity> {
    private idColumnName: string;
    private fieldColumnNames: Record<string, string>;
    private columnFieldNames: Record<string, string>;
+   private uniqueColumnSet: Set<string>;
+   private notNullColumnSet: Set<string>;
    private uniqueColumns: Array<string>;
    private notNullColumns: Array<string>;
 
@@ -31,8 +33,10 @@ export abstract class AbstractRepository<C extends Entity> {
       this.idColumnName = ReflectMetadata.getMetadata(__id__, clazz.prototype) ?? 'id';
       this.fieldColumnNames = ReflectMetadata.getMetadata(__fieldColumn__, clazz.prototype) ?? {};
       this.columnFieldNames = ReflectMetadata.getMetadata(__columnFields__, clazz.prototype) ?? {};
-      this.uniqueColumns = Array.from(ReflectMetadata.getMetadata(__uniqueColumns__, clazz.prototype) ?? new Set<string>());
-      this.notNullColumns = Array.from(ReflectMetadata.getMetadata(__notNullColumns__, clazz.prototype) ?? new Set<string>());
+      this.uniqueColumnSet = ReflectMetadata.getMetadata(__uniqueColumns__, clazz.prototype) ?? new Set<string>();
+      this.notNullColumnSet = ReflectMetadata.getMetadata(__notNullColumns__, clazz.prototype) ?? new Set<string>();
+      this.uniqueColumns = Array.from(this.uniqueColumnSet);
+      this.notNullColumns = Array.from(this.notNullColumnSet);
    }
 
    public getColumnName(fieldName: string) {
@@ -74,11 +78,11 @@ export abstract class AbstractRepository<C extends Entity> {
    }
 
    public async save(entity: C) {
-      const columns = Object.keys(this.columnFieldNames);
+      const columns = Object.keys(this.columnFieldNames).filter(column => this.notNullColumnSet.has(column) || (entity as any)[this.getFieldName(column)] !== undefined);
       const values = columns.map(column => (entity as any)[this.getFieldName(column)]);
       const placeholders = columns.map((_, index) => `$${index + 1}`).join(', ');
 
-      const updateAssignments = columns.map((column, index) => `${column} = EXCLUDED.${column}`).join(', ');
+      const updateAssignments = columns.map(column => `${column} = EXCLUDED.${column}`).join(', ');
 
       const sqlQuery = `
          INSERT INTO ${this.table} (${columns.join(', ')})

@@ -64,10 +64,11 @@ app.post("/login", async (req: Request, res: Response) => {
    const results = await queryDatabase(sqlQuery, [username, crypto.createHash('sha256').update(password).digest('base64')]);
    if(results.length === 0)
       sendAuthenticationRequired(res); // custom message
-
+   
    //save session to database
    const session = randomAlphaNumeric(3);
-   await queryDatabase(`INSERT INTO session (name, username) VALUES ($1, $2)`, [session, username]);
+
+   new Session({name: session, username}).save();
 
    res.writeHead(200, {'Content-Type': 'application/json'}).end(JSON.stringify({session}));
 });
