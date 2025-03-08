@@ -9,17 +9,17 @@ import "dotenv/config";
 import express, { NextFunction, Request, Response } from "express";
 import { Duplex } from "stream";
 import { z } from 'zod';
-import randomAlphaNumeric from './utils/randomAlphaNumeric';
-import { registry } from "./repository/registry";
 import { Session } from "./repository/entities/session";
+import { registry } from "./repository/registry";
+import randomAlphaNumeric from './utils/randomAlphaNumeric';
 
 // Load SSL certificate and private key
-const options = {
+const options: https.ServerOptions = {
    key: fs.readFileSync('server.key'),
    cert: fs.readFileSync('server.cert')
 };
 
-const AIQuery = z.object({
+const Query = z.object({
    session: z.string().optional().describe('The session id'),
    question: z.string().describe('The question to ask the AI')
 });
@@ -76,7 +76,7 @@ app.post("/:agent", async (req: Request, res: Response) => {
 
    let answer: string = "";
 
-   const {session, question} = AIQuery.parse(req.body);
+   const {session, question} = Query.parse(req.body);
 
    if (!session)
       sendAuthenticationRequired(res);

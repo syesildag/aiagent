@@ -5,10 +5,12 @@
    "main": "dist/index.js",
    "scripts": {
       "clean": "rm -fr dist",
-      "start": "node dist/index.js",
+      "start": "NODE_ENV=production node dist/index.js",
+      "dev": "NODE_ENV=development node dist/index.js",
       "compile": "tsc",
       "build": "npm run clean;npm run compile",
       "buildStart": "npm run build && npm start",
+      "buildDev": "npm run build && npm run dev",
       "test": "jest"
    },
    "author": "Serkan YESILDAG",
