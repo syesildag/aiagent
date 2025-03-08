@@ -10,6 +10,8 @@ import express, { NextFunction, Request, Response } from "express";
 import { Duplex } from "stream";
 import { z } from 'zod';
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
+import { registry } from "./repository/registry";
+import { Session } from "./repository/entities/session";
 
 // Load SSL certificate and private key
 const options = {
@@ -71,6 +73,7 @@ app.post("/login", async (req: Request, res: Response) => {
 });
 
 app.post("/:agent", async (req: Request, res: Response) => {
+
    let answer: string = "";
 
    const {session, question} = AIQuery.parse(req.body);
@@ -78,13 +81,12 @@ app.post("/:agent", async (req: Request, res: Response) => {
    if (!session)
       sendAuthenticationRequired(res);
 
-   const results = await queryDatabase(`SELECT username FROM session WHERE name = $1`, [session]);
-   if (results.length === 0)
+   const sessionEntity = await registry.get(Session)?.getByUniqueValues(session);
+
+   if (!sessionEntity)
       sendAuthenticationRequired(res);
 
    await queryDatabase(`UPDATE session SET ping = NOW() WHERE name = $1`, [session]);
-
-   //const username = results[0].username;
 
    let error;
    try {
