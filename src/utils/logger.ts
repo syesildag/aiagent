@@ -9,16 +9,16 @@ ERROR: Logs error events that might still allow the application to continue runn
 import { isProduction } from "./environment";
 
 export interface Logger {
-   trace: (message: string) => void;
-   debug: (message: string) => void;
-   info: (message: string) => void;
-   warn: (message: string) => void;
-   error: (message: string) => void;
+   trace: (message: any) => void;
+   debug: (message: any) => void;
+   info: (message: any) => void;
+   warn: (message: any) => void;
+   error: (message: any) => void;
 }
 
 export class ConsoleLogger implements Logger {
 
-   createLogMessage(message: string) {
+   createLogMessage(message: any) {
       return {
          time: new Date().toISOString(),
          message: message
@@ -26,46 +26,46 @@ export class ConsoleLogger implements Logger {
    }
 
    //create a method trace which logs
-   trace(message: string) {
+   trace(message: any) {
       console.trace(this.createLogMessage(message));
    }
    //create a method debug which logs
-   debug(message: string) {
+   debug(message: any) {
       console.debug(this.createLogMessage(message));
    }
    //create a method info which logs
-   info(message: string) {
+   info(message: any) {
       console.info(this.createLogMessage(message));
    }
    //create a method warn which logs
-   warn(message: string) {
+   warn(message: any) {
       console.warn(this.createLogMessage(message));
    }
    //create a method error which logs
-   error(message: string) {
+   error(message: any) {
       console.error(this.createLogMessage(message));
    }
 }
 
 export class DummyLogger implements Logger {
    //create a method trace which logs
-   trace(message: string) {
+   trace(message: any) {
       //do nothing
    }
    //create a method debug which logs
-   debug(message: string) {
+   debug(message: any) {
       //do nothing
    }
    //create a method info which logs
-   info(message: string) {
+   info(message: any) {
       //do nothing
    }
    //create a method warn which logs
-   warn(message: string) {
+   warn(message: any) {
       //do nothing
    }
    //create a method error which logs
-   error(message: string) {
+   error(message: any) {
       //do nothing
    }
 }

@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { Session } from "./repository/entities/session";
 import { registry } from "./repository/registry";
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
+import Logger from "./utils/logger";
 
 // Load SSL certificate and private key
 const options: https.ServerOptions = {
@@ -56,28 +57,28 @@ app.use(express.text({ limit: '1mb' }));
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
 app.post("/login", async (req: Request, res: Response) => {
-   
+
    // parse login and password from headers
    const b64auth = (req.headers.authorization ?? '').split(' ')[1] ?? ''
    const [username, password] = Buffer.from(b64auth, 'base64').toString().split(':')
    const sqlQuery = ` SELECT id FROM "user" WHERE login = $1 AND password = $2`;
    const results = await queryDatabase(sqlQuery, [username, crypto.createHash('sha256').update(password).digest('base64')]);
-   if(results.length === 0)
+   if (results.length === 0)
       sendAuthenticationRequired(res); // custom message
-   
+
    //save session to database
    const session = randomAlphaNumeric(3);
 
-   new Session({name: session, username}).save();
+   new Session({ name: session, username }).save();
 
-   res.writeHead(200, {'Content-Type': 'application/json'}).end(JSON.stringify({session}));
+   res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ session }));
 });
 
 app.post("/:agent", async (req: Request, res: Response) => {
 
    let answer: string = "";
 
-   const {session, question} = Query.parse(req.body);
+   const { session, question } = Query.parse(req.body);
 
    if (!session)
       sendAuthenticationRequired(res);
@@ -99,10 +100,13 @@ app.post("/:agent", async (req: Request, res: Response) => {
       error = e;
    }
 
-   if(error)
+   if (error)
       res.status(500).send("Error: " + error);
-   else
-   res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ answer, session }));
+   else {
+      const content = JSON.stringify({ answer, session });
+      Logger.debug(content);
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
+   }
 });
 const PORT: number = +process.env.PORT!;
 const HOST: string = process.env.HOST!;
