@@ -2,10 +2,14 @@ import { queryDatabase } from "../utils/pgClient";
 import ReflectMetadata from "../utils/reflectMetadata";
 import { __columnFields__, __fieldColumn__, __notNullColumns__, __uniqueColumns__ } from "./annotations/Column";
 import { __id__ } from "./annotations/Id";
+import { registry } from "./registry";
 import { Table } from "./table";
 
-export interface Entity {
-   getId(): number;
+export abstract class Entity {
+   abstract getId(): number;
+   public save() {
+      return registry.get(this.constructor as Constructor<Entity>)?.save(this);
+   }
 }
 
 export interface Constructor<T, A extends any[] = any[]> {
@@ -60,6 +64,28 @@ export abstract class AbstractRepository<C extends Entity> {
    public async getByUniqueValues(...uniqueValues: any[]): Promise<C | null> {
       const record = Object.fromEntries(this.getUniqueColumns().map((columnName, index) => [columnName, uniqueValues[index]]));
       return this.getByColumnValues(record);
+   }
+
+   public async save(entity: C) {
+      const columns = Object.keys(this.columnFieldNames);
+      const values = columns.map(column => (entity as any)[this.getFieldName(column)]);
+      const placeholders = columns.map((_, index) => `$${index + 1}`).join(', ');
+
+      const updateAssignments = columns.map((column, index) => `${column} = EXCLUDED.${column}`).join(', ');
+
+      const sqlQuery = `
+         INSERT INTO ${this.table} (${columns.join(', ')})
+         VALUES (${placeholders})
+         ON CONFLICT (${this.getUniqueColumns().join(', ')})
+         DO UPDATE SET ${updateAssignments}
+         RETURNING *
+      `;
+
+      const rows = await queryDatabase(sqlQuery, values);
+      if (rows.length === 0)
+         throw new Error('Failed to upsert entity');
+
+      return this.createEntity(rows[0]);
    }
 
    public async getByColumnValues(uniqueValues: Record<string, any>): Promise<C | null> {

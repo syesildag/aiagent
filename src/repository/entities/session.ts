@@ -3,7 +3,7 @@ import { Column } from "../annotations/Column";
 import { Id } from "../annotations/Id";
 import { registry } from "../registry";
 
-export class Session implements Entity {
+export class Session extends Entity {
 
    private id: number;
    private name: string;
@@ -12,6 +12,7 @@ export class Session implements Entity {
    private ping?: Date;
 
    constructor({ id, name, username, timestamp, ping }: { id: number, name: string, username: string, timestamp: Date, ping?: Date }) {
+      super();
       this.id = id;
       this.name = name;
       this.username = username;
