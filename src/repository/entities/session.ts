@@ -9,9 +9,9 @@ export class Session implements Entity {
    private name: string;
    private username: string;
    private timestamp: Date;
-   private ping: Date;
+   private ping?: Date;
 
-   constructor({ id, name, username, timestamp, ping }: { id: number, name: string, username: string, timestamp: Date, ping: Date }) {
+   constructor({ id, name, username, timestamp, ping }: { id: number, name: string, username: string, timestamp: Date, ping?: Date }) {
       this.id = id;
       this.name = name;
       this.username = username;
