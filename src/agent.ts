@@ -1,35 +1,35 @@
 import { Message, Options } from 'ollama';
-import Instrumentation from './instrumentation';
-import client from './ollama';
-import { queryDatabase } from './pgClient';
+import Instrumentation from './utils/instrumentation';
+import client from './utils/ollama';
+import { queryDatabase } from './utils/pgClient';
 
-import WeatherAgent from '../agents/weatherAgent';
-import DatabaseAgent from '../agents/databaseAgent';
+import WeatherAgent from './agents/weatherAgent';
+import DatabaseAgent from './agents/databaseAgent';
 
-export type AIAgentName =
+export type AgentName =
 "weather" |
 "database";
 
-export interface AIAgent {
+export interface Agent {
    getSystemPrompt(): string;
    getUserPrompt(question: string): string;
    getAssistantPrompt?(): string;
-   getName(): AIAgentName;
+   getName(): AgentName;
    getInstrumentation(): Instrumentation;
    getOptions?(): Partial<Options>;
 }
 
-const AIAgents: Record<AIAgentName, AIAgent> = [
+const Agents: Record<AgentName, Agent> = [
    WeatherAgent,
    DatabaseAgent
 ].reduce((acc, agent) => {
    acc[agent.getName()] = agent;
    return acc;
-} , {} as Record<AIAgentName, AIAgent>);
+} , {} as Record<AgentName, Agent>);
 
 export const askQuestionWithFunctions = async (session: string, agentName: string, question: string): Promise<string> => {
 
-   const agent = AIAgents[agentName as AIAgentName];
+   const agent = Agents[agentName as AgentName];
    if (!agent)
       throw new Error(`Invalid agent selected: ${agentName}`);
 

@@ -1,11 +1,11 @@
 import fetchSQL from "../descriptions/sql";
-import { AIAgentName } from "../utils/aiAgent";
+import { AgentName } from "../agent";
 import Instrumentation from "../utils/instrumentation";
 import AbstractAgent from "./abstractAgent";
 
 class DatabaseAgent extends AbstractAgent {
 
-   getName(): AIAgentName {
+   getName(): AgentName {
       return "database";
    }
 

@@ -1,8 +1,8 @@
 import { Options } from "ollama";
-import { AIAgent, AIAgentName } from "../utils/aiAgent";
+import { Agent, AgentName } from "../agent";
 import Instrumentation from "../utils/instrumentation";
 
-export default abstract class AbstractAgent implements AIAgent {
+export default abstract class AbstractAgent implements Agent {
 
    getUserPrompt(question: string): string {
       return `Question: ${question}`;
@@ -15,10 +15,10 @@ Today Date: 23 July 2024
 
 When you receive a tool call response, use the output to format an answer to the orginal user question.
 
-You are a helpful assistant like JARVIS in Iron Man with tool calling capabilities.`;
+You are a helpful assistant with tool calling capabilities.`;
    }
 
-   abstract getName(): AIAgentName;
+   abstract getName(): AgentName;
 
    abstract getInstrumentation(): Instrumentation;
 

@@ -2,7 +2,7 @@ import compression from "compression";
 import crypto from 'crypto';
 import fs from 'fs';
 import https from 'https';
-import { askQuestionWithFunctions } from './utils/aiAgent';
+import { askQuestionWithFunctions } from './agent';
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
 
 import "dotenv/config";
