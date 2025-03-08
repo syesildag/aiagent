@@ -40,7 +40,7 @@ export class Session implements Entity {
    }
 
    @Column({ columnName: 'ping' })
-   getPing(): Date {
+   getPing(): Date | undefined {
       return this.ping;
    }
 }
