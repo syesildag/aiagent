@@ -87,6 +87,8 @@ export const askQuestionWithFunctions = async (session: string, agentName: strin
       return functionCallData.message.content;
    }
 
+   messages.push(functionCallData.message);
+
    for (let toolContent of toolContents)
       messages.push({ role: "tool", content: toolContent });
 
