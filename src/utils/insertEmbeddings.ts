@@ -1,5 +1,5 @@
 import { closeDatabase, queryDatabase } from './pgClient';
-import { getEmbeddings } from './embeddingHelper';
+import { getEmbeddings } from './getEmbeddings';
 
 const insertDocuments = async () => {
    const documents = [

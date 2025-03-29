@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { Description } from "../utils/makeTool";
 import { queryDatabase } from "../utils/pgClient";
-import { getEmbeddings } from "../utils/embeddingHelper";
+import { getEmbeddings } from "../utils/getEmbeddings";
 
 const Query = z.object({
    query: z.string().describe("Search query to be executed"),

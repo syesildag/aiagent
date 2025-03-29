@@ -11,7 +11,7 @@ const crawler = new PlaywrightCrawler({
    },
 
    // Stop crawling after several pages
-   maxRequestsPerCrawl: 50,
+   maxRequestsPerCrawl: 10,
 
    // This function will be called for each URL to crawl.
    // Here you can write the Playwright scripts you are familiar with,
@@ -24,11 +24,11 @@ const crawler = new PlaywrightCrawler({
       log.info(`Processing ${request.url}...`);
 
       // A function to be evaluated by Playwright within the browser context.
-      const data = await page.$$eval('div.body-post', ($posts) => {
+      const data = await page.$$eval('div.body-post', $posts => {
          const scrapedData: { title: string, content: string, tags: string, date: string, href: string }[] = [];
 
          // We're getting the title, rank and URL of each post on Hacker News.
-         $posts.forEach(($post) => {
+         $posts.forEach($post => {
             scrapedData.push({
                title: ($post.querySelector('h2.home-title') as HTMLElement)?.innerText || '',
                content: ($post.querySelector('div.home-desc') as HTMLElement)?.innerText || '',
@@ -64,11 +64,14 @@ const crawler = new PlaywrightCrawler({
    },
 });
 
-(async () => {
+async function runCrawler() {
    await crawler.addRequests(['https://thehackernews.com/']);
-
    // Run the crawler and wait for it to finish.
-   await crawler.run();
+   return await crawler.run();
+}
 
-   console.log('Crawler finished.');
-})();
+runCrawler().then(finalStatistics => {
+   console.log('Crawler finished with statistics:', finalStatistics);
+}).catch((error) => {
+   console.error('Error running crawler:', error);
+});
