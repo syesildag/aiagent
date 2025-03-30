@@ -2,8 +2,9 @@ import compression from "compression";
 import crypto from 'crypto';
 import fs from 'fs';
 import https from 'https';
-import { askQuestionWithFunctions } from './agent';
+import { getAgentFromName } from './agent';
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
+import { rateLimit } from 'express-rate-limit'
 
 import "dotenv/config";
 import express, { NextFunction, Request, Response } from "express";
@@ -25,7 +26,20 @@ const Query = z.object({
    question: z.string().describe('The question to ask the AI')
 });
 
+const Validate = z.object({
+   session: z.string().optional().describe('The session id'),
+   data: z.any().describe('The data to validate')
+});
+
 const app = express();
+
+app.use(rateLimit({
+   windowMs: 1 * 60 * 1000, // 1 minute
+   limit: 60, // Limit each IP to 60 requests per `window` (here, per 1 minute).
+   standardHeaders: 'draft-8', // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
+   legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
+   // store: ... , // Redis, Memcached, etc. See https://github.com/express-rate-limit/express-rate-limit
+}));
 
 app.use(compression({ filter: shouldCompress }));
 
@@ -74,28 +88,21 @@ app.post("/login", async (req: Request, res: Response) => {
    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ session }));
 });
 
-app.post("/:agent", async (req: Request, res: Response) => {
+app.post("/validate/:agent", async (req: Request, res: Response) => {
 
-   let answer: string = "";
+   const { session, data } = Validate.parse(req.body);
 
-   const { session, question } = Query.parse(req.body);
+   const sessionEntity = await checkSession(session, res);
 
-   if (!session)
+   if (!sessionEntity) {
       sendAuthenticationRequired(res);
+      return;
+   }
 
-   const sessionEntity = await registry.get(Session)?.getByUniqueValues(session);
-
-   if (!sessionEntity)
-      sendAuthenticationRequired(res);
-
-   sessionEntity!.setPing(new Date());
-
-   sessionEntity!.save();
-
-   let error;
+   let error, validated;
    try {
-      const agentName = req.params.agent;
-      answer = await askQuestionWithFunctions(session!, agentName, question);
+      const agent = getAgentFromName(req.params.agent);
+      validated = await agent.validate(sessionEntity, data);
    } catch (e) {
       error = e;
    }
@@ -103,11 +110,40 @@ app.post("/:agent", async (req: Request, res: Response) => {
    if (error)
       res.status(500).send("Error: " + error);
    else {
-      const content = JSON.stringify({ answer, session });
+      const content = JSON.stringify({ session, validated });
       Logger.debug(content);
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
    }
 });
+
+app.post("/chat/:agent", async (req: Request, res: Response) => {
+
+   const { session, question } = Query.parse(req.body);
+
+   const sessionEntity = await checkSession(session, res);
+
+   if(!sessionEntity) {
+      sendAuthenticationRequired(res);
+      return;
+   }
+
+   let error, answer: string = "";
+   try {
+      const agent = getAgentFromName(req.params.agent);
+      answer = await agent.askQuestion(sessionEntity, question);
+   } catch (e) {
+      error = e;
+   }
+
+   if (error)
+      res.status(500).send("Error: " + error);
+   else {
+      const content = JSON.stringify({ session, answer });
+      Logger.debug(content);
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
+   }
+});
+
 const PORT: number = +process.env.PORT!;
 const HOST: string = process.env.HOST!;
 const server = https.createServer(options, app).listen(PORT, HOST, async () => {
@@ -132,6 +168,21 @@ server.on('connection', connection => {
 process.on('SIGTERM', gracefulShutdown);
 
 process.on('SIGINT', gracefulShutdown);
+
+async function checkSession(session: string | undefined, res: express.Response<any, Record<string, any>>) {
+
+   if (!session)
+      return;
+
+   const sessionEntity = await registry.get(Session)?.getByUniqueValues(session);
+
+   if(sessionEntity) {
+      sessionEntity.setPing(new Date());
+      sessionEntity.save();
+   }
+
+   return sessionEntity;
+}
 
 function sendAuthenticationRequired(res: Response) {
    res.set('WWW-Authenticate', 'Basic realm="401"'); // change this
