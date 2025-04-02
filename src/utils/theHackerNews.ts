@@ -3,6 +3,23 @@ import { PlaywrightCrawler } from 'crawlee';
 // Create an instance of the PlaywrightCrawler class - a crawler
 // that automatically loads the URLs in headless Chrome / Playwright.
 const crawler = new PlaywrightCrawler({
+
+   preNavigationHooks: [
+      async ({ request, page, log }) => {
+         log.info(`Navigating to ${request.url}...`);
+         // Here you can add any pre-navigation logic, such as setting cookies or modifying headers.
+         // For example:
+         // await page.setCookie({ name: 'myCookie', value: 'cookieValue' });
+         page.context().addCookies([
+            {
+               name: 'JSESSIONID',
+               value: 'DED838CD1FBC6E443D516ACA3A6B25E7',
+               url: request.url,
+            },
+         ]);
+      }
+   ],
+
    launchContext: {
       // Here you can set options that are passed to the playwright .launch() function.
       launchOptions: {
