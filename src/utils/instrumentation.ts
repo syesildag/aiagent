@@ -1,4 +1,5 @@
 import { Description, makeTool } from './makeTool';
+import { z } from 'zod';
 
 interface ToolFunction {
    name: any;
@@ -13,7 +14,7 @@ interface Tool {
 
 export default class Instrumentation {
 
-   private functions: { [fnName: string]: any; };
+   private functions: { [fnName: string]: Description<z.ZodObject<any>> };
 
    private tools: Tool[];
 

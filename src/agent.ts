@@ -9,9 +9,10 @@ export type AgentName =
 "weather" |
 "database";
 
-export interface Agent<V=any> {
+export interface Agent {
    askQuestion(session: Session, question: string): Promise<string>;
-   validate(session: Session, data: V): Promise<boolean>;
+   validate(session: Session, data?: any, validate?: string): Promise<boolean>;
+   getToolSystemPrompt(): string;
    getSystemPrompt(): string;
    getUserPrompt(question: string): string;
    getAssistantPrompt(): string | undefined;

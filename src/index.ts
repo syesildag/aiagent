@@ -28,7 +28,8 @@ const Query = z.object({
 
 const Validate = z.object({
    session: z.string().optional().describe('The session id'),
-   data: z.any().describe('The data to validate')
+   data: z.any().describe('The data to validate'),
+   validate: z.string().optional().describe('validate name')
 });
 
 const app = express();
@@ -90,7 +91,7 @@ app.post("/login", async (req: Request, res: Response) => {
 
 app.post("/validate/:agent", async (req: Request, res: Response) => {
 
-   const { session, data } = Validate.parse(req.body);
+   const { session, data, validate } = Validate.parse(req.body);
 
    const sessionEntity = await checkSession(session, res);
 
@@ -102,7 +103,7 @@ app.post("/validate/:agent", async (req: Request, res: Response) => {
    let error, validated;
    try {
       const agent = getAgentFromName(req.params.agent);
-      validated = await agent.validate(sessionEntity, data);
+      validated = await agent.validate(sessionEntity, data, validate);
    } catch (e) {
       error = e;
    }

@@ -5,20 +5,22 @@ import client from "../utils/ollama";
 import { queryDatabase } from "../utils/pgClient";
 import { Session } from "../repository/entities/session";
 
-export default abstract class AbstractAgent<V=any> implements Agent<V> {
+export default abstract class AbstractAgent implements Agent {
 
    getUserPrompt(question: string): string {
       return `Question: ${question}`;
    }
 
-   getSystemPrompt(): string {
+   getToolSystemPrompt(): string {
       return `
 Cutting Knowledge Date: December 2023
 Today Date: 23 July 2024
-
 When you receive a tool call response, use the output to format an answer to the orginal user question.
-
 You are a helpful assistant with tool calling capabilities.`;
+   }
+
+   getSystemPrompt(): string {
+      return `You are a helpful assistant`;
    }
 
    getAssistantPrompt(): string | undefined {
@@ -36,13 +38,21 @@ You are a helpful assistant with tool calling capabilities.`;
       };
    }
 
-   async validate(session: Session, data: V): Promise<boolean> {
-      return false;
+   async validate(session: Session, data: any, validate: string): Promise<boolean> {
+      const { functions } = this.getInstrumentation().extract();
+      const selectedFunction = functions[validate];
+
+      if(!selectedFunction.validation)
+         throw new Error(`Invalid function selected: ${validate}`);
+
+      return await selectedFunction.validation(data);
    }
 
    async askQuestion(session: Session, question: string): Promise<string> {
 
       const { tools, functions } = this.getInstrumentation().extract();
+
+      const toolSystemPrompt = this.getToolSystemPrompt();
 
       const systemPrompt = this.getSystemPrompt();
 
@@ -50,7 +60,7 @@ You are a helpful assistant with tool calling capabilities.`;
 
       let messages: Message[] = [{
          role: "system",
-         content: systemPrompt
+         content: toolSystemPrompt
       }, {
          role: "user",
          content: userPrompt
@@ -96,10 +106,11 @@ You are a helpful assistant with tool calling capabilities.`;
          return functionCallData.message.content;
       }
 
-      messages.push(functionCallData.message);
-
       for (let toolContent of toolContents)
          messages.push({ role: "tool", content: toolContent });
+
+      // Add the system prompt to the messages array
+      messages[0].content = systemPrompt;
 
       const answerData = await client.chat({
          model: String(process.env.OLLAMA_MODEL),
