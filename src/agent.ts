@@ -15,7 +15,7 @@ export interface Agent {
    chat(prompt: string): Promise<string>;
    validate(data?: any): Promise<boolean>;
    getToolSystemPrompt(): string;
-   getSystemPrompt(): string;
+   getSystemPrompt(): string | undefined;
    getUserPrompt(question: string): string;
    getAssistantPrompt(): string | undefined;
    getName(): AgentName;

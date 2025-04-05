@@ -5,6 +5,7 @@ import client from "../utils/ollama";
 import { queryDatabase } from "../utils/pgClient";
 import { Session } from "../repository/entities/session";
 import { date } from "zod";
+import Logger from "../utils/logger";
 
 export default abstract class AbstractAgent implements Agent {
 
@@ -16,15 +17,15 @@ export default abstract class AbstractAgent implements Agent {
 
    getToolSystemPrompt(): string {
       return `
-Cutting Knowledge Date: December 2023
-Today Date: ${date().toString()}
-
-You are a helpful assistant with tool calling capabilities.
-When you receive a tool call response, use the output to format an answer to the orginal user question.`;
+You are an expert in composing functions. You are given a question and a set of possible functions.
+Based on the question, you will need to make one or more function/tool calls to achieve the purpose.
+If none of the functions can be used, point it out. If the given question lacks the parameters required by the function,also point it out. You should only return the function call in tools call sections.
+If you decide to invoke any of the function(s), you MUST put it in the format of [func_name1(params_name1=params_value1, params_name2=params_value2...), func_name2(params)]
+You SHOULD NOT include any other text in the response.`;
    }
 
-   getSystemPrompt(): string {
-      return `You are a helpful assistant`;
+   getSystemPrompt(): string | undefined {
+      return "You are a helpful assistant.";
    }
 
    getAssistantPrompt(): string | undefined {
@@ -119,8 +120,13 @@ When you receive a tool call response, use the output to format an answer to the
       for (let toolContent of toolContents)
          messages.push({ role: "tool", content: toolContent });
 
+      if(systemPrompt)
       // Add the system prompt to the messages array
       messages[0].content = systemPrompt;
+      else
+         messages.shift();
+
+      Logger.debug(`Messages after tool call: ${JSON.stringify(messages)}`);
 
       const answerData = await client.chat({
          model: String(process.env.OLLAMA_MODEL),
