@@ -151,7 +151,11 @@ app.post("/chat/:agent", async (req: Request, res: Response) => {
    if (error)
       res.status(500).send("Error: " + error);
    else {
-      const content = JSON.stringify({ answer, validate });
+      const response: any = { answer };
+      if(validate)
+         response.validate = true;
+
+      const content = JSON.stringify(response);
       Logger.debug(content);
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
    }
