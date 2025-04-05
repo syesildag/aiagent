@@ -71,6 +71,26 @@ app.use(express.text({ limit: '1mb' }));
 // URLENCODED parsing middleware
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
+// Custom middleware for token-based authentication
+async function sessionMiddleware(req: Request, res: Response, next: NextFunction) {
+   if (req.headers['content-type'] === 'application/json') {
+      const session = req.body.session;
+      if (session) {
+         const sessionEntity = await repository.get(Session)?.getByUniqueValues(session);
+         if (!sessionEntity) {
+            sendAuthenticationRequired(res);
+            return;
+         }
+         res.locals.session = sessionEntity;
+         sessionEntity.setPing(new Date());
+         sessionEntity.save();
+      }
+   }
+   next();
+}
+
+app.use(sessionMiddleware);
+
 app.post("/login", async (req: Request, res: Response) => {
 
    // parse login and password from headers
@@ -93,19 +113,11 @@ app.post("/login", async (req: Request, res: Response) => {
 
 app.post("/validate/:agent", async (req: Request, res: Response) => {
 
-   const { session, data } = Validate.parse(req.body);
-
-   const sessionEntity = await checkSession(session, res);
-
-   if (!sessionEntity) {
-      sendAuthenticationRequired(res);
-      return;
-   }
-
    let error, validated;
    try {
       const agent = getAgentFromName(req.params.agent);
-      agent.setSession(sessionEntity);
+      agent.setSession(res.locals.session);
+      const { data } = Validate.parse(req.body);
       validated = await agent.validate(data);
    } catch (e) {
       error = e;
@@ -122,22 +134,14 @@ app.post("/validate/:agent", async (req: Request, res: Response) => {
 
 app.post("/chat/:agent", async (req: Request, res: Response) => {
 
-   const { session, prompt } = Query.parse(req.body);
-
-   const sessionEntity = await checkSession(session, res);
-
-   if(!sessionEntity) {
-      sendAuthenticationRequired(res);
-      return;
-   }
-
    let agent: Agent,
-       validate: boolean = false,
-       error,
-       answer: string = "";
+      validate: boolean = false,
+      error,
+      answer: string = "";
    try {
+      const { prompt } = Query.parse(req.body);
       agent = getAgentFromName(req.params.agent);
-      agent.setSession(sessionEntity);
+      agent.setSession(res.locals.session);
       answer = await agent.chat(prompt);
       validate = agent.shouldValidate();
    } catch (e) {
@@ -177,21 +181,6 @@ server.on('connection', connection => {
 process.on('SIGTERM', gracefulShutdown);
 
 process.on('SIGINT', gracefulShutdown);
-
-async function checkSession(session: string | undefined, res: express.Response<any, Record<string, any>>) {
-
-   if (!session)
-      return;
-
-   const sessionEntity = await repository.get(Session)?.getByUniqueValues(session);
-
-   if(sessionEntity) {
-      sessionEntity.setPing(new Date());
-      sessionEntity.save();
-   }
-
-   return sessionEntity;
-}
 
 function sendAuthenticationRequired(res: Response) {
    res.set('WWW-Authenticate', 'Basic realm="401"'); // change this

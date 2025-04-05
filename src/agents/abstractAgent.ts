@@ -4,6 +4,7 @@ import Instrumentation from "../utils/instrumentation";
 import client from "../utils/ollama";
 import { queryDatabase } from "../utils/pgClient";
 import { Session } from "../repository/entities/session";
+import { date } from "zod";
 
 export default abstract class AbstractAgent implements Agent {
 
@@ -16,9 +17,10 @@ export default abstract class AbstractAgent implements Agent {
    getToolSystemPrompt(): string {
       return `
 Cutting Knowledge Date: December 2023
-Today Date: 23 July 2024
-When you receive a tool call response, use the output to format an answer to the orginal user question.
-You are a helpful assistant with tool calling capabilities.`;
+Today Date: ${date().toString()}
+
+You are a helpful assistant with tool calling capabilities.
+When you receive a tool call response, use the output to format an answer to the orginal user question.`;
    }
 
    getSystemPrompt(): string {
