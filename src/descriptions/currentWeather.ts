@@ -15,7 +15,7 @@ const fetchCurrentWeather: Description<typeof WeatherParams> = {
       const apiKey = process.env.OPENWEATHER_API_KEY;
       const url = `https://api.openweathermap.org/data/2.5/weather?q=${location}&appid=${apiKey}&units=metric`;
       const response = await fetch(url);
-      return JSON.stringify(await response.json());
+      return `Current weather information for ${location} is: ${JSON.stringify(await response.json()) }`;
    }
 };
 

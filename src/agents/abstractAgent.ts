@@ -1,11 +1,10 @@
 import { Message, Options } from "ollama";
 import { Agent, AgentName } from "../agent";
+import { Session } from "../repository/entities/session";
 import Instrumentation from "../utils/instrumentation";
+import Logger from "../utils/logger";
 import client from "../utils/ollama";
 import { queryDatabase } from "../utils/pgClient";
-import { Session } from "../repository/entities/session";
-import { date } from "zod";
-import Logger from "../utils/logger";
 
 export default abstract class AbstractAgent implements Agent {
 
@@ -25,7 +24,9 @@ You SHOULD NOT include any other text in the response.`;
    }
 
    getSystemPrompt(): string | undefined {
-      return "You are a helpful assistant.";
+      return `
+      Current date is: ${new Date().toISOString()}
+      You are a helpful assistant who has 100% confidence on function/tool calls and gives short answers in the user's chosen language.`;
    }
 
    getAssistantPrompt(): string | undefined {
@@ -47,7 +48,7 @@ You SHOULD NOT include any other text in the response.`;
    getOptions(): Partial<Options> {
       return {
          seed: 123,
-         temperature: 1,
+         temperature: 0,
       };
    }
 
