@@ -5,7 +5,6 @@ export interface Description<T extends z.ZodObject<any>> {
    name: string;
    description: string;
    parameters: T;
-   validation?: (params: z.infer<T>) => Promise<boolean>;
    implementation: (params: z.infer<T>) => Promise<any>;
 }
 
@@ -14,7 +13,6 @@ export function makeTool(d: Description<z.ZodObject<any>>) {
       name: d.name,
       description: d.description,
       parameters: zodToJsonSchema(d.parameters, "schema").definitions?.schema,
-      validation: d.validation,
       implementation: d.implementation
    };
 }

@@ -10,8 +10,10 @@ export type AgentName =
 "database";
 
 export interface Agent {
-   askQuestion(session: Session, question: string): Promise<string>;
-   validate(session: Session, data?: any, validate?: string): Promise<boolean>;
+   setSession(session: Session): void;
+   shouldValidate(): boolean;
+   chat(prompt: string): Promise<string>;
+   validate(data?: any): Promise<boolean>;
    getToolSystemPrompt(): string;
    getSystemPrompt(): string;
    getUserPrompt(question: string): string;

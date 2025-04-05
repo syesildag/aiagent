@@ -7,6 +7,8 @@ import { Session } from "../repository/entities/session";
 
 export default abstract class AbstractAgent implements Agent {
 
+   private session?: Session;
+
    getUserPrompt(question: string): string {
       return `Question: ${question}`;
    }
@@ -31,6 +33,14 @@ You are a helpful assistant with tool calling capabilities.`;
 
    abstract getInstrumentation(): Instrumentation;
 
+   setSession(session: Session) {
+      this.session = session;
+   }
+
+   getSession(): Session | undefined {
+      return this.session;
+   }
+
    getOptions(): Partial<Options> {
       return {
          seed: 123,
@@ -38,17 +48,15 @@ You are a helpful assistant with tool calling capabilities.`;
       };
    }
 
-   async validate(session: Session, data: any, validate: string): Promise<boolean> {
-      const { functions } = this.getInstrumentation().extract();
-      const selectedFunction = functions[validate];
-
-      if(!selectedFunction.validation)
-         throw new Error(`Invalid function selected: ${validate}`);
-
-      return await selectedFunction.validation(data);
+   shouldValidate(): boolean {
+      return false;
    }
 
-   async askQuestion(session: Session, question: string): Promise<string> {
+   async validate(data: any): Promise<boolean> {
+      return false;
+   }
+
+   async chat(prompt: string): Promise<string> {
 
       const { tools, functions } = this.getInstrumentation().extract();
 
@@ -56,7 +64,7 @@ You are a helpful assistant with tool calling capabilities.`;
 
       const systemPrompt = this.getSystemPrompt();
 
-      const userPrompt = this.getUserPrompt(question);
+      const userPrompt = this.getUserPrompt(prompt);
 
       let messages: Message[] = [{
          role: "system",
@@ -102,7 +110,7 @@ You are a helpful assistant with tool calling capabilities.`;
          }
       }
       else {
-         await this.saveConversation(session, question, functionCallData.message.content);
+         await this.saveConversation(prompt, functionCallData.message.content);
          return functionCallData.message.content;
       }
 
@@ -121,12 +129,12 @@ You are a helpful assistant with tool calling capabilities.`;
 
       const finalAnswer = answerData.message.content;
 
-      await this.saveConversation(session, question, finalAnswer);
+      await this.saveConversation(prompt, finalAnswer);
 
       return finalAnswer;
    }
 
-   async saveConversation(session: Session, question: string, answer: string) {
+   async saveConversation(question: string, answer: string) {
       
       const query = `
        INSERT INTO conversations (question, answer)

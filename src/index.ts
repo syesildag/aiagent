@@ -2,7 +2,7 @@ import compression from "compression";
 import crypto from 'crypto';
 import fs from 'fs';
 import https from 'https';
-import { getAgentFromName } from './agent';
+import { Agent, getAgentFromName } from './agent';
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
 import { rateLimit } from 'express-rate-limit'
 
@@ -23,7 +23,7 @@ const options: https.ServerOptions = {
 
 const Query = z.object({
    session: z.string().optional().describe('The session id'),
-   question: z.string().describe('The question to ask the AI')
+   prompt: z.string().describe('user prompt')
 });
 
 const Validate = z.object({
@@ -78,8 +78,10 @@ app.post("/login", async (req: Request, res: Response) => {
    const [username, password] = Buffer.from(b64auth, 'base64').toString().split(':')
    const sqlQuery = ` SELECT id FROM "user" WHERE login = $1 AND password = $2`;
    const results = await queryDatabase(sqlQuery, [username, crypto.createHash('sha256').update(password).digest('base64')]);
-   if (results.length === 0)
+   if (results.length === 0) {
       sendAuthenticationRequired(res); // custom message
+      return;
+   }
 
    //save session to database
    const session = randomAlphaNumeric(3);
@@ -91,7 +93,7 @@ app.post("/login", async (req: Request, res: Response) => {
 
 app.post("/validate/:agent", async (req: Request, res: Response) => {
 
-   const { session, data, validate } = Validate.parse(req.body);
+   const { session, data } = Validate.parse(req.body);
 
    const sessionEntity = await checkSession(session, res);
 
@@ -103,7 +105,8 @@ app.post("/validate/:agent", async (req: Request, res: Response) => {
    let error, validated;
    try {
       const agent = getAgentFromName(req.params.agent);
-      validated = await agent.validate(sessionEntity, data, validate);
+      agent.setSession(sessionEntity);
+      validated = await agent.validate(data);
    } catch (e) {
       error = e;
    }
@@ -111,7 +114,7 @@ app.post("/validate/:agent", async (req: Request, res: Response) => {
    if (error)
       res.status(500).send("Error: " + error);
    else {
-      const content = JSON.stringify({ session, validated });
+      const content = JSON.stringify({ validated });
       Logger.debug(content);
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
    }
@@ -119,7 +122,7 @@ app.post("/validate/:agent", async (req: Request, res: Response) => {
 
 app.post("/chat/:agent", async (req: Request, res: Response) => {
 
-   const { session, question } = Query.parse(req.body);
+   const { session, prompt } = Query.parse(req.body);
 
    const sessionEntity = await checkSession(session, res);
 
@@ -128,10 +131,15 @@ app.post("/chat/:agent", async (req: Request, res: Response) => {
       return;
    }
 
-   let error, answer: string = "";
+   let agent: Agent,
+       validate: boolean = false,
+       error,
+       answer: string = "";
    try {
-      const agent = getAgentFromName(req.params.agent);
-      answer = await agent.askQuestion(sessionEntity, question);
+      agent = getAgentFromName(req.params.agent);
+      agent.setSession(sessionEntity);
+      answer = await agent.chat(prompt);
+      validate = agent.shouldValidate();
    } catch (e) {
       error = e;
    }
@@ -139,7 +147,7 @@ app.post("/chat/:agent", async (req: Request, res: Response) => {
    if (error)
       res.status(500).send("Error: " + error);
    else {
-      const content = JSON.stringify({ session, answer });
+      const content = JSON.stringify({ answer, validate });
       Logger.debug(content);
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
    }
