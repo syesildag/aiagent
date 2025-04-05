@@ -25,8 +25,8 @@ You SHOULD NOT include any other text in the response.`;
 
    getSystemPrompt(): string | undefined {
       return `
-      Current date is: ${new Date().toISOString()}
-      You are a helpful assistant who has 100% confidence on function/tool calls and gives short answers in the user's chosen language.`;
+      Current date time is: ${new Date().toISOString()}
+      You are a helpful assistant like JARVIS in Iron Man who gives succint answers in the user's chosen language.`;
    }
 
    getAssistantPrompt(): string | undefined {
@@ -103,14 +103,13 @@ You SHOULD NOT include any other text in the response.`;
                const args = func.arguments;
                const selectedFunction = functions[name];
                if (!selectedFunction)
-                  throw new Error(`Invalid tool selected: ${name}`);
+                  throw new Error(`Invalid tool selected: ${JSON.stringify(func)}`);
                return await selectedFunction.implementation(args);
             }));
             toolContents.push(...results);
          }
          catch (error) {
             console.error("Error: ", error);
-            return "";
          }
       }
       else {
@@ -121,9 +120,9 @@ You SHOULD NOT include any other text in the response.`;
       for (let toolContent of toolContents)
          messages.push({ role: "tool", content: toolContent });
 
-      if(systemPrompt)
-      // Add the system prompt to the messages array
-      messages[0].content = systemPrompt;
+      if (systemPrompt)
+         // Add the system prompt to the messages array
+         messages[0].content = systemPrompt;
       else
          messages.shift();
 
@@ -144,15 +143,15 @@ You SHOULD NOT include any other text in the response.`;
    }
 
    async saveConversation(question: string, answer: string) {
-      
+
       const query = `
        INSERT INTO conversations (question, answer)
        VALUES ($1, $2)
        RETURNING id;
      `;
-      
+
       const result = await queryDatabase(query, [question, answer]);
-      
+
       return result[0]?.id;
    }
 }
