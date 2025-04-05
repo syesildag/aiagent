@@ -11,7 +11,7 @@ import express, { NextFunction, Request, Response } from "express";
 import { Duplex } from "stream";
 import { z } from 'zod';
 import { Session } from "./repository/entities/session";
-import { registry } from "./repository/registry";
+import { repository } from "./repository/registry";
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
 import Logger from "./utils/logger";
 
@@ -183,7 +183,7 @@ async function checkSession(session: string | undefined, res: express.Response<a
    if (!session)
       return;
 
-   const sessionEntity = await registry.get(Session)?.getByUniqueValues(session);
+   const sessionEntity = await repository.get(Session)?.getByUniqueValues(session);
 
    if(sessionEntity) {
       sessionEntity.setPing(new Date());

@@ -2,7 +2,7 @@ import { AbstractRepository, Entity } from "../abstractRepository";
 import { Column } from "../annotations/Column";
 import { Find } from "../annotations/find";
 import { Id } from "../annotations/Id";
-import { registry } from "../registry";
+import { repository } from "../registry";
 
 export class Session extends Entity {
 
@@ -63,8 +63,8 @@ export class SessionRepository extends AbstractRepository<Session> {
    }
 }
 
-const repository = new SessionRepository();
+const sessionRepository = new SessionRepository();
 
-registry.set(Session, repository);
+repository.set(Session, sessionRepository);
 
-export default repository;
+export default sessionRepository;

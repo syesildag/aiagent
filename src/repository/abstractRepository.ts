@@ -2,13 +2,13 @@ import { queryDatabase } from "../utils/pgClient";
 import ReflectMetadata from "../utils/reflectMetadata";
 import { __columnFields__, __fieldColumn__, __notNullColumns__, __uniqueColumns__ } from "./annotations/Column";
 import { __id__ } from "./annotations/Id";
-import { registry } from "./registry";
+import { repository } from "./registry";
 import { Table } from "./table";
 
 export abstract class Entity {
    abstract getId(): number | undefined;
    public save() {
-      return registry.get(this.constructor as Constructor<Entity>)?.save(this);
+      return repository.get(this.constructor as Constructor<Entity>)?.save(this);
    }
 }
 
