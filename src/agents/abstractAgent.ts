@@ -14,19 +14,12 @@ export default abstract class AbstractAgent implements Agent {
       return `Question: ${question}`;
    }
 
-   getToolSystemPrompt(): string {
-      return `
-You are an expert in composing functions. You are given a question and a set of possible functions.
-Based on the question, you will need to make one or more function/tool calls to achieve the purpose.
-If none of the functions can be used, point it out. If the given question lacks the parameters required by the function,also point it out. You should only return the function call in tools call sections.
-If you decide to invoke any of the function(s), you MUST put it in the format of [func_name1(params_name1=params_value1, params_name2=params_value2...), func_name2(params)]
-You SHOULD NOT include any other text in the response.`;
+   getToolSystemPrompt(): string | undefined{
+      return undefined;
    }
 
    getSystemPrompt(): string | undefined {
-      return `
-      Current date time is: ${new Date().toISOString()}
-      You are a helpful assistant like JARVIS in Iron Man who gives succint answers in the user's chosen language.`;
+      return undefined;
    }
 
    getAssistantPrompt(): string | undefined {
@@ -70,13 +63,19 @@ You SHOULD NOT include any other text in the response.`;
 
       const userPrompt = this.getUserPrompt(prompt);
 
-      let messages: Message[] = [{
-         role: "system",
-         content: toolSystemPrompt
-      }, {
+      let messages: Message[] = [];
+
+      if(!!toolSystemPrompt) {
+         messages.push({
+            role: "system",
+            content: toolSystemPrompt
+         });
+      }
+
+      messages.push({
          role: "user",
          content: userPrompt
-      }];
+      });
 
       const assistantPrompt = this.getAssistantPrompt();
       if (assistantPrompt) {
@@ -120,11 +119,19 @@ You SHOULD NOT include any other text in the response.`;
       for (let toolContent of toolContents)
          messages.push({ role: "tool", content: toolContent });
 
-      if (systemPrompt)
-         // Add the system prompt to the messages array
-         messages[0].content = systemPrompt;
+      const systemMessage = messages.find((message) => message.role === "system");
+
+      if (systemPrompt) {
+         if(systemMessage)
+            systemMessage.content = systemPrompt;
+         else
+            messages.unshift({
+               role: "system",
+               content: systemPrompt
+            });
+      }
       else
-         messages.shift();
+         messages = messages.filter((message) => message.role !== "system");
 
       Logger.debug(`Messages after tool call: ${JSON.stringify(messages)}`);
 
