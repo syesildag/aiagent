@@ -14,7 +14,7 @@ class DatabaseAgent extends AbstractAgent {
    }
 
    getUserPrompt(question: string): string {
-      return `Given the following SQL schema ->
+      return `Given the following PostgreSQL schema ->
 CREATE TABLE public.countries (
     id integer NOT NULL,
     iso character(2) NOT NULL,
