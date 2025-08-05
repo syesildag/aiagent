@@ -37,6 +37,5 @@
 - All tests should pass before committing
 
 ## Input Validation
-- Use validation middleware from `src/utils/validation.ts`
-- Common schemas available in `commonSchemas`
-- Always validate API inputs with Zod schemas
+- Always validate inputs with Zod schemas
+- Use custom error classes for validation failures
