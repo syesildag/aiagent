@@ -2,6 +2,7 @@ import { Agent, AgentName } from "../agent";
 import AbstractAgent from "./abstractAgent";
 import Instrumentation from "../utils/instrumentation";
 import { McpServerInstance } from "../mcp/types";
+import { McpInstrumentation } from "../mcp/mcpInstrumentation";
 
 export interface AgentConfig {
    name: AgentName;
@@ -36,11 +37,11 @@ export class McpAgentFactory {
    registerMcpServer(name: string, serverInstance: McpServerInstance): void {
       this.mcpServers.set(name, serverInstance);
       
-      const mockInstrumentation = new Instrumentation();
+      const mcpInstrumentation = new McpInstrumentation(serverInstance);
       
       const config: AgentConfig = {
          name: name as AgentName,
-         instrumentation: mockInstrumentation,
+         instrumentation: mcpInstrumentation,
          systemPrompt: `You are an MCP agent for ${name}. Use the available tools to help users.`,
          toolSystemPrompt: `You have access to tools from the ${name} MCP server.`
       };

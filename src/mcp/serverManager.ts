@@ -77,6 +77,15 @@ export class McpServerManager {
          await this.waitForServerReady(instance);
          instance.isRunning = true;
 
+         // Discover available tools
+         try {
+            instance.tools = await this.discoverTools(instance.name);
+            Logger.info(`Discovered ${instance.tools.length} tools for MCP server '${instance.name}'`);
+         } catch (error) {
+            Logger.warn(`Failed to discover tools for '${instance.name}': ${error instanceof Error ? error.message : String(error)}`);
+            instance.tools = [];
+         }
+
          Logger.info(`Started local MCP server '${instance.name}'`);
       } catch (error) {
          throw new McpServerError(`Failed to start local MCP server '${instance.name}': ${error instanceof Error ? error.message : String(error)}`);
@@ -105,6 +114,16 @@ export class McpServerManager {
          };
          
          instance.isRunning = true;
+
+         // Discover available tools
+         try {
+            instance.tools = await this.discoverTools(instance.name);
+            Logger.info(`Discovered ${instance.tools.length} tools for remote MCP server '${instance.name}'`);
+         } catch (error) {
+            Logger.warn(`Failed to discover tools for '${instance.name}': ${error instanceof Error ? error.message : String(error)}`);
+            instance.tools = [];
+         }
+
          Logger.info(`Connected to remote MCP server '${instance.name}' at ${config.url}`);
       } catch (error) {
          throw new McpConnectionError(`Failed to connect to remote MCP server '${instance.name}': ${error instanceof Error ? error.message : String(error)}`);
@@ -169,8 +188,50 @@ export class McpServerManager {
       }
    }
 
-   private async discoverLocalTools(_instance: McpServerInstance): Promise<any[]> {
-      return [];
+   private async discoverLocalTools(instance: McpServerInstance): Promise<any[]> {
+      if (!instance.process) {
+         throw new Error('Local server process not available');
+      }
+
+      return new Promise((resolve, reject) => {
+         const request = {
+            id: Date.now(),
+            method: 'tools/list',
+            params: {}
+         };
+
+         let responseData = '';
+         
+         const timeout = setTimeout(() => {
+            reject(new Error('Tool discovery timeout'));
+         }, 10000); // 10 second timeout
+
+         const onData = (data: Buffer) => {
+            responseData += data.toString();
+            try {
+               const response = JSON.parse(responseData);
+               if (response.id === request.id) {
+                  clearTimeout(timeout);
+                  instance.process?.stdout?.off('data', onData);
+                  
+                  if (response.error) {
+                     reject(new Error(response.error.message || 'Tool discovery error'));
+                  } else {
+                     resolve(response.result?.tools || []);
+                  }
+               }
+            } catch {
+               // Continue accumulating data
+            }
+         };
+
+         instance.process.stdout?.on('data', onData);
+
+         // Send the tool discovery request
+         instance.process.stdin?.write(JSON.stringify(request) + '\n');
+
+         Logger.debug(`Sent MCP tool discovery request: ${JSON.stringify(request)}`);
+      });
    }
 
    private async discoverRemoteTools(instance: McpServerInstance): Promise<any[]> {
@@ -178,14 +239,25 @@ export class McpServerManager {
          throw new Error('No connection available');
       }
 
+      const requestBody = {
+         method: 'tools/list',
+         params: {}
+      };
+
       const response = await fetch(`${instance.connection.url}/tools`, {
-         headers: instance.connection.headers
+         method: 'POST',
+         headers: {
+            'Content-Type': 'application/json',
+            ...instance.connection.headers
+         },
+         body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      return result.tools || [];
    }
 }
