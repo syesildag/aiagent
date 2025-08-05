@@ -6,8 +6,6 @@ WARN: Indicates potentially harmful situations that might not stop the applicati
 ERROR: Logs error events that might still allow the application to continue running.
 */
 
-import { isProduction } from "./environment";
-
 export interface Logger {
    trace: (message: any) => void;
    debug: (message: any) => void;
@@ -25,51 +23,41 @@ export class ConsoleLogger implements Logger {
       };
    }
 
-   //create a method trace which logs
    trace(message: any) {
       console.trace(this.createLogMessage(message));
    }
-   //create a method debug which logs
    debug(message: any) {
       console.debug(this.createLogMessage(message));
    }
-   //create a method info which logs
    info(message: any) {
       console.info(this.createLogMessage(message));
    }
-   //create a method warn which logs
    warn(message: any) {
       console.warn(this.createLogMessage(message));
    }
-   //create a method error which logs
    error(message: any) {
       console.error(this.createLogMessage(message));
    }
 }
 
 export class DummyLogger implements Logger {
-   //create a method trace which logs
-   trace(message: any) {
-      //do nothing
+   trace(_message: any) {
+      // do nothing
    }
-   //create a method debug which logs
-   debug(message: any) {
-      //do nothing
+   debug(_message: any) {
+      // do nothing
    }
-   //create a method info which logs
-   info(message: any) {
-      //do nothing
+   info(_message: any) {
+      // do nothing
    }
-   //create a method warn which logs
-   warn(message: any) {
-      //do nothing
+   warn(_message: any) {
+      // do nothing
    }
-   //create a method error which logs
-   error(message: any) {
-      //do nothing
+   error(_message: any) {
+      // do nothing
    }
 }
 
-const Logger: Logger = isProduction() ? new DummyLogger : new ConsoleLogger();
+const Logger: Logger = process.env.NODE_ENV === 'production' ? new DummyLogger() : new ConsoleLogger();
 
 export default Logger;

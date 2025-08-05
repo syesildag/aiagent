@@ -1,3 +1,5 @@
 import {Ollama} from 'ollama';
-const client = new Ollama({ host: process.env.OLLAMA_HOST });
+import { config } from './config';
+
+const client = new Ollama({ host: config.OLLAMA_HOST });
 export default client;

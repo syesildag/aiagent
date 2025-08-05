@@ -5,6 +5,7 @@ import Instrumentation from "../utils/instrumentation";
 import Logger from "../utils/logger";
 import client from "../utils/ollama";
 import { queryDatabase } from "../utils/pgClient";
+import { config } from "../utils/config";
 
 export default abstract class AbstractAgent implements Agent {
 
@@ -49,10 +50,9 @@ export default abstract class AbstractAgent implements Agent {
       return false;
    }
 
-   async validate(data: any): Promise<boolean> {
+   async validate(_data?: any): Promise<boolean> {
       return false;
    }
-
    async chat(prompt: string): Promise<string> {
 
       const { tools, functions } = this.getInstrumentation().extract();
@@ -86,12 +86,11 @@ export default abstract class AbstractAgent implements Agent {
       }
 
       let functionCallData = await client.chat({
-         model: String(process.env.OLLAMA_MODEL),
+         model: config.OLLAMA_MODEL,
          messages,
          stream: false,
          tools
       });
-
       let toolContents: any[] = [];
       let toolCalls = functionCallData.message.tool_calls;
       if (!!toolCalls) {
@@ -108,10 +107,10 @@ export default abstract class AbstractAgent implements Agent {
             toolContents.push(...results);
          }
          catch (error) {
-            console.error("Error: ", error);
+            Logger.error(`Tool execution failed: ${error instanceof Error ? error.message : String(error)}`);
+            return "";
          }
-      }
-      else {
+      }      else {
          await this.saveConversation(prompt, functionCallData.message.content);
          return functionCallData.message.content;
       }
@@ -136,12 +135,11 @@ export default abstract class AbstractAgent implements Agent {
       Logger.debug(`Messages after tool call: ${JSON.stringify(messages)}`);
 
       const answerData = await client.chat({
-         model: String(process.env.OLLAMA_MODEL),
+         model: config.OLLAMA_MODEL,
          messages,
          stream: false,
          options: this.getOptions()
       });
-
       const finalAnswer = answerData.message.content;
 
       await this.saveConversation(prompt, finalAnswer);
@@ -149,9 +147,7 @@ export default abstract class AbstractAgent implements Agent {
       return finalAnswer;
    }
 
-   async saveConversation(question: string, answer: string) {
-
-      const query = `
+   async saveConversation(question: string, answer: string) {      const query = `
        INSERT INTO conversations (question, answer)
        VALUES ($1, $2)
        RETURNING id;

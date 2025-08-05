@@ -58,10 +58,9 @@ export class SessionRepository extends AbstractRepository<Session> {
    }
 
    @Find()
-   public async findByUsername(username: string): Promise<Session | null> {
+   public async findByUsername(_username: string): Promise<Session | null> {
       return null;
-   }
-}
+   }}
 
 const sessionRepository = new SessionRepository();
 
