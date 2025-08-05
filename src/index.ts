@@ -2,10 +2,9 @@ import compression from "compression";
 import crypto from 'crypto';
 import fs from 'fs';
 import https from 'https';
-import { Agent, getAgentFromName } from './agent';
+import { Agent, getAgentFromName, initializeAgentSystem } from './agent';
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
 import { rateLimit } from 'express-rate-limit'
-
 import "dotenv/config";
 import express, { NextFunction, Request, Response } from "express";
 import { Duplex } from "stream";
@@ -115,7 +114,7 @@ app.post("/validate/:agent", async (req: Request, res: Response) => {
 
    let error, validated;
    try {
-      const agent = getAgentFromName(req.params.agent);
+      const agent = await getAgentFromName(req.params.agent);
       agent.setSession(res.locals.session);
       const { data } = Validate.parse(req.body);
       validated = await agent.validate(data);
@@ -131,7 +130,6 @@ app.post("/validate/:agent", async (req: Request, res: Response) => {
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
    }
 });
-
 app.post("/chat/:agent", async (req: Request, res: Response) => {
 
    let agent: Agent,
@@ -140,7 +138,7 @@ app.post("/chat/:agent", async (req: Request, res: Response) => {
       answer: string = "";
    try {
       const { prompt } = Query.parse(req.body);
-      agent = getAgentFromName(req.params.agent);
+      agent = await getAgentFromName(req.params.agent);
       agent.setSession(res.locals.session);
       answer = await agent.chat(prompt);
       validate = agent.shouldValidate();
@@ -156,8 +154,7 @@ app.post("/chat/:agent", async (req: Request, res: Response) => {
          response.validate = true;
 
       const content = JSON.stringify(response);
-      Logger.debug(content);
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
+      Logger.debug(content);      res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
    }
 });
 
@@ -165,8 +162,14 @@ const PORT: number = +process.env.PORT!;
 const HOST: string = process.env.HOST!;
 const server = https.createServer(options, app).listen(PORT, HOST, async () => {
    console.log(`[server]: Server is running at http://${HOST}:${PORT}`);
+   
+   try {
+      await initializeAgentSystem();
+      console.log(`[server]: Agent system initialized successfully`);
+   } catch (error) {
+      console.error(`[server]: Failed to initialize agent system: ${error instanceof Error ? error.message : String(error)}`);
+   }
 });
-
 let connections: Array<Duplex> = [];
 server.on('connection', connection => {
    connections.push(connection);

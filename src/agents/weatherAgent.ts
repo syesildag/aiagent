@@ -1,17 +1,12 @@
 import fetchCurrentWeather from "../descriptions/currentWeather";
-import { AgentName } from "../agent";
 import Instrumentation from "../utils/instrumentation";
-import AbstractAgent from "./abstractAgent";
+import { McpAgentFactory } from "./mcpFactory";
 
-class WeatherAgent extends AbstractAgent {
+const factory = McpAgentFactory.getInstance();
 
-   getName(): AgentName {
-      return "weather";
-   }
+factory.registerAgent({
+   name: "weather",
+   instrumentation: new Instrumentation(fetchCurrentWeather)
+});
 
-   getInstrumentation() {
-      return new Instrumentation(fetchCurrentWeather);
-   }
-}
-
-export default new WeatherAgent();
+export default factory.getAgent("weather");

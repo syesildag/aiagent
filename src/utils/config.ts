@@ -20,8 +20,10 @@ const envSchema = z.object({
   OLLAMA_MODEL: z.string().min(1),
   OLLAMA_HOST: z.string().url(),
   OPENWEATHER_API_KEY: z.string().min(1).optional(),
+  
+  // MCP Configuration
+  MCP_CONFIG_PATH: z.string().min(1).default('./mcp-config.json'),
 });
-
 type Environment = z.infer<typeof envSchema>;
 
 function validateEnvironment(): Environment {
@@ -39,6 +41,7 @@ function validateEnvironment(): Environment {
       DB_PORT: 5432,
       OLLAMA_MODEL: 'test',
       OLLAMA_HOST: 'http://localhost:11434',
+      MCP_CONFIG_PATH: './mcp-config.json',
     } as Environment;
   }
 
@@ -49,7 +52,6 @@ function validateEnvironment(): Environment {
     process.exit(1);
   }
 }
-
 export const config = validateEnvironment();
 
 export const isProduction = () => config.NODE_ENV === 'production';

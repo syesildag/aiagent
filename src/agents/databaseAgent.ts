@@ -1,20 +1,13 @@
 import fetchSQL from "../descriptions/sql";
-import { AgentName } from "../agent";
 import Instrumentation from "../utils/instrumentation";
-import AbstractAgent from "./abstractAgent";
+import { McpAgentFactory } from "./mcpFactory";
 
-class DatabaseAgent extends AbstractAgent {
+const factory = McpAgentFactory.getInstance();
 
-   getName(): AgentName {
-      return "database";
-   }
-
-   getInstrumentation() {
-      return new Instrumentation(fetchSQL);
-   }
-
-   getUserPrompt(question: string): string {
-      return `Given the following PostgreSQL schema ->
+factory.registerAgent({
+   name: "database",
+   instrumentation: new Instrumentation(fetchSQL),
+   userPromptTemplate: (question: string) => `Given the following PostgreSQL schema ->
 CREATE TABLE public.countries (
     id integer NOT NULL,
     iso character(2) NOT NULL,
@@ -24,8 +17,7 @@ CREATE TABLE public.countries (
     numcode smallint,
     phonecode integer NOT NULL
 );
-      Question: ${question}`;
-   }
-}
+      Question: ${question}`
+});
 
-export default new DatabaseAgent();
+export default factory.getAgent("database");
