@@ -5,6 +5,8 @@ import https from 'https';
 import { Agent, getAgentFromName, initializeAgentSystem } from './agent';
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
 import { rateLimit } from 'express-rate-limit'
+import helmet from 'helmet';
+import cors from 'cors';
 import "dotenv/config";
 import express, { NextFunction, Request, Response } from "express";
 import { Duplex } from "stream";
@@ -32,6 +34,9 @@ const Validate = z.object({
 });
 
 const app = express();
+
+app.use(helmet());
+app.use(cors());
 
 app.use(rateLimit({
    windowMs: 1 * 60 * 1000, // 1 minute
