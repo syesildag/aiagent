@@ -6,7 +6,9 @@ const config: Config = {
   verbose: true,
   resolver: "ts-jest-resolver",
   testPathIgnorePatterns: ["<rootDir>/dist/", "<rootDir>/node_modules/"],
-  globals: {
+  collectCoverage: true,
+  coverageReporters: ["json", "lcov", "text", "clover"],
+  coverageDirectory: "coverage",  globals: {
     'ts-jest': {
       "tsconfig": "tsconfig.test.json"
     }
