@@ -16,6 +16,7 @@ export interface Agent {
    getSystemPrompt(): string | undefined;
    getName(): AgentName;
    getOptions(): Partial<Options> | undefined;
+   setMCPManager(manager: MCPServerManager): void;
 }
 
 // Simple general-purpose agent class
@@ -60,11 +61,8 @@ export async function initializeAgents(): Promise<Record<string, Agent>> {
    
    // Set the global MCP manager for all agents
    const agents = [generalAgent];
-   for (const agent of agents) {
-      if ('setMCPManager' in agent && typeof agent.setMCPManager === 'function') {
-         (agent as any).setMCPManager(globalMCPManager);
-      }
-   }
+   for (const agent of agents)
+      agent.setMCPManager(globalMCPManager);
 
    Agents = {
       general: generalAgent
