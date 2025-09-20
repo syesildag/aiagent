@@ -1,9 +1,7 @@
 import { Options } from "ollama";
 import { Agent, AgentName } from "../agent";
-import { createLLMProvider, getLLMModel } from "../mcp/llmFactory";
 import { MCPServerManager } from "../mcp/mcpManager";
 import { Session } from "../repository/entities/session";
-import { config } from "../utils/config";
 import Logger from "../utils/logger";
 
 export default abstract class AbstractAgent implements Agent {
