@@ -2,6 +2,7 @@ import { ChildProcess, spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import fs from 'fs/promises';
 import { Ollama } from 'ollama';
+import * as readline from 'readline';
 
 // MCP Protocol Types
 interface MCPRequest {
@@ -664,36 +665,98 @@ async function main() {
     console.log(JSON.stringify(status, null, 2));
 
     // Example interactions with Ollama using MCP tools
-    console.log('\n--- Chatting with Ollama using MCP tools ---');
+    console.log('\n--- Interactive Chat with Ollama using MCP tools ---');
+    console.log('Type your questions or commands. Special commands:');
+    console.log('  - "help" - Show available commands');
+    console.log('  - "status" - Show MCP server status');
+    console.log('  - "clear" - Clear the screen');
+    console.log('  - "exit" or "quit" - Exit the program');
+    console.log('\nSuggested queries to try:');
+    console.log('  - "What tools and capabilities are available to me?"');
+    console.log('  - "Can you list the current directory contents?"');
+    console.log('  - "What resources can you access?"');
+    console.log('');
     
-    const queries = [
-      'What tools and capabilities are available to me?',
-      'Can you list the current directory contents?',
-      'What resources can you access?'
-    ];
-
-    for (const query of queries) {
-      console.log(`\nUser: ${query}`);
-      try {
-        const response = await manager.chatWithOllama(query);
-        console.log(`Assistant: ${response}`);
-      } catch (error) {
-        console.error(`Error: ${error}`);
-      }
-    }
-
-    // Graceful shutdown
-    process.on('SIGINT', async () => {
-      console.log('\nShutting down...');
-      await manager.stopAllServers();
-      process.exit(0);
+    // Create readline interface for interactive input
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      prompt: 'User: '
     });
 
-    process.on('SIGTERM', async () => {
-      console.log('\nShutting down...');
-      await manager.stopAllServers();
-      process.exit(0);
-    });
+    // Interactive chat loop
+    const chatLoop = () => {
+      rl.prompt();
+      
+      rl.on('line', async (input: string) => {
+        const query = input.trim();
+        
+        if (query.toLowerCase() === 'exit' || query.toLowerCase() === 'quit') {
+          console.log('\nGoodbye!');
+          rl.close();
+          await manager.stopAllServers();
+          process.exit(0);
+        }
+        
+        if (query.toLowerCase() === 'help') {
+          console.log('\nAvailable commands:');
+          console.log('  - help: Show this help message');
+          console.log('  - status: Show MCP server status and capabilities');
+          console.log('  - clear: Clear the screen');
+          console.log('  - exit/quit: Exit the program');
+          console.log('\nOr ask any question to chat with the AI assistant using MCP tools.\n');
+          rl.prompt();
+          return;
+        }
+        
+        if (query.toLowerCase() === 'status') {
+          console.log('\nMCP Server Status:');
+          const status = manager.getServerStatus();
+          console.log(JSON.stringify(status, null, 2));
+          console.log('');
+          rl.prompt();
+          return;
+        }
+        
+        if (query.toLowerCase() === 'clear') {
+          console.clear();
+          console.log('--- Interactive Chat with Ollama using MCP tools ---');
+          console.log('Type "help" for available commands.\n');
+          rl.prompt();
+          return;
+        }
+        
+        if (query === '') {
+          rl.prompt();
+          return;
+        }
+        
+        try {
+          console.log('Assistant: Thinking...');
+          const response = await manager.chatWithOllama(query);
+          console.log(`Assistant: ${response}\n`);
+        } catch (error) {
+          console.error(`Error: ${error}\n`);
+        }
+        
+        rl.prompt();
+      });
+      
+      rl.on('close', async () => {
+        console.log('\nShutting down...');
+        await manager.stopAllServers();
+        process.exit(0);
+      });
+      
+      // Handle Ctrl+C gracefully
+      rl.on('SIGINT', async () => {
+        console.log('\nReceived SIGINT. Type "exit" to quit gracefully.');
+        rl.prompt();
+      });
+    };
+
+    // Start the interactive chat
+    chatLoop();
 
   } catch (error) {
     console.error('Error in main:', error);
