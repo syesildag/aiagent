@@ -16,13 +16,26 @@ const envSchema = z.object({
   DB_PASSWORD: z.string().min(1),
   DB_PORT: z.string().transform(Number).pipe(z.number().min(1).max(65535)),
   
+  // LLM Configuration
+  LLM_PROVIDER: z.enum(['ollama', 'openai', 'github']).default('ollama'),
+  LLM_MODEL: z.string().min(1).default('qwen2.5:7b'),
+  
+  // Ollama
+  OLLAMA_HOST: z.string().url().default('http://localhost:11434'),
+  
+  // OpenAI
+  OPENAI_API_KEY: z.string().min(1).optional(),
+  OPENAI_BASE_URL: z.string().url().default('https://api.openai.com'),
+  
+  // GitHub Copilot
+  GITHUB_TOKEN: z.string().min(1).optional(),
+  GITHUB_COPILOT_BASE_URL: z.string().url().default('https://api.githubcopilot.com'),
+  
   // External APIs
-  OLLAMA_MODEL: z.string().min(1),
-  OLLAMA_HOST: z.string().url(),
   OPENWEATHER_API_KEY: z.string().min(1).optional(),
   
   // MCP Configuration
-  MCP_CONFIG_PATH: z.string().min(1).default('./mcp-config.json'),
+  MCP_SERVERS_PATH: z.string().min(1).default('./mcp-servers.json'),
 });
 type Environment = z.infer<typeof envSchema>;
 
@@ -39,9 +52,12 @@ function validateEnvironment(): Environment {
       DB_NAME: 'test',
       DB_PASSWORD: 'test',
       DB_PORT: 5432,
-      OLLAMA_MODEL: 'test',
+      LLM_PROVIDER: 'ollama',
+      LLM_MODEL: 'test',
       OLLAMA_HOST: 'http://localhost:11434',
-      MCP_CONFIG_PATH: './mcp-config.json',
+      OPENAI_BASE_URL: 'https://api.openai.com',
+      GITHUB_COPILOT_BASE_URL: 'https://api.githubcopilot.com',
+      MCP_SERVERS_PATH: './mcp-servers.json',
     } as Environment;
   }
 

@@ -1,15 +1,37 @@
-import { Message, Options } from "ollama";
+import { Options } from "ollama";
 import { Agent, AgentName } from "../agent";
 import { Session } from "../repository/entities/session";
-import Instrumentation from "../utils/instrumentation";
 import Logger from "../utils/logger";
-import client from "../utils/ollama";
 import { queryDatabase } from "../utils/pgClient";
 import { config } from "../utils/config";
+import { MCPServerManager } from "../mcp/mcpManager";
+import { createLLMProvider, getLLMModel } from "../mcp/llmFactory";
 
 export default abstract class AbstractAgent implements Agent {
 
    private session?: Session;
+   private mcpManager?: MCPServerManager;
+
+   constructor() {
+      // MCP manager will be set externally for better lifecycle management
+   }
+
+   setMCPManager(manager: MCPServerManager): void {
+      this.mcpManager = manager;
+   }
+
+   async initializeMCP(): Promise<void> {
+      // MCP initialization is now handled globally
+      // This method is kept for backward compatibility
+      if (!this.mcpManager) {
+         Logger.warn('MCP manager not set, creating local instance');
+         const llmProvider = createLLMProvider();
+         const model = getLLMModel();
+         this.mcpManager = new MCPServerManager(config.MCP_SERVERS_PATH, llmProvider, model);
+         await this.mcpManager.loadServersConfig();
+         await this.mcpManager.startAllServers();
+      }
+   }
 
    getUserPrompt(question: string): string {
       return `Question: ${question}`;
@@ -28,8 +50,6 @@ export default abstract class AbstractAgent implements Agent {
    }
 
    abstract getName(): AgentName;
-
-   abstract getInstrumentation(): Instrumentation;
 
    setSession(session: Session) {
       this.session = session;
@@ -54,97 +74,20 @@ export default abstract class AbstractAgent implements Agent {
       return false;
    }
    async chat(prompt: string): Promise<string> {
-
-      const { tools, functions } = this.getInstrumentation().extract();
-
-      const toolSystemPrompt = this.getToolSystemPrompt();
-
-      const systemPrompt = this.getSystemPrompt();
-
-      const userPrompt = this.getUserPrompt(prompt);
-
-      let messages: Message[] = [];
-
-      if(!!toolSystemPrompt) {
-         messages.push({
-            role: "system",
-            content: toolSystemPrompt
-         });
+      if (!this.mcpManager) {
+         throw new Error('MCP manager not initialized');
       }
 
-      messages.push({
-         role: "user",
-         content: userPrompt
-      });
-
-      const assistantPrompt = this.getAssistantPrompt();
-      if (assistantPrompt) {
-         messages.push({
-            role: "assistant",
-            content: assistantPrompt
-         });
+      // Use MCP system for enhanced capabilities
+      try {
+         const systemPrompt = this.getSystemPrompt();
+         const response = await this.mcpManager.chatWithLLM(prompt, undefined, systemPrompt);
+         await this.saveConversation(prompt, response);
+         return response;
+      } catch (error) {
+         Logger.error(`MCP chat failed: ${error instanceof Error ? error.message : String(error)}`);
+         throw error;
       }
-
-      let functionCallData = await client.chat({
-         model: config.OLLAMA_MODEL,
-         messages,
-         stream: false,
-         tools
-      });
-      let toolContents: any[] = [];
-      let toolCalls = functionCallData.message.tool_calls;
-      if (!!toolCalls) {
-         try {
-            var results = await Promise.all(toolCalls.map(async (toolCall) => {
-               const func = toolCall.function;
-               const name = func.name;
-               const args = func.arguments;
-               const selectedFunction = functions[name];
-               if (!selectedFunction)
-                  throw new Error(`Invalid tool selected: ${JSON.stringify(func)}`);
-               return await selectedFunction.implementation(args);
-            }));
-            toolContents.push(...results);
-         }
-         catch (error) {
-            Logger.error(`Tool execution failed: ${error instanceof Error ? error.message : String(error)}`);
-            return "";
-         }
-      }      else {
-         await this.saveConversation(prompt, functionCallData.message.content);
-         return functionCallData.message.content;
-      }
-
-      for (let toolContent of toolContents)
-         messages.push({ role: "tool", content: toolContent });
-
-      const systemMessage = messages.find((message) => message.role === "system");
-
-      if (systemPrompt) {
-         if(systemMessage)
-            systemMessage.content = systemPrompt;
-         else
-            messages.unshift({
-               role: "system",
-               content: systemPrompt
-            });
-      }
-      else
-         messages = messages.filter((message) => message.role !== "system");
-
-      Logger.debug(`Messages after tool call: ${JSON.stringify(messages)}`);
-
-      const answerData = await client.chat({
-         model: config.OLLAMA_MODEL,
-         messages,
-         stream: false,
-         options: this.getOptions()
-      });
-      const finalAnswer = answerData.message.content;
-
-      await this.saveConversation(prompt, finalAnswer);
-
-      return finalAnswer;
    }
 
    async saveConversation(question: string, answer: string) {      const query = `

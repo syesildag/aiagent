@@ -1,34 +1,88 @@
-# AI Agent with Multiple LLM Provider Support
+# AI Agent with Express.js Server and Multiple LLM Provider Support
 
-A flexible AI agent system that supports multiple LLM providers (Ollama, GitHub Copilot, OpenAI) with Model Context Protocol (MCP) server integration, using TypeScript, PostgreSQL with pgvector extension.
+A production-ready Express.js server with AI chat capabilities that supports multiple LLM providers (Ollama, GitHub Copilot, OpenAI) and Model Context Protocol (MCP) server integration, using TypeScript, PostgreSQL with pgvector extension.
 
 ## Features
 
+- **Express.js HTTPS Server**: Production-ready web server with SSL support
 - **Multiple LLM Providers**: Support for Ollama (local), GitHub Copilot, and OpenAI
 - **Model Context Protocol (MCP)**: Integration with MCP servers for extended capabilities
-- **Interactive CLI**: Console-based interface with cancellation support
+- **Session-based Authentication**: Secure user sessions with PostgreSQL storage
+- **Agent System**: Modular AI agents with custom tools and validation
 - **Tool Caching**: Optimized performance with intelligent tool caching
-- **Cancellation Support**: Graceful handling of user-initiated cancellations
+- **Security Features**: Rate limiting, CORS, helmet security headers
+- **Interactive CLI**: Console-based interface for testing (cli.ts)
 
-## LLM Provider Configuration
+## Quick Start
 
-### Default (Ollama - Local)
+### 1. Environment Setup
+Copy the environment template and configure your settings:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+### 2. Database Setup
+Ensure PostgreSQL is running with pgvector extension and configure database credentials in `.env`.
+
+### 3. Start the Server
+
+#### Default (Ollama - Local)
 ```bash
 npm run build
 npm start
 ```
 
-### GitHub Copilot
+#### GitHub Copilot
 ```bash
-export GITHUB_TOKEN="your_github_token"
-export LLM_PROVIDER="github"
-npm run build && node dist/ttt.js
+# Set in .env file:
+LLM_PROVIDER=github
+GITHUB_TOKEN=your_github_token
+npm run build && npm start
 ```
 
-### OpenAI
+#### OpenAI
 ```bash
-export OPENAI_API_KEY="your_openai_api_key"
-export LLM_PROVIDER="openai"
+# Set in .env file:
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your_openai_api_key
+npm run build && npm start
+```
+
+## API Endpoints
+
+### Authentication
+- **POST /login**: Authenticate with username/password (Basic Auth)
+  - Returns session token for subsequent requests
+
+### Chat
+- **POST /chat/:agent**: Send message to specific AI agent
+  - Requires session token in request body
+  - Returns AI response and validation flag if needed
+
+### Validation  
+- **POST /validate/:agent**: Validate data using agent-specific validation
+  - Requires session token and data in request body
+
+## Configuration
+
+### LLM Providers
+Configure in `.env`:
+```bash
+LLM_PROVIDER=ollama|openai|github
+LLM_MODEL=qwen2.5:7b
+
+# Ollama
+OLLAMA_HOST=http://localhost:11434
+
+# OpenAI  
+OPENAI_API_KEY=your_key
+OPENAI_BASE_URL=https://api.openai.com
+
+# GitHub Copilot
+GITHUB_TOKEN=your_token  
+GITHUB_COPILOT_BASE_URL=https://api.githubcopilot.com
+```
 npm run build && node dist/ttt.js
 ```
 

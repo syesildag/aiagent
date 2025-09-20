@@ -2,7 +2,7 @@ import compression from "compression";
 import crypto from 'crypto';
 import fs from 'fs';
 import https from 'https';
-import { Agent, getAgentFromName, initializeAgentSystem } from './agent';
+import { Agent, getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
 import { rateLimit } from 'express-rate-limit'
 import helmet from 'helmet';
@@ -169,7 +169,7 @@ const server = https.createServer(options, app).listen(PORT, HOST, async () => {
    console.log(`[server]: Server is running at http://${HOST}:${PORT}`);
    
    try {
-      await initializeAgentSystem();
+      await initializeAgents();
       console.log(`[server]: Agent system initialized successfully`);
    } catch (error) {
       console.error(`[server]: Failed to initialize agent system: ${error instanceof Error ? error.message : String(error)}`);
@@ -190,20 +190,38 @@ server.on('connection', connection => {
    });
 });
 
-process.on('SIGTERM', gracefulShutdown);
+process.on('SIGTERM', (signal) => {
+   gracefulShutdown(signal).catch((error) => {
+      console.error(`Error during graceful shutdown: ${error}`);
+      process.exit(1);
+   });
+});
 
-process.on('SIGINT', gracefulShutdown);
+process.on('SIGINT', (signal) => {
+   gracefulShutdown(signal).catch((error) => {
+      console.error(`Error during graceful shutdown: ${error}`);
+      process.exit(1);
+   });
+});
 
 function sendAuthenticationRequired(res: Response) {
    res.set('WWW-Authenticate', 'Basic realm="401"'); // change this
    res.status(401).send('Authentication required.');
 }
 
-function gracefulShutdown(event: NodeJS.Signals) {
+async function gracefulShutdown(event: NodeJS.Signals) {
 
    console.log(`${event} signal received.`);
 
    console.log('Shutting down gracefully...');
+
+   // Shutdown MCP servers first
+   try {
+      await shutdownAgentSystem();
+      console.log('Agent system and MCP servers shut down successfully');
+   } catch (error) {
+      console.error(`Error shutting down agent system: ${error}`);
+   }
 
    //close the postgresql pool
    closeDatabase();

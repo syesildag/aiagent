@@ -11,7 +11,7 @@ const mockConfig = {
   DB_PORT: 5432,
   OLLAMA_MODEL: 'test',
   OLLAMA_HOST: 'http://localhost:11434',
-  MCP_CONFIG_PATH: './mcp-config.json',
+  MCP_SERVERS_PATH: './mcp-servers.json',
 };
 jest.mock('./config', () => ({
   config: mockConfig,
@@ -56,10 +56,10 @@ describe('Config Module', () => {
   });
 
   describe('MCP Configuration', () => {
-    test('should have MCP_CONFIG_PATH with default value', () => {
-      expect(config.MCP_CONFIG_PATH).toBeDefined();
-      expect(typeof config.MCP_CONFIG_PATH).toBe('string');
-      expect(config.MCP_CONFIG_PATH).toBe('./mcp-config.json');
+    test('should have MCP_SERVERS_PATH with default value', () => {
+      expect(config.MCP_SERVERS_PATH).toBeDefined();
+      expect(typeof config.MCP_SERVERS_PATH).toBe('string');
+      expect(config.MCP_SERVERS_PATH).toBe('./mcp-servers.json');
     });
   });
 });
