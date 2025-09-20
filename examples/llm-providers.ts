@@ -14,7 +14,7 @@
  *    OPENAI_API_KEY=your_key LLM_PROVIDER=openai npm run start
  */
 
-import { MCPServerManager, OllamaProvider, GitHubCopilotProvider, OpenAIProvider, LLMProvider } from '../src/ttt';
+import { MCPServerManager, OllamaProvider, GitHubCopilotProvider, OpenAIProvider, LLMProvider } from '../src/cli';
 
 async function demonstrateProviders() {
   console.log('=== LLM Provider Demonstration ===\n');

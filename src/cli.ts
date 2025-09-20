@@ -707,7 +707,7 @@ class MCPServerManager {
 
   // Manually refresh tools cache
   refreshToolsCache(): Tool[] {
-    return this.convertMCPToolsToOllamaFormat(true);
+    return this.convertMCPToolsToLLMFormat(true);
   }
 
   async checkHealth(): Promise<boolean> {
@@ -718,8 +718,8 @@ class MCPServerManager {
     return await this.llmProvider.getAvailableModels();
   }
 
-  // Convert MCP tools to Ollama tool format with caching
-  private convertMCPToolsToOllamaFormat(forceRefresh: boolean = false): Tool[] {
+  // Convert MCP tools to LLM tool format with caching
+  private convertMCPToolsToLLMFormat(forceRefresh: boolean = false): Tool[] {
     // Return cached tools if they exist and not forcing refresh
     if (!forceRefresh && this.cachedTools) {
       return this.cachedTools;
@@ -845,9 +845,9 @@ class MCPServerManager {
     }
   }
 
-  async chatWithOllama(message: string, abortSignal?: AbortSignal): Promise<string> {
+  async chatWithLLM(message: string, abortSignal?: AbortSignal): Promise<string> {
     try {
-      const tools = this.convertMCPToolsToOllamaFormat();
+      const tools = this.convertMCPToolsToLLMFormat();
       
       const messages: LLMMessage[] = [
         {
@@ -1041,8 +1041,8 @@ async function main() {
     console.log('\nMCP Server Status and Capabilities:');
     console.log(JSON.stringify(status, null, 2));
 
-    // Example interactions with Ollama using MCP tools
-    console.log('\n--- Interactive Chat with Ollama using MCP tools ---');
+    // Example interactions with the LLM using MCP tools
+    console.log(`\n--- Interactive Chat with ${providerType.toUpperCase()} using MCP tools ---`);
     console.log('Type your questions or commands. Special commands:');
     console.log('  - "help" - Show available commands');
     console.log('  - "status" - Show MCP server status');
@@ -1050,6 +1050,10 @@ async function main() {
     console.log('  - "cancel" - Cancel current operation');
     console.log('  - "clear" - Clear the screen');
     console.log('  - "exit" or "quit" - Exit the program');
+    console.log('\nLLM Provider Configuration:');
+    console.log('  - Default: Ollama (local)');
+    console.log('  - Set LLM_PROVIDER=github and GITHUB_TOKEN=<token> for GitHub Copilot');
+    console.log('  - Set LLM_PROVIDER=openai and OPENAI_API_KEY=<key> for OpenAI');
     console.log('\nDuring processing, you can:');
     console.log('  - Type "cancel" to cancel the current operation');
     console.log('  - Press Ctrl+C to cancel the current operation');
@@ -1063,7 +1067,7 @@ async function main() {
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
-      prompt: 'User: '
+      prompt: '> '
     });
 
     // Interactive chat loop
@@ -1137,7 +1141,7 @@ async function main() {
         
         if (query.toLowerCase() === 'clear') {
           console.clear();
-          console.log('--- Interactive Chat with Ollama using MCP tools ---');
+          console.log('--- Interactive Chat with LLM using MCP tools ---');
           console.log('Type "help" for available commands.\n');
           rl.prompt();
           return;
@@ -1153,7 +1157,7 @@ async function main() {
           currentAbortController = new AbortController();
           console.log('Assistant: Thinking... (type "cancel" or press Ctrl+C to cancel)');
           
-          const response = await manager.chatWithOllama(query, currentAbortController.signal);
+          const response = await manager.chatWithLLM(query, currentAbortController.signal);
           
           // Clear the abort controller since operation completed successfully
           currentAbortController = null;
@@ -1204,7 +1208,19 @@ async function main() {
 }
 
 // Export the class for use in other modules
-export { MCPConfig, MCPServer, MCPServerConnection, MCPServerManager };
+export { 
+  MCPConfig, 
+  MCPServer, 
+  MCPServerConnection, 
+  MCPServerManager,
+  LLMProvider,
+  LLMMessage,
+  LLMChatResponse,
+  Tool,
+  OllamaProvider,
+  GitHubCopilotProvider,
+  OpenAIProvider
+};
 
 // Run the main function if this file is executed directly
 if (require.main === module) {
