@@ -530,15 +530,10 @@ class MCPServerManager {
     }
   }
 
-  async chatWithOllama(message: string): Promise<string> {
+  async chatWithOllama(message: string, abortSignal?: AbortSignal): Promise<string> {
     try {
       const tools = this.convertMCPToolsToOllamaFormat();
       
-      console.log(`Available tools from MCP servers: ${tools.length}`);
-      tools.forEach(tool => {
-        console.log(`- ${tool.function.name}: ${tool.function.description}`);
-      });
-
       const messages = [
         {
           role: 'system',
@@ -560,12 +555,28 @@ When using tools, always provide clear context about what you're doing and inter
         }
       ];
 
-      const response = await this.ollama.chat({
+      // Check for cancellation before starting
+      if (abortSignal?.aborted) {
+        throw new Error('Operation cancelled by user');
+      }
+
+      const chatPromise = this.ollama.chat({
         model: this.model,
         messages: messages,
         tools: tools,
         stream: false
       });
+
+      // Create a promise that rejects when the abort signal is triggered
+      const abortPromise = new Promise<never>((_, reject) => {
+        if (abortSignal) {
+          abortSignal.addEventListener('abort', () => {
+            reject(new Error('Operation cancelled by user'));
+          });
+        }
+      });
+
+      const response = await Promise.race([chatPromise, abortPromise]);
       
       // Handle tool calls if present
       if (response.message.tool_calls && response.message.tool_calls.length > 0) {
@@ -574,6 +585,9 @@ When using tools, always provide clear context about what you're doing and inter
         console.log(`Executing ${response.message.tool_calls.length} tool calls...`);
         
         for (const toolCall of response.message.tool_calls) {
+          if (abortSignal?.aborted) {
+            throw new Error('Operation cancelled by user');
+          }
           console.log(`Calling tool: ${toolCall.function.name}`);
           const result = await this.handleToolCall(toolCall);
           toolResults.push(result);
@@ -593,17 +607,21 @@ When using tools, always provide clear context about what you're doing and inter
           }
         ];
 
-        const followUpResponse = await this.ollama.chat({
+        const followUpChatPromise = this.ollama.chat({
           model: this.model,
           messages: followUpMessages,
           stream: false
         });
 
+        const followUpResponse = await Promise.race([followUpChatPromise, abortPromise]);
         return followUpResponse.message.content;
       }
 
       return response.message.content;
     } catch (error) {
+      if (error instanceof Error && error.message === 'Operation cancelled by user') {
+        throw error;
+      }
       console.error('Error chatting with Ollama:', error);
       throw error;
     }
@@ -669,8 +687,12 @@ async function main() {
     console.log('Type your questions or commands. Special commands:');
     console.log('  - "help" - Show available commands');
     console.log('  - "status" - Show MCP server status');
+    console.log('  - "cancel" - Cancel current operation');
     console.log('  - "clear" - Clear the screen');
     console.log('  - "exit" or "quit" - Exit the program');
+    console.log('\nDuring processing, you can:');
+    console.log('  - Type "cancel" to cancel the current operation');
+    console.log('  - Press Ctrl+C to cancel the current operation');
     console.log('\nSuggested queries to try:');
     console.log('  - "What tools and capabilities are available to me?"');
     console.log('  - "Can you list the current directory contents?"');
@@ -685,6 +707,8 @@ async function main() {
     });
 
     // Interactive chat loop
+    let currentAbortController: AbortController | null = null;
+    
     const chatLoop = () => {
       rl.prompt();
       
@@ -692,10 +716,27 @@ async function main() {
         const query = input.trim();
         
         if (query.toLowerCase() === 'exit' || query.toLowerCase() === 'quit') {
+          // Cancel any ongoing operation
+          if (currentAbortController) {
+            currentAbortController.abort();
+            currentAbortController = null;
+          }
           console.log('\nGoodbye!');
           rl.close();
           await manager.stopAllServers();
           process.exit(0);
+        }
+        
+        if (query.toLowerCase() === 'cancel') {
+          if (currentAbortController) {
+            currentAbortController.abort();
+            currentAbortController = null;
+            console.log('Operation cancelled.\n');
+          } else {
+            console.log('No operation to cancel.\n');
+          }
+          rl.prompt();
+          return;
         }
         
         if (query.toLowerCase() === 'help') {
@@ -703,8 +744,10 @@ async function main() {
           console.log('  - help: Show this help message');
           console.log('  - status: Show MCP server status and capabilities');
           console.log('  - clear: Clear the screen');
+          console.log('  - cancel: Cancel current operation');
           console.log('  - exit/quit: Exit the program');
-          console.log('\nOr ask any question to chat with the AI assistant using MCP tools.\n');
+          console.log('\nOr ask any question to chat with the AI assistant using MCP tools.');
+          console.log('While processing, you can press Ctrl+C to cancel the current operation.\n');
           rl.prompt();
           return;
         }
@@ -732,11 +775,24 @@ async function main() {
         }
         
         try {
-          console.log('Assistant: Thinking...');
-          const response = await manager.chatWithOllama(query);
+          // Create new AbortController for this operation
+          currentAbortController = new AbortController();
+          console.log('Assistant: Thinking... (type "cancel" or press Ctrl+C to cancel)');
+          
+          const response = await manager.chatWithOllama(query, currentAbortController.signal);
+          
+          // Clear the abort controller since operation completed successfully
+          currentAbortController = null;
           console.log(`Assistant: ${response}\n`);
         } catch (error) {
-          console.error(`Error: ${error}\n`);
+          // Clear the abort controller
+          currentAbortController = null;
+          
+          if (error instanceof Error && error.message === 'Operation cancelled by user') {
+            console.log('Operation was cancelled.\n');
+          } else {
+            console.error(`Error: ${error}\n`);
+          }
         }
         
         rl.prompt();
@@ -749,9 +805,18 @@ async function main() {
       });
       
       // Handle Ctrl+C gracefully
-      rl.on('SIGINT', async () => {
-        console.log('\nReceived SIGINT. Type "exit" to quit gracefully.');
-        rl.prompt();
+      rl.on('SIGINT', () => {
+        if (currentAbortController) {
+          // If there's an ongoing operation, cancel it
+          currentAbortController.abort();
+          currentAbortController = null;
+          console.log('\nOperation cancelled. Type "exit" to quit or continue chatting.');
+          rl.prompt();
+        } else {
+          // If no operation is running, just show the prompt
+          console.log('\nType "exit" to quit gracefully.');
+          rl.prompt();
+        }
       });
     };
 
