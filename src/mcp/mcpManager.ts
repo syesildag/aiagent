@@ -322,7 +322,7 @@ export class MCPServerManager {
   constructor(
     configPath: string = './mcp-servers.json', 
     llmProvider?: LLMProvider,
-    model: string = 'qwen2.5:7b'
+    model: string = 'qwen3:4b'
   ) {
     this.configPath = configPath;
     this.llmProvider = llmProvider || new OllamaProvider();

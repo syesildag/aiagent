@@ -18,7 +18,7 @@ const envSchema = z.object({
   
   // LLM Configuration
   LLM_PROVIDER: z.enum(['ollama', 'openai', 'github']).default('ollama'),
-  LLM_MODEL: z.string().min(1).default('qwen2.5:7b'),
+  LLM_MODEL: z.string().min(1).default('qwen3:4b'),
   
   // Ollama
   OLLAMA_HOST: z.string().url().default('http://localhost:11434'),

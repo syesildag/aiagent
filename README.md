@@ -70,7 +70,7 @@ npm run build && npm start
 Configure in `.env`:
 ```bash
 LLM_PROVIDER=ollama|openai|github
-LLM_MODEL=qwen2.5:7b
+LLM_MODEL=qwen3:4b
 
 # Ollama
 OLLAMA_HOST=http://localhost:11434
