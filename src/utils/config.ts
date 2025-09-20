@@ -33,7 +33,7 @@ const envSchema = z.object({
   GITHUB_COPILOT_BASE_URL: z.string().url().default('https://api.githubcopilot.com'),
   
   // External APIs
-  OPENWEATHER_API_KEY: z.string().min(1).optional(),
+  OPENWEATHERMAP_API_KEY: z.string().min(1).optional(),
   
   // MCP Configuration
   MCP_SERVERS_PATH: z.string().min(1).default('./mcp-servers.json'),

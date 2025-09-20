@@ -43,7 +43,7 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
    }
 
    [
-      new GeneralAgent('general'),
+      new GeneralAgent(),
    ]
    .forEach(agent => {
       Agents[agent.getName()] = agent;

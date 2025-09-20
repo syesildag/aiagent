@@ -6,12 +6,12 @@ import AbstractAgent from './abstractAgent';
  * This agent provides broad capabilities across all available tools and services.
  */
 export class GeneralAgent extends AbstractAgent {
-   constructor(private name: AgentName) {
+   constructor() {
       super();
    }
 
    getName(): AgentName {
-      return this.name;
+      return 'general' as AgentName;
    }
 
    getSystemPrompt(): string {
