@@ -33,19 +33,7 @@ export default abstract class AbstractAgent implements Agent {
       }
    }
 
-   getUserPrompt(question: string): string {
-      return `Question: ${question}`;
-   }
-
-   getToolSystemPrompt(): string | undefined{
-      return undefined;
-   }
-
    getSystemPrompt(): string | undefined {
-      return undefined;
-   }
-
-   getAssistantPrompt(): string | undefined {
       return undefined;
    }
 

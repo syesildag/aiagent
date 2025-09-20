@@ -6,17 +6,14 @@ import { MCPServerManager } from './mcp/mcpManager';
 import { createLLMProvider, getLLMModel } from './mcp/llmFactory';
 import { config } from './utils/config';
 
-export type AgentName = string;
+export type AgentName = 'general';
 
 export interface Agent {
    setSession(session: Session): void;
    shouldValidate(): boolean;
    chat(prompt: string): Promise<string>;
    validate(data?: any): Promise<boolean>;
-   getToolSystemPrompt(): string | undefined;
    getSystemPrompt(): string | undefined;
-   getUserPrompt(question: string): string;
-   getAssistantPrompt(): string | undefined;
    getName(): AgentName;
    getOptions(): Partial<Options> | undefined;
 }
