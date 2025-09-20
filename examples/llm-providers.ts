@@ -23,8 +23,8 @@ async function demonstrateProviders() {
   console.log('1. Direct Ollama Provider Usage:');
   try {
     const ollamaProvider = new OllamaProvider();
-    const ollamaManager = new MCPServerManager('./mcp-servers.json', ollamaProvider, 'qwen3:4b');
-    
+    const ollamaManager = new MCPServerManager(process.env.MCP_SERVERS_PATH, ollamaProvider, 'qwen3:4b');
+
     const isHealthy = await ollamaManager.checkHealth();
     console.log(`   Ollama Health: ${isHealthy ? 'OK' : 'Not Available'}`);
     
@@ -42,7 +42,7 @@ async function demonstrateProviders() {
   if (process.env.GITHUB_TOKEN) {
     try {
       const copilotProvider = new GitHubCopilotProvider(process.env.GITHUB_TOKEN);
-      const copilotManager = new MCPServerManager('./mcp-servers.json', copilotProvider, 'gpt-4o');
+      const copilotManager = new MCPServerManager(process.env.MCP_SERVERS_PATH, copilotProvider, 'gpt-4o');
       
       const isHealthy = await copilotManager.checkHealth();
       console.log(`   GitHub Copilot Health: ${isHealthy ? 'OK' : 'Not Available'}`);
@@ -64,7 +64,7 @@ async function demonstrateProviders() {
   if (process.env.OPENAI_API_KEY) {
     try {
       const openaiProvider = new OpenAIProvider(process.env.OPENAI_API_KEY);
-      const openaiManager = new MCPServerManager('./mcp-servers.json', openaiProvider, 'gpt-4');
+      const openaiManager = new MCPServerManager(process.env.MCP_SERVERS_PATH, openaiProvider, 'gpt-4');
       
       const isHealthy = await openaiManager.checkHealth();
       console.log(`   OpenAI Health: ${isHealthy ? 'OK' : 'Not Available'}`);

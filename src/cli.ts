@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import fs from 'fs/promises';
 import { Ollama } from 'ollama';
 import * as readline from 'readline';
+import "dotenv/config";
 
 // LLM Provider Types
 interface LLMMessage {
@@ -1015,7 +1016,7 @@ async function main() {
       break;
   }
 
-  const manager = new MCPServerManager('./mcp-servers.json', llmProvider);
+  const manager = new MCPServerManager(process.env.MCP_SERVERS_PATH, llmProvider);
 
   try {
     // Load MCP server configuration
