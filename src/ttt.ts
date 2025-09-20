@@ -350,6 +350,7 @@ class MCPServerManager {
   private configPath: string;
   private ollama: Ollama;
   private model: string;
+  private cachedTools: Tool[] | null = null;
 
   constructor(configPath: string = './mcp-servers.json', ollamaBaseUrl: string = 'http://localhost:11434', model: string = 'qwen3:4b') {
     this.configPath = configPath;
@@ -383,6 +384,9 @@ class MCPServerManager {
 
     // Wait a bit for all servers to fully initialize
     await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Invalidate tools cache since servers have changed
+    this.invalidateToolsCache();
   }
 
   async stopAllServers(): Promise<void> {
@@ -391,6 +395,30 @@ class MCPServerManager {
       console.log(`Stopped MCP server: ${name}`);
     }
     this.connections.clear();
+    
+    // Invalidate tools cache since servers have changed
+    this.invalidateToolsCache();
+  }
+
+  // Invalidate the tools cache
+  private invalidateToolsCache(): void {
+    this.cachedTools = null;
+    console.log('Tools cache invalidated');
+  }
+
+  // Get cached tools count for status reporting
+  getCachedToolsCount(): number {
+    return this.cachedTools ? this.cachedTools.length : 0;
+  }
+
+  // Check if tools cache is valid
+  isToolsCacheValid(): boolean {
+    return this.cachedTools !== null;
+  }
+
+  // Manually refresh tools cache
+  refreshToolsCache(): Tool[] {
+    return this.convertMCPToolsToOllamaFormat(true);
   }
 
   async checkOllamaHealth(): Promise<boolean> {
@@ -413,8 +441,14 @@ class MCPServerManager {
     }
   }
 
-  // Convert MCP tools to Ollama tool format
-  private convertMCPToolsToOllamaFormat(): Tool[] {
+  // Convert MCP tools to Ollama tool format with caching
+  private convertMCPToolsToOllamaFormat(forceRefresh: boolean = false): Tool[] {
+    // Return cached tools if they exist and not forcing refresh
+    if (!forceRefresh && this.cachedTools) {
+      return this.cachedTools;
+    }
+
+    console.log('Refreshing tools cache...');
     const tools: Tool[] = [];
 
     for (const [serverName, connection] of this.connections) {
@@ -482,6 +516,10 @@ class MCPServerManager {
       }
     }
 
+    // Cache the tools
+    this.cachedTools = tools;
+    
+    console.log(`Cached ${tools.length} tools from ${this.connections.size} MCP servers`);
     return tools;
   }
 
@@ -687,6 +725,7 @@ async function main() {
     console.log('Type your questions or commands. Special commands:');
     console.log('  - "help" - Show available commands');
     console.log('  - "status" - Show MCP server status');
+    console.log('  - "refresh" - Refresh tools cache');
     console.log('  - "cancel" - Cancel current operation');
     console.log('  - "clear" - Clear the screen');
     console.log('  - "exit" or "quit" - Exit the program');
@@ -743,6 +782,7 @@ async function main() {
           console.log('\nAvailable commands:');
           console.log('  - help: Show this help message');
           console.log('  - status: Show MCP server status and capabilities');
+          console.log('  - refresh: Refresh tools cache from MCP servers');
           console.log('  - clear: Clear the screen');
           console.log('  - cancel: Cancel current operation');
           console.log('  - exit/quit: Exit the program');
@@ -756,7 +796,20 @@ async function main() {
           console.log('\nMCP Server Status:');
           const status = manager.getServerStatus();
           console.log(JSON.stringify(status, null, 2));
+          
+          // Also show tools cache status
+          const toolsCount = manager.getCachedToolsCount();
+          const cacheExists = manager.isToolsCacheValid();
+          console.log(`\nTools Cache: ${toolsCount} tools ${cacheExists ? 'cached' : 'not cached'}`);
           console.log('');
+          rl.prompt();
+          return;
+        }
+        
+        if (query.toLowerCase() === 'refresh') {
+          console.log('Refreshing tools cache...');
+          const tools = manager.refreshToolsCache();
+          console.log(`Tools cache refreshed with ${tools.length} tools.\n`);
           rl.prompt();
           return;
         }
