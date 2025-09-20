@@ -350,7 +350,7 @@ class MCPServerManager {
   private ollama: Ollama;
   private model: string;
 
-  constructor(configPath: string = './mcp-servers.json', ollamaBaseUrl: string = 'http://localhost:11434', model: string = 'gemma3:4b') {
+  constructor(configPath: string = './mcp-servers.json', ollamaBaseUrl: string = 'http://localhost:11434', model: string = 'qwen3:4b') {
     this.configPath = configPath;
     this.ollama = new Ollama({ host: ollamaBaseUrl });
     this.model = model;
