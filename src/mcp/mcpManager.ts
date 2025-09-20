@@ -484,7 +484,18 @@ export class MCPServerManager {
 
   // Handle tool calls by routing them to appropriate MCP servers
   private async handleToolCall(toolCall: any): Promise<string> {
+    // Defensive check for tool call structure
+    if (!toolCall?.function) {
+      return 'Error: Tool call missing function property';
+    }
+    
     const { name, arguments: args } = toolCall.function;
+    
+    // Check if name exists
+    if (!name) {
+      return 'Error: Tool call missing function name';
+    }
+    
     let parsedArgs;
     
     try {
@@ -572,19 +583,23 @@ When using tools, always provide clear context about what you're doing and inter
 
       const chatPromise = this.llmProvider.chat(chatRequest);
 
-      // Create a promise that rejects when the abort signal is triggered
-      const abortPromise = new Promise<never>((_, reject) => {
-        if (abortSignal) {
+      let response;
+      if (abortSignal) {
+        // Create a promise that rejects when the abort signal is triggered
+        const abortPromise = new Promise<never>((_, reject) => {
           abortSignal.addEventListener('abort', () => {
             reject(new Error('Operation cancelled by user'));
           });
-        }
-      });
+        });
 
-      const response = await Promise.race([chatPromise, abortPromise]);
+        response = await Promise.race([chatPromise, abortPromise]);
+      } else {
+        // No abort signal, just wait for the chat response
+        response = await chatPromise;
+      }
       
       // Handle tool calls if present
-      if (response.message.tool_calls && response.message.tool_calls.length > 0) {
+      if (response?.message?.tool_calls && response.message.tool_calls.length > 0) {
         const toolResults: string[] = [];
         
         Logger.debug(`Executing ${response.message.tool_calls.length} tool calls...`);
@@ -593,6 +608,14 @@ When using tools, always provide clear context about what you're doing and inter
           if (abortSignal?.aborted) {
             throw new Error('Operation cancelled by user');
           }
+          
+          // Defensive check for tool call structure
+          if (!toolCall?.function?.name) {
+            Logger.error(`Invalid tool call structure: ${JSON.stringify(toolCall)}`);
+            toolResults.push('Error: Invalid tool call structure');
+            continue;
+          }
+          
           Logger.debug(`Calling tool: ${toolCall.function.name}`);
           const result = await this.handleToolCall(toolCall);
           toolResults.push(result);
@@ -618,11 +641,22 @@ When using tools, always provide clear context about what you're doing and inter
           stream: false
         });
 
-        const followUpResponse = await Promise.race([followUpChatPromise, abortPromise]);
-        return followUpResponse.message.content;
+        let followUpResponse;
+        if (abortSignal) {
+          // Create a new abort promise for the follow-up request
+          const followUpAbortPromise = new Promise<never>((_, reject) => {
+            abortSignal.addEventListener('abort', () => {
+              reject(new Error('Operation cancelled by user'));
+            });
+          });
+          followUpResponse = await Promise.race([followUpChatPromise, followUpAbortPromise]);
+        } else {
+          followUpResponse = await followUpChatPromise;
+        }
+        return followUpResponse?.message?.content || 'No response content received';
       }
 
-      return response.message.content;
+      return response?.message?.content || 'No response content received';
     } catch (error) {
       if (error instanceof Error && error.message === 'Operation cancelled by user') {
         throw error;
