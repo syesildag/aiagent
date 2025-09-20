@@ -2,7 +2,7 @@ import { queryDatabase } from "../utils/pgClient";
 import ReflectMetadata from "../utils/reflectMetadata";
 import { __columnFields__, __fieldColumn__, __notNullColumns__, __uniqueColumns__ } from "./annotations/Column";
 import { __id__ } from "./annotations/Id";
-import { repository } from "./registry";
+import { repository } from "./repository";
 import { Table } from "./table";
 
 export abstract class Entity {

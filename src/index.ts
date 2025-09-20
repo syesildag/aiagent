@@ -12,7 +12,7 @@ import express, { NextFunction, Request, Response } from "express";
 import { Duplex } from "stream";
 import { z } from 'zod';
 import { Session } from "./repository/entities/session";
-import { repository } from "./repository/registry";
+import { repository } from "./repository/repository";
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
 import Logger from "./utils/logger";
 

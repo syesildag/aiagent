@@ -2,7 +2,7 @@ import { AbstractRepository, Entity } from "../abstractRepository";
 import { Column } from "../annotations/Column";
 import { Find } from "../annotations/find";
 import { Id } from "../annotations/Id";
-import { repository } from "../registry";
+import { repository } from "../repository";
 
 export class Session extends Entity {
 
