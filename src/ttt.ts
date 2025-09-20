@@ -1,6 +1,7 @@
 import { ChildProcess, spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import fs from 'fs/promises';
+import { Ollama } from 'ollama';
 
 // MCP Protocol Types
 interface MCPRequest {
@@ -83,13 +84,6 @@ interface ToolCall {
   };
 }
 
-interface OllamaChatRequest {
-  model: string;
-  messages: OllamaMessage[];
-  tools?: Tool[];
-  stream?: boolean;
-}
-
 interface Tool {
   type: 'function';
   function: {
@@ -98,18 +92,9 @@ interface Tool {
     parameters: {
       type: string;
       properties: Record<string, any>;
-      required?: string[];
+      required: string[];
     };
   };
-}
-
-interface OllamaChatResponse {
-  message: {
-    role: string;
-    content: string;
-    tool_calls?: ToolCall[];
-  };
-  done: boolean;
 }
 
 class MCPServerConnection extends EventEmitter {
@@ -362,12 +347,12 @@ class MCPServerManager {
   private servers: MCPServer[] = [];
   private connections: Map<string, MCPServerConnection> = new Map();
   private configPath: string;
-  private ollamaBaseUrl: string;
+  private ollama: Ollama;
   private model: string;
 
-  constructor(configPath: string = './mcp-servers.json', ollamaBaseUrl: string = 'http://localhost:11434', model: string = 'llama3.1:8b') {
+  constructor(configPath: string = './mcp-servers.json', ollamaBaseUrl: string = 'http://localhost:11434', model: string = 'gemma3:4b') {
     this.configPath = configPath;
-    this.ollamaBaseUrl = ollamaBaseUrl;
+    this.ollama = new Ollama({ host: ollamaBaseUrl });
     this.model = model;
   }
 
@@ -409,8 +394,8 @@ class MCPServerManager {
 
   async checkOllamaHealth(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.ollamaBaseUrl}/api/tags`);
-      return response.ok;
+      await this.ollama.list();
+      return true;
     } catch (error) {
       console.error('Ollama health check failed:', error);
       return false;
@@ -419,9 +404,8 @@ class MCPServerManager {
 
   async getAvailableModels(): Promise<string[]> {
     try {
-      const response = await fetch(`${this.ollamaBaseUrl}/api/tags`);
-      const data = await response.json() as { models: Array<{ name: string }> };
-      return data.models.map(model => model.name);
+      const response = await this.ollama.list();
+      return response.models.map(model => model.name);
     } catch (error) {
       console.error('Error getting available models:', error);
       return [];
@@ -501,9 +485,15 @@ class MCPServerManager {
   }
 
   // Handle tool calls by routing them to appropriate MCP servers
-  private async handleToolCall(toolCall: ToolCall): Promise<string> {
+  private async handleToolCall(toolCall: any): Promise<string> {
     const { name, arguments: args } = toolCall.function;
-    const parsedArgs = JSON.parse(args);
+    let parsedArgs;
+    
+    try {
+      parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
+    } catch (error) {
+      return `Error parsing tool arguments: ${error}`;
+    }
 
     // Parse tool name to extract server and method
     const parts = name.split('_');
@@ -548,7 +538,7 @@ class MCPServerManager {
         console.log(`- ${tool.function.name}: ${tool.function.description}`);
       });
 
-      const messages: OllamaMessage[] = [
+      const messages = [
         {
           role: 'system',
           content: `You are an assistant with access to various MCP (Model Context Protocol) servers and their tools. 
@@ -569,46 +559,32 @@ When using tools, always provide clear context about what you're doing and inter
         }
       ];
 
-      const requestBody: OllamaChatRequest = {
+      const response = await this.ollama.chat({
         model: this.model,
         messages: messages,
         tools: tools,
         stream: false
-      };
-
-      const response = await fetch(`${this.ollamaBaseUrl}/api/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
       });
-
-      if (!response.ok) {
-        throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json() as OllamaChatResponse;
       
       // Handle tool calls if present
-      if (data.message.tool_calls && data.message.tool_calls.length > 0) {
+      if (response.message.tool_calls && response.message.tool_calls.length > 0) {
         const toolResults: string[] = [];
         
-        console.log(`Executing ${data.message.tool_calls.length} tool calls...`);
+        console.log(`Executing ${response.message.tool_calls.length} tool calls...`);
         
-        for (const toolCall of data.message.tool_calls) {
+        for (const toolCall of response.message.tool_calls) {
           console.log(`Calling tool: ${toolCall.function.name}`);
           const result = await this.handleToolCall(toolCall);
           toolResults.push(result);
         }
 
         // Make a follow-up request with tool results
-        const followUpMessages: OllamaMessage[] = [
+        const followUpMessages = [
           ...messages,
           {
             role: 'assistant',
-            content: data.message.content || '',
-            tool_calls: data.message.tool_calls
+            content: response.message.content || '',
+            tool_calls: response.message.tool_calls
           },
           {
             role: 'tool',
@@ -616,23 +592,16 @@ When using tools, always provide clear context about what you're doing and inter
           }
         ];
 
-        const followUpResponse = await fetch(`${this.ollamaBaseUrl}/api/chat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: this.model,
-            messages: followUpMessages,
-            stream: false
-          })
+        const followUpResponse = await this.ollama.chat({
+          model: this.model,
+          messages: followUpMessages,
+          stream: false
         });
 
-        const followUpData = await followUpResponse.json() as OllamaChatResponse;
-        return followUpData.message.content;
+        return followUpResponse.message.content;
       }
 
-      return data.message.content;
+      return response.message.content;
     } catch (error) {
       console.error('Error chatting with Ollama:', error);
       throw error;
