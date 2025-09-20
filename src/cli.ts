@@ -94,26 +94,26 @@ async function main() {
     Logger.info(JSON.stringify(status, null, 2));
 
     // Example interactions with the LLM using MCP tools
-    Logger.info(`\n--- Interactive Chat with ${providerType.toUpperCase()} using MCP tools ---`);
-    Logger.info('Type your questions or commands. Special commands:');
-    Logger.info('  - "help" - Show available commands');
-    Logger.info('  - "status" - Show MCP server status');
-    Logger.info('  - "refresh" - Refresh tools cache');
-    Logger.info('  - "cancel" - Cancel current operation');
-    Logger.info('  - "clear" - Clear the screen');
-    Logger.info('  - "exit" or "quit" - Exit the program');
-    Logger.info('\nLLM Provider Configuration:');
-    Logger.info('  - Default: Ollama (local)');
-    Logger.info('  - Set LLM_PROVIDER=github and GITHUB_TOKEN=<token> for GitHub Copilot');
-    Logger.info('  - Set LLM_PROVIDER=openai and OPENAI_API_KEY=<key> for OpenAI');
-    Logger.info('\nDuring processing, you can:');
-    Logger.info('  - Type "cancel" to cancel the current operation');
-    Logger.info('  - Press Ctrl+C to cancel the current operation');
-    Logger.info('\nSuggested queries to try:');
-    Logger.info('  - "What tools and capabilities are available to me?"');
-    Logger.info('  - "Can you list the current directory contents?"');
-    Logger.info('  - "What resources can you access?"');
-    Logger.info('');
+    console.log(`\n--- Interactive Chat with ${providerType.toUpperCase()} using MCP tools ---`);
+    console.log('Type your questions or commands. Special commands:');
+    console.log('  - "help" - Show available commands');
+    console.log('  - "status" - Show MCP server status');
+    console.log('  - "refresh" - Refresh tools cache');
+    console.log('  - "cancel" - Cancel current operation');
+    console.log('  - "clear" - Clear the screen');
+    console.log('  - "exit" or "quit" - Exit the program');
+    console.log('\nLLM Provider Configuration:');
+    console.log('  - Default: Ollama (local)');
+    console.log('  - Set LLM_PROVIDER=github and GITHUB_TOKEN=<token> for GitHub Copilot');
+    console.log('  - Set LLM_PROVIDER=openai and OPENAI_API_KEY=<key> for OpenAI');
+    console.log('\nDuring processing, you can:');
+    console.log('  - Type "cancel" to cancel the current operation');
+    console.log('  - Press Ctrl+C to cancel the current operation');
+    console.log('\nSuggested queries to try:');
+    console.log('  - "What tools and capabilities are available to me?"');
+    console.log('  - "Can you list the current directory contents?"');
+    console.log('  - "What resources can you access?"');
+    console.log('');
     
     // Create readline interface for interactive input
     const rl = readline.createInterface({
@@ -137,7 +137,7 @@ async function main() {
             currentAbortController.abort();
             currentAbortController = null;
           }
-          Logger.info('\nGoodbye!');
+          console.log('\nGoodbye!');
           rl.close();
           await manager.stopAllServers();
           process.exit(0);
@@ -147,54 +147,54 @@ async function main() {
           if (currentAbortController) {
             currentAbortController.abort();
             currentAbortController = null;
-            Logger.info('Operation cancelled.\n');
+            console.log('Operation cancelled.\n');
           } else {
-            Logger.info('No operation to cancel.\n');
+            console.log('No operation to cancel.\n');
           }
           rl.prompt();
           return;
         }
         
         if (query.toLowerCase() === 'help') {
-          Logger.info('\nAvailable commands:');
-          Logger.info('  - help: Show this help message');
-          Logger.info('  - status: Show MCP server status and capabilities');
-          Logger.info('  - refresh: Refresh tools cache from MCP servers');
-          Logger.info('  - clear: Clear the screen');
-          Logger.info('  - cancel: Cancel current operation');
-          Logger.info('  - exit/quit: Exit the program');
-          Logger.info('\nOr ask any question to chat with the AI assistant using MCP tools.');
-          Logger.info('While processing, you can press Ctrl+C to cancel the current operation.\n');
+          console.log('\nAvailable commands:');
+          console.log('  - help: Show this help message');
+          console.log('  - status: Show MCP server status and capabilities');
+          console.log('  - refresh: Refresh tools cache from MCP servers');
+          console.log('  - clear: Clear the screen');
+          console.log('  - cancel: Cancel current operation');
+          console.log('  - exit/quit: Exit the program');
+          console.log('\nOr ask any question to chat with the AI assistant using MCP tools.');
+          console.log('While processing, you can press Ctrl+C to cancel the current operation.\n');
           rl.prompt();
           return;
         }
         
         if (query.toLowerCase() === 'status') {
-          Logger.info('\nMCP Server Status:');
+          console.log('\nMCP Server Status:');
           const status = manager.getServerStatus();
-          Logger.info(JSON.stringify(status, null, 2));
+          console.log(JSON.stringify(status, null, 2));
           
           // Also show tools cache status
           const toolsCount = manager.getCachedToolsCount();
           const cacheExists = manager.isToolsCacheValid();
-          Logger.info(`\nTools Cache: ${toolsCount} tools ${cacheExists ? 'cached' : 'not cached'}`);
-          Logger.info('');
+          console.log(`\nTools Cache: ${toolsCount} tools ${cacheExists ? 'cached' : 'not cached'}`);
+          console.log('');
           rl.prompt();
           return;
         }
         
         if (query.toLowerCase() === 'refresh') {
-          Logger.info('Refreshing tools cache...');
+          console.log('Refreshing tools cache...');
           const tools = await manager.refreshToolsCache();
-          Logger.info(`Tools cache refreshed with ${tools.length} tools.\n`);
+          console.log(`Tools cache refreshed with ${tools.length} tools.\n`);
           rl.prompt();
           return;
         }
         
         if (query.toLowerCase() === 'clear') {
           console.clear();
-          Logger.info('--- Interactive Chat with LLM using MCP tools ---');
-          Logger.info('Type "help" for available commands.\n');
+          console.log('--- Interactive Chat with LLM using MCP tools ---');
+          console.log('Type "help" for available commands.\n');
           rl.prompt();
           return;
         }
@@ -213,15 +213,15 @@ async function main() {
           
           // Clear the abort controller since operation completed successfully
           currentAbortController = null;
-          Logger.info(`Assistant: ${response}\n`);
+          console.log(`Assistant: ${response}\n`);
         } catch (error) {
           // Clear the abort controller
           currentAbortController = null;
           
           if (error instanceof Error && error.message === 'Operation cancelled by user') {
-            Logger.info('Operation was cancelled.\n');
+            console.log('Operation was cancelled.\n');
           } else {
-            Logger.error(`Error: ${error}\n`);
+            console.error(`Error: ${error}\n`);
           }
         }
         
@@ -229,7 +229,7 @@ async function main() {
       });
       
       rl.on('close', async () => {
-        Logger.info('\nShutting down...');
+        console.log('\nShutting down...');
         await manager.stopAllServers();
         process.exit(0);
       });
@@ -240,11 +240,11 @@ async function main() {
           // If there's an ongoing operation, cancel it
           currentAbortController.abort();
           currentAbortController = null;
-          Logger.info('\nOperation cancelled. Type "exit" to quit or continue chatting.');
+          console.log('\nOperation cancelled. Type "exit" to quit or continue chatting.');
           rl.prompt();
         } else {
           // If no operation is running, just show the prompt
-          Logger.info('\nType "exit" to quit gracefully.');
+          console.log('\nType "exit" to quit gracefully.');
           rl.prompt();
         }
       });
