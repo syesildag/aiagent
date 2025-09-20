@@ -1,4 +1,5 @@
 import { Ollama } from 'ollama';
+import Logger from '../utils/logger';
 
 // LLM Provider Types
 export interface LLMMessage {
@@ -66,7 +67,7 @@ export class OllamaProvider implements LLMProvider {
       await this.ollama.list();
       return true;
     } catch (error) {
-      console.error('Ollama health check failed:', error);
+      Logger.error(`Ollama health check failed: ${error}`);
       return false;
     }
   }
@@ -76,7 +77,7 @@ export class OllamaProvider implements LLMProvider {
       const response = await this.ollama.list();
       return response.models.map(model => model.name);
     } catch (error) {
-      console.error('Error getting available models:', error);
+      Logger.error(`Error getting available models: ${error}`);
       return [];
     }
   }
@@ -149,7 +150,7 @@ export class GitHubCopilotProvider implements LLMProvider {
 
   async checkHealth(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/v1/models`, {
+      const response = await fetch(`${this.baseUrl}/models`, {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json'
@@ -157,14 +158,14 @@ export class GitHubCopilotProvider implements LLMProvider {
       });
       return response.ok;
     } catch (error) {
-      console.error('GitHub Copilot health check failed:', error);
+      Logger.error(`GitHub Copilot health check failed: ${error}`);
       return false;
     }
   }
 
   async getAvailableModels(): Promise<string[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/v1/models`, {
+      const response = await fetch(`${this.baseUrl}/models`, {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json'
@@ -176,10 +177,12 @@ export class GitHubCopilotProvider implements LLMProvider {
       }
       
       const data = await response.json();
-      return data.data?.map((model: any) => model.id) || [];
+      // Handle both OpenAI-style (data.data) and Azure Models style (direct array) responses
+      const models = data.data || data;
+      return models?.map((model: any) => model.id || model.name) || ['gpt-4o', 'gpt-4o-mini'];
     } catch (error) {
-      console.error('Error getting GitHub Copilot models:', error);
-      return [];
+      Logger.error(`Error getting GitHub Copilot models: ${error}`);
+      return ['gpt-4o', 'gpt-4o-mini']; // Fallback to known models
     }
   }
 
@@ -191,7 +194,7 @@ export class GitHubCopilotProvider implements LLMProvider {
       stream: request.stream || false
     };
 
-    const chatPromise = fetch(`${this.baseUrl}/v1/chat/completions`, {
+    const chatPromise = fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
@@ -237,7 +240,7 @@ export class OpenAIProvider implements LLMProvider {
 
   async checkHealth(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/v1/models`, {
+      const response = await fetch(`${this.baseUrl}/models`, {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json'
@@ -245,14 +248,14 @@ export class OpenAIProvider implements LLMProvider {
       });
       return response.ok;
     } catch (error) {
-      console.error('OpenAI health check failed:', error);
+      Logger.error(`OpenAI health check failed: ${error}`);
       return false;
     }
   }
 
   async getAvailableModels(): Promise<string[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/v1/models`, {
+      const response = await fetch(`${this.baseUrl}/models`, {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json'
@@ -266,12 +269,14 @@ export class OpenAIProvider implements LLMProvider {
       const data = await response.json();
       return data.data?.map((model: any) => model.id) || [];
     } catch (error) {
-      console.error('Error getting OpenAI models:', error);
+      Logger.error(`Error getting OpenAI models: ${error}`);
       return [];
     }
   }
 
   async chat(request: LLMChatRequest, abortSignal?: AbortSignal): Promise<LLMChatResponse> {
+    Logger.debug(`GitHub Copilot chat request: model=${request.model}, messages=${request.messages.length}, tools=${request.tools?.length || 0}`);
+
     const requestBody = {
       model: request.model,
       messages: request.messages,
@@ -279,7 +284,9 @@ export class OpenAIProvider implements LLMProvider {
       stream: request.stream || false
     };
 
-    const chatPromise = fetch(`${this.baseUrl}/v1/chat/completions`, {
+    Logger.debug(`Request body: ${JSON.stringify(requestBody, null, 2)}`);
+
+    const chatPromise = fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
@@ -292,7 +299,9 @@ export class OpenAIProvider implements LLMProvider {
     const response = await chatPromise;
     
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      Logger.error(`GitHub Copilot API error response: ${errorText}`);
+      throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();

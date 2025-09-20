@@ -1,5 +1,6 @@
 import { closeDatabase, queryDatabase } from './pgClient';
 import { getEmbeddings } from './getEmbeddings';
+import Logger from './logger';
 
 const insertDocuments = async () => {
    const documents = [
@@ -26,4 +27,4 @@ const insertDocuments = async () => {
    closeDatabase();
 };
 
-insertDocuments().catch((err) => console.error(err));
+insertDocuments().catch((err) => Logger.error(err));

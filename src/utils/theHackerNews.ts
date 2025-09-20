@@ -1,4 +1,5 @@
 import { PlaywrightCrawler } from 'crawlee';
+import Logger from './logger';
 
 // Create an instance of the PlaywrightCrawler class - a crawler
 // that automatically loads the URLs in headless Chrome / Playwright.
@@ -88,7 +89,7 @@ async function runCrawler() {
 }
 
 runCrawler().then(finalStatistics => {
-   console.log('Crawler finished with statistics:', finalStatistics);
+   Logger.info(`Crawler finished with statistics: ${JSON.stringify(finalStatistics)}`);
 }).catch((error) => {
-   console.error('Error running crawler:', error);
+   Logger.error(`Error running crawler: ${error}`);
 });

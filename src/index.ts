@@ -59,7 +59,7 @@ function shouldCompress(req: express.Request, res: express.Response) {
 
 // Error-handling middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-   console.error(err.stack);
+   Logger.error(err.stack);
    res.status(500).send('Something broke!');
 });
 
@@ -166,13 +166,13 @@ app.post("/chat/:agent", async (req: Request, res: Response) => {
 const PORT: number = +process.env.PORT!;
 const HOST: string = process.env.HOST!;
 const server = https.createServer(options, app).listen(PORT, HOST, async () => {
-   console.log(`[server]: Server is running at http://${HOST}:${PORT}`);
+   Logger.info(`[server]: Server is running at http://${HOST}:${PORT}`);
    
    try {
       await initializeAgents();
-      console.log(`[server]: Agent system initialized successfully`);
+      Logger.info(`[server]: Agent system initialized successfully`);
    } catch (error) {
-      console.error(`[server]: Failed to initialize agent system: ${error instanceof Error ? error.message : String(error)}`);
+      Logger.error(`[server]: Failed to initialize agent system: ${error instanceof Error ? error.message : String(error)}`);
    }
 });
 let connections: Array<Duplex> = [];
@@ -182,7 +182,7 @@ server.on('connection', connection => {
       connections = connections.filter(curr => curr !== connection)
    };
    connection.on('error', (err: Error) => {
-      console.error(`Error in connection: ${err.message}`);
+      Logger.error(`Error in connection: ${err.message}`);
       filterConnections();
    });
    connection.on('close', () => {
@@ -192,14 +192,14 @@ server.on('connection', connection => {
 
 process.on('SIGTERM', (signal) => {
    gracefulShutdown(signal).catch((error) => {
-      console.error(`Error during graceful shutdown: ${error}`);
+      Logger.error(`Error during graceful shutdown: ${error}`);
       process.exit(1);
    });
 });
 
 process.on('SIGINT', (signal) => {
    gracefulShutdown(signal).catch((error) => {
-      console.error(`Error during graceful shutdown: ${error}`);
+      Logger.error(`Error during graceful shutdown: ${error}`);
       process.exit(1);
    });
 });
@@ -211,33 +211,33 @@ function sendAuthenticationRequired(res: Response) {
 
 async function gracefulShutdown(event: NodeJS.Signals) {
 
-   console.log(`${event} signal received.`);
+   Logger.info(`${event} signal received.`);
 
-   console.log('Shutting down gracefully...');
+   Logger.info('Shutting down gracefully...');
 
    // Shutdown MCP servers first
    try {
       await shutdownAgentSystem();
-      console.log('Agent system and MCP servers shut down successfully');
+      Logger.info('Agent system and MCP servers shut down successfully');
    } catch (error) {
-      console.error(`Error shutting down agent system: ${error}`);
+      Logger.error(`Error shutting down agent system: ${error}`);
    }
 
    //close the postgresql pool
    closeDatabase();
 
    connections.forEach(connection => {
-      console.log(`Closing active connection ${connection}`);
+      Logger.info(`Closing active connection ${connection}`);
       connection.end();
    });
 
    server.close(async (err?: Error) => {
-      console.log(`Server closed with ${err ?? 'Success'}`);
+      Logger.info(`Server closed with ${err ?? 'Success'}`);
       process.exit(0);
    });
 
    setTimeout(() => {
-      console.error('Could not close connections in time, forcefully shutting down');
+      Logger.error('Could not close connections in time, forcefully shutting down');
       connections.forEach(curr => curr.destroy());
       process.exit(1);
    }, +process.env.SERVER_TERMINATE_TIMEOUT!);

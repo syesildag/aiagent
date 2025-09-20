@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
+import Logger from './logger';
 
 dotenv.config();
 
@@ -64,7 +65,7 @@ function validateEnvironment(): Environment {
   try {
     return envSchema.parse(process.env);
   } catch (error) {
-    console.error(`Environment validation failed: ${error}`);
+    Logger.error(`Environment validation failed: ${error}`);
     process.exit(1);
   }
 }

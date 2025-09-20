@@ -561,12 +561,16 @@ When using tools, always provide clear context about what you're doing and inter
         throw new Error('Operation cancelled by user');
       }
 
-      const chatPromise = this.llmProvider.chat({
+      const chatRequest = {
         model: this.model,
         messages: messages,
         tools: tools,
         stream: false
-      });
+      };
+
+      Logger.debug(`MCPServerManager chatWithLLM request: model=${this.model}, messages=${messages.length}, tools=${tools.length}, provider=${this.llmProvider.name}`);
+
+      const chatPromise = this.llmProvider.chat(chatRequest);
 
       // Create a promise that rejects when the abort signal is triggered
       const abortPromise = new Promise<never>((_, reject) => {
