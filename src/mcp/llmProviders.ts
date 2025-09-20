@@ -42,6 +42,7 @@ export interface ToolCall {
 
 export interface Tool {
   type: 'function';
+  serverName?: string; // Optional server name for MCP tools
   function: {
     name: string;
     description: string;

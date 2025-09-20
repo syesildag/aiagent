@@ -1,44 +1,30 @@
 import { Options } from 'ollama';
-import { Session } from './repository/entities/session';
-import Logger from './utils/logger';
-import AbstractAgent from './agents/abstractAgent';
-import { MCPServerManager } from './mcp/mcpManager';
+import { GeneralAgent } from './agents/generalAgent';
 import { createLLMProvider, getLLMModel } from './mcp/llmFactory';
+import { MCPServerManager } from './mcp/mcpManager';
+import { Session } from './repository/entities/session';
 import { config } from './utils/config';
+import Logger from './utils/logger';
 
-export type AgentName = 'general';
+export type AgentName = 'general' | 'weather';
 
 export interface Agent {
    setSession(session: Session): void;
    shouldValidate(): boolean;
-   chat(prompt: string): Promise<string>;
+   chat(prompt: string, abortSignal?: AbortSignal): Promise<string>;
    validate(data?: any): Promise<boolean>;
    getSystemPrompt(): string | undefined;
    getName(): AgentName;
    getOptions(): Partial<Options> | undefined;
    setMCPManager(manager: MCPServerManager): void;
+   getServerNames(): string[] | undefined;
 }
 
-// Simple general-purpose agent class
-class GeneralAgent extends AbstractAgent {
-   constructor(private name: AgentName) {
-      super();
-   }
-
-   getName(): AgentName {
-      return this.name;
-   }
-
-   getSystemPrompt(): string {
-      return `You are a helpful AI assistant. You have access to various tools and capabilities through the MCP (Model Context Protocol) system.`;
-   }
-}
-
-let Agents: Record<string, Agent> = {};
+const Agents: Record<string, Agent> = {};
 let initialized = false;
 let globalMCPManager: MCPServerManager | null = null;
 
-export async function initializeAgents(): Promise<Record<string, Agent>> {
+export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
    if (initialized) {
       return Agents;
    }
@@ -56,18 +42,15 @@ export async function initializeAgents(): Promise<Record<string, Agent>> {
       Logger.error(`Failed to initialize global MCP manager: ${error}`);
    }
 
-   // Create agents with specialized system prompts
-   const generalAgent = new GeneralAgent('general');
-   
-   // Set the global MCP manager for all agents
-   const agents = [generalAgent];
-   for (const agent of agents)
+   [
+      new GeneralAgent('general'),
+   ]
+   .forEach(agent => {
+      Agents[agent.getName()] = agent;
+      // Set the global MCP manager for all agents
       agent.setMCPManager(globalMCPManager);
+   });
 
-   Agents = {
-      general: generalAgent
-   };
-   
    initialized = true;
    
    Logger.info(`Initialized ${Object.keys(Agents).length} agents: ${Object.keys(Agents).join(', ')}`);

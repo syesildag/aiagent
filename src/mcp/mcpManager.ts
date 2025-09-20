@@ -392,6 +392,35 @@ export class MCPServerManager {
     return this.convertMCPToolsToLLMFormat(true);
   }
 
+  // Get tools grouped by server name
+  getToolsByServer(): Record<string, Tool[]> {
+    const tools = this.convertMCPToolsToLLMFormat();
+    const toolsByServer: Record<string, Tool[]> = {};
+    
+    for (const tool of tools) {
+      const serverName = tool.serverName || 'unknown';
+      if (!toolsByServer[serverName]) {
+        toolsByServer[serverName] = [];
+      }
+      toolsByServer[serverName].push(tool);
+    }
+    
+    return toolsByServer;
+  }
+
+  // Get tools filtered by server names
+  getToolsForServers(serverNames: string[]): Tool[] {
+    const tools = this.convertMCPToolsToLLMFormat();
+    return tools.filter(tool => 
+      tool.serverName && serverNames.includes(tool.serverName)
+    );
+  }
+
+  // Get available server names
+  getAvailableServerNames(): string[] {
+    return Array.from(this.connections.keys());
+  }
+
   async checkHealth(): Promise<boolean> {
     return await this.llmProvider.checkHealth();
   }
@@ -416,6 +445,7 @@ export class MCPServerManager {
       for (const mcpTool of mcpTools) {
         tools.push({
           type: 'function',
+          serverName: serverName,
           function: {
             name: `${serverName}_${mcpTool.name}`,
             description: `[${serverName}] ${mcpTool.description}`,
@@ -433,6 +463,7 @@ export class MCPServerManager {
       if (resources.length > 0) {
         tools.push({
           type: 'function',
+          serverName: serverName,
           function: {
             name: `${serverName}_get_resource`,
             description: `[${serverName}] Get a resource by URI`,
@@ -456,6 +487,7 @@ export class MCPServerManager {
       for (const prompt of prompts) {
         tools.push({
           type: 'function',
+          serverName: serverName,
           function: {
             name: `${serverName}_prompt_${prompt.name}`,
             description: `[${serverName}] ${prompt.description}`,
@@ -538,12 +570,29 @@ export class MCPServerManager {
     }
   }
 
-  async chatWithLLM(message: string, abortSignal?: AbortSignal, customSystemPrompt?: string): Promise<string> {
+  async chatWithLLM(
+    message: string, 
+    abortSignal?: AbortSignal, 
+    customSystemPrompt?: string,
+    serverNames?: string[]
+  ): Promise<string> {
     try {
-      const tools = this.convertMCPToolsToLLMFormat();
+      // Get all tools and filter by server names if specified
+      let tools = this.convertMCPToolsToLLMFormat();
+      
+      if (serverNames && serverNames.length > 0) {
+        tools = tools.filter(tool => 
+          tool.serverName && serverNames.includes(tool.serverName)
+        );
+        Logger.debug(`Filtered tools to ${tools.length} tools from servers: ${serverNames.join(', ')}`);
+      }
+      
+      const availableServers = serverNames && serverNames.length > 0 
+        ? serverNames.filter(name => this.connections.has(name))
+        : Array.from(this.connections.keys());
       
       const defaultSystemPrompt = `You are an assistant with access to various MCP (Model Context Protocol) servers and their tools. 
-Available MCP servers: ${Array.from(this.connections.keys()).join(', ')}
+Available MCP servers: ${availableServers.join(', ')}
 
 You can use tools to:
 - Access file systems and repositories
