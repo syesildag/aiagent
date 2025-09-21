@@ -18,7 +18,25 @@ export function createLLMProvider(): LLMProvider {
         throw new Error('GitHub token is required when LLM_PROVIDER is set to github');
       }
       Logger.info('Creating GitHub Copilot provider');
-      return new GitHubCopilotProvider(config.GITHUB_TOKEN, config.GITHUB_COPILOT_BASE_URL);
+      
+      // Use OAuth configuration if available (for premium model access like VS Code)
+      const oauthConfig = config.GITHUB_OAUTH_APP_CLIENT_ID && config.GITHUB_OAUTH_APP_CLIENT_SECRET
+        ? {
+            clientId: config.GITHUB_OAUTH_APP_CLIENT_ID,
+            clientSecret: config.GITHUB_OAUTH_APP_CLIENT_SECRET
+          }
+        : undefined;
+      
+      if (oauthConfig) {
+        Logger.info('Using OAuth configuration for enhanced GitHub Copilot access');
+      }
+      
+      return new GitHubCopilotProvider(
+        config.GITHUB_TOKEN, 
+        config.GITHUB_COPILOT_BASE_URL,
+        {}, // extra headers
+        oauthConfig
+      );
       
     case 'ollama':
     default:

@@ -738,12 +738,18 @@ When using tools, always provide clear context about what you're doing and inter
             role: 'assistant',
             content: response.message.content || '',
             tool_calls: response.message.tool_calls
-          },
-          {
-            role: 'tool',
-            content: toolResults.join('\n\n---\n\n')
           }
         ];
+
+        // Add individual tool result messages
+        for (let i = 0; i < response.message.tool_calls.length; i++) {
+          const toolCall = response.message.tool_calls[i];
+          followUpMessages.push({
+            role: 'tool',
+            content: toolResults[i],
+            tool_call_id: toolCall.id
+          });
+        }
 
         const followUpChatPromise = this.llmProvider.chat({
           model: this.model,

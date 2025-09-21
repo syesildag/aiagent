@@ -6,6 +6,7 @@ export interface LLMMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
   tool_calls?: ToolCall[];
+  tool_call_id?: string; // Required for tool messages
 }
 
 export interface LLMChatRequest {
@@ -145,28 +146,65 @@ export class GitHubCopilotProvider implements LLMProvider {
   private apiKey: string;
   private extraHeaders: Record<string, string>;
 
-  constructor(
-    apiKey: string, 
-    baseUrl: string = 'https://api.githubcopilot.com',
-    extraHeaders: Record<string, string> = {}
-  ) {
-    this.apiKey = apiKey;
-    this.baseUrl = baseUrl;
-    this.extraHeaders = extraHeaders;
-  }
-
   /**
    * Create headers for GitHub Copilot API requests
    */
   private createHeaders(): Record<string, string> {
-    return {
+    const headers: Record<string, string> = {
       'Authorization': `Bearer ${this.apiKey}`,
       'Content-Type': 'application/json',
-      'Editor-Version': 'AI-Agent/1.0',
-      'Editor-Plugin-Version': 'AI-Agent/1.0',
-      'Copilot-Integration-Id': 'vscode-chat',
       ...this.extraHeaders
     };
+
+    // Use VS Code-like headers for better compatibility
+    if (this.useOAuth) {
+      // OAuth-specific headers (like VS Code uses)
+      headers['Editor-Version'] = 'vscode/1.95.0';
+      headers['Editor-Plugin-Version'] = 'copilot-chat/0.22.0';
+      headers['Copilot-Integration-Id'] = 'vscode-chat';
+      headers['User-Agent'] = 'GitHubCopilotChat/0.22.0';
+      // Don't add X-GitHub-Api-Version for OAuth to avoid conflicts
+    } else {
+      // Personal token headers
+      headers['Editor-Version'] = 'AI-Agent/1.0';
+      headers['Editor-Plugin-Version'] = 'AI-Agent/1.0';
+      headers['Copilot-Integration-Id'] = 'vscode-chat';
+      
+      // Don't add X-GitHub-Api-Version header at all - it causes issues with Claude models
+      // and the API works fine without it
+    }
+
+    return headers;
+  }
+
+  /**
+   * Get the current model being used
+   */
+  get currentModel(): string | undefined {
+    return this.model;
+  }
+
+  private model?: string;
+  private useOAuth: boolean;
+
+  constructor(
+    apiKey: string, 
+    baseUrl: string = 'https://api.githubcopilot.com',
+    extraHeaders: Record<string, string> = {},
+    oauthConfig?: { clientId: string; clientSecret: string }
+  ) {
+    this.apiKey = apiKey;
+    this.baseUrl = baseUrl;
+    this.extraHeaders = extraHeaders;
+    this.useOAuth = !!oauthConfig;
+    
+    // Debug logging to check token validity
+    Logger.debug(`GitHubCopilotProvider initialized with:`);
+    Logger.debug(`  Base URL: ${baseUrl}`);
+    Logger.debug(`  API Key length: ${apiKey?.length || 0}`);
+    Logger.debug(`  API Key starts with: ${apiKey?.substring(0, 10) || 'undefined'}...`);
+    Logger.debug(`  OAuth enabled: ${this.useOAuth}`);
+    Logger.debug(`  Extra headers: ${JSON.stringify(extraHeaders)}`);
   }
 
   async checkHealth(): Promise<boolean> {
@@ -174,7 +212,14 @@ export class GitHubCopilotProvider implements LLMProvider {
       const response = await fetch(`${this.baseUrl}/models`, {
         headers: this.createHeaders()
       });
-      return response.ok;
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        Logger.error(`GitHub Copilot health check failed: ${response.status} ${response.statusText} - ${errorText}`);
+        return false;
+      }
+      
+      return true;
     } catch (error) {
       Logger.error(`GitHub Copilot health check failed: ${error}`);
       return false;
@@ -194,7 +239,12 @@ export class GitHubCopilotProvider implements LLMProvider {
       const data = await response.json();
       // Handle both OpenAI-style (data.data) and Azure Models style (direct array) responses
       const models = data.data || data;
-      return models?.map((model: any) => model.id || model.name) || ['gpt-4o', 'gpt-4o-mini'];
+      const modelIds = models?.map((model: any) => model.id || model.name) || ['gpt-4o', 'gpt-4o-mini'];
+      
+      // Log available models for debugging
+      Logger.info(`Available GitHub Copilot models: ${JSON.stringify(modelIds)}`);
+      
+      return modelIds;
     } catch (error) {
       Logger.error(`Error getting GitHub Copilot models: ${error}`);
       return ['gpt-4o', 'gpt-4o-mini']; // Fallback to known models
@@ -202,6 +252,9 @@ export class GitHubCopilotProvider implements LLMProvider {
   }
 
   async chat(request: LLMChatRequest, abortSignal?: AbortSignal): Promise<LLMChatResponse> {
+    // Store the model for this request
+    this.model = request.model;
+
     const requestBody: any = {
       model: request.model,
       messages: request.messages,
@@ -221,6 +274,18 @@ export class GitHubCopilotProvider implements LLMProvider {
       }));
     }
 
+    // // Add Claude-specific parameters
+    // if (this.isClaudeModel()) {
+    //   requestBody.max_tokens = 4096; // Set appropriate max tokens for Claude
+    //   // Some Claude models might need specific parameters
+    //   if (request.model.includes('sonnet-4')) {
+    //     requestBody.temperature = 0.7;
+    //   }
+    // }
+
+    Logger.debug(`GitHub Copilot chat request: model=${request.model}, messages=${request.messages.length}, tools=${requestBody.tools?.length || 0}`);
+    Logger.debug(`Request body: ${JSON.stringify(requestBody, null, 2)}`);
+
     const chatPromise = fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: this.createHeaders(),
@@ -233,6 +298,36 @@ export class GitHubCopilotProvider implements LLMProvider {
     if (!response.ok) {
       const errorText = await response.text();
       Logger.error(`GitHub Copilot API error response: ${errorText}`);
+      
+      // Handle specific error cases
+      if (response.status === 400) {
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.error?.code === 'model_max_prompt_tokens_exceeded' && 
+              errorData.error?.message?.includes('limit of 0')) {
+            
+            // Log available models for debugging
+            const availableModels = await this.getAvailableModels();
+            Logger.warn(`Model '${request.model}' appears to be unavailable (token limit of 0).`);
+            Logger.warn(`Available models: ${JSON.stringify(availableModels)}`);
+            
+            // if (this.isClaudeModel()) {
+            //   const alternatives = this.getClaudeModelAlternatives().filter(alt => 
+            //     availableModels.includes(alt)
+            //   );
+            //   if (alternatives.length > 0) {
+            //     Logger.warn(`Try these Claude alternatives: ${JSON.stringify(alternatives)}`);
+            //     throw new Error(`Model '${request.model}' is not available. Try: ${alternatives.join(', ')}`);
+            //   }
+            // }
+            
+            throw new Error(`Model '${request.model}' is not available. Available models: ${availableModels.join(', ')}`);
+          }
+        } catch (parseError) {
+          // If we can't parse the error, fall through to generic error
+        }
+      }
+      
       throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`);
     }
 
