@@ -202,12 +202,24 @@ export class GitHubCopilotProvider implements LLMProvider {
   }
 
   async chat(request: LLMChatRequest, abortSignal?: AbortSignal): Promise<LLMChatResponse> {
-    const requestBody = {
+    const requestBody: any = {
       model: request.model,
       messages: request.messages,
-      //tools: request.tools,
       stream: request.stream || false
     };
+
+    // Only include tools if they exist and are not empty
+    if (request.tools && request.tools.length > 0) {
+      // Convert tools to the format expected by GitHub Copilot API
+      requestBody.tools = request.tools.map(tool => ({
+        type: 'function',
+        function: {
+          name: tool.function.name,
+          description: tool.function.description,
+          parameters: tool.function.parameters
+        }
+      }));
+    }
 
     const chatPromise = fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
@@ -219,6 +231,8 @@ export class GitHubCopilotProvider implements LLMProvider {
     const response = await chatPromise;
     
     if (!response.ok) {
+      const errorText = await response.text();
+      Logger.error(`GitHub Copilot API error response: ${errorText}`);
       throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`);
     }
 

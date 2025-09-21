@@ -403,7 +403,10 @@ export class MCPServerManager {
   }
 
   // Manually refresh tools cache
-  refreshToolsCache(): Tool[] {
+  async refreshToolsCache(): Promise<Tool[]> {
+    await this.stopAllServers();
+    this.initialized = false;
+    this.ensureInitialized();
     return this.convertMCPToolsToLLMFormat(true);
   }
 
