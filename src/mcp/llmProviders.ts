@@ -143,19 +143,36 @@ export class GitHubCopilotProvider implements LLMProvider {
   name = 'GitHub Copilot';
   private baseUrl: string;
   private apiKey: string;
+  private extraHeaders: Record<string, string>;
 
-  constructor(apiKey: string, baseUrl: string = 'https://api.githubcopilot.com') {
+  constructor(
+    apiKey: string, 
+    baseUrl: string = 'https://api.githubcopilot.com',
+    extraHeaders: Record<string, string> = {}
+  ) {
     this.apiKey = apiKey;
     this.baseUrl = baseUrl;
+    this.extraHeaders = extraHeaders;
+  }
+
+  /**
+   * Create headers for GitHub Copilot API requests
+   */
+  private createHeaders(): Record<string, string> {
+    return {
+      'Authorization': `Bearer ${this.apiKey}`,
+      'Content-Type': 'application/json',
+      'Editor-Version': 'AI-Agent/1.0',
+      'Editor-Plugin-Version': 'AI-Agent/1.0',
+      'Copilot-Integration-Id': 'vscode-chat',
+      ...this.extraHeaders
+    };
   }
 
   async checkHealth(): Promise<boolean> {
     try {
       const response = await fetch(`${this.baseUrl}/models`, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
-        }
+        headers: this.createHeaders()
       });
       return response.ok;
     } catch (error) {
@@ -167,10 +184,7 @@ export class GitHubCopilotProvider implements LLMProvider {
   async getAvailableModels(): Promise<string[]> {
     try {
       const response = await fetch(`${this.baseUrl}/models`, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
-        }
+        headers: this.createHeaders()
       });
       
       if (!response.ok) {
@@ -197,10 +211,7 @@ export class GitHubCopilotProvider implements LLMProvider {
 
     const chatPromise = fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json'
-      },
+      headers: this.createHeaders(),
       body: JSON.stringify(requestBody),
       signal: abortSignal
     });
@@ -226,6 +237,17 @@ export class GitHubCopilotProvider implements LLMProvider {
       },
       done: true
     };
+  }
+
+  /**
+   * Create a new GitHubCopilotProvider with additional headers
+   */
+  static withExtraHeaders(
+    apiKey: string,
+    extraHeaders: Record<string, string>,
+    baseUrl: string = 'https://api.githubcopilot.com'
+  ): GitHubCopilotProvider {
+    return new GitHubCopilotProvider(apiKey, baseUrl, extraHeaders);
   }
 }
 
