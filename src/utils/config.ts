@@ -31,6 +31,7 @@ const envSchema = z.object({
   // GitHub Copilot
   GITHUB_TOKEN: z.string().min(1).optional(),
   GITHUB_COPILOT_BASE_URL: z.string().url().default('https://api.githubcopilot.com'),
+  GITHUB_OAUTH_APP_CLIENT_ID: z.string().min(1).optional(),
   
   // External APIs
   OPENWEATHERMAP_API_KEY: z.string().min(1).optional(),

@@ -1,6 +1,8 @@
 import "dotenv/config";
 import * as readline from 'readline';
-import Logger from './utils/logger';
+import Logger from '../utils/logger';
+import { authenticateWithGitHub, whoami } from '../utils/githubAuth';
+import { updateEnvVariables } from '../utils/envManager';
 import {
   GitHubCopilotProvider,
   LLMChatResponse,
@@ -9,8 +11,105 @@ import {
   OllamaProvider,
   OpenAIProvider,
   Tool
-} from './mcp/llmProviders';
-import { MCPConfig, MCPServer, MCPServerManager } from './mcp/mcpManager';
+} from '../mcp/llmProviders';
+import { MCPConfig, MCPServer, MCPServerManager } from '../mcp/mcpManager';
+
+/**
+ * Handle the login command - list providers and configure authentication
+ */
+async function handleLoginCommand(rl: readline.Interface): Promise<void> {
+  console.log('\n=== LLM Provider Configuration ===');
+  console.log('Available LLM providers:');
+  console.log('1. Ollama (local) - No authentication required');
+  console.log('2. GitHub Copilot - Requires GitHub authentication');
+  console.log('3. OpenAI - Requires API key');
+  console.log('');
+
+  // Create a promise-based input function
+  const askQuestion = (question: string): Promise<string> => {
+    return new Promise((resolve) => {
+      rl.question(question, (answer) => {
+        resolve(answer.trim());
+      });
+    });
+  };
+
+  const choice = await askQuestion('Select a provider (1-3): ');
+
+  switch (choice) {
+    case '1':
+      // Ollama
+      console.log('\nConfiguring Ollama provider...');
+      updateEnvVariables({
+        'LLM_PROVIDER': 'ollama'
+      });
+      console.log('✅ Ollama provider configured successfully!');
+      console.log('Restart the application to use the new provider.\n');
+      break;
+
+    case '2':
+      // GitHub Copilot
+      console.log('\nConfiguring GitHub Copilot provider...');
+      
+      // Check if already authenticated
+      const currentUser = await whoami();
+      if (currentUser) {
+        console.log(`Already authenticated as: ${currentUser}`);
+        const reauth = await askQuestion('Do you want to re-authenticate? (y/N): ');
+        if (reauth.toLowerCase() !== 'y' && reauth.toLowerCase() !== 'yes') {
+          console.log('Using existing GitHub authentication.\n');
+          updateEnvVariables({
+            'LLM_PROVIDER': 'github'
+          });
+          console.log('✅ GitHub Copilot provider configured successfully!');
+          console.log('Restart the application to use the new provider.\n');
+          break;
+        }
+      }
+
+      // Authenticate with GitHub
+      console.log('Starting GitHub authentication...');
+      try {
+        const token = await authenticateWithGitHub();
+        
+        // Update environment variables
+        updateEnvVariables({
+          'LLM_PROVIDER': 'github',
+          'GITHUB_TOKEN': token
+        });
+        
+        console.log('✅ GitHub Copilot provider configured successfully!');
+        console.log('Restart the application to use the new provider.\n');
+      } catch (error) {
+        console.error(`GitHub authentication failed: ${error}`);
+        console.log('Provider configuration cancelled.\n');
+      }
+      break;
+
+    case '3':
+      // OpenAI
+      console.log('\nConfiguring OpenAI provider...');
+      const apiKey = await askQuestion('Enter your OpenAI API key: ');
+      
+      if (!apiKey) {
+        console.log('API key is required for OpenAI provider.\n');
+        break;
+      }
+
+      updateEnvVariables({
+        'LLM_PROVIDER': 'openai',
+        'OPENAI_API_KEY': apiKey
+      });
+      
+      console.log('✅ OpenAI provider configured successfully!');
+      console.log('Restart the application to use the new provider.\n');
+      break;
+
+    default:
+      console.log('Invalid choice. Please select 1, 2, or 3.\n');
+      break;
+  }
+}
 
 // LLM Provider Implementations
 // Example usage and CLI interface
@@ -67,36 +166,55 @@ async function main() {
 
   const manager = new MCPServerManager(process.env.MCP_SERVERS_PATH, llmProvider, model);
 
-  try {
-    // Load MCP server configuration
-    await manager.loadServersConfig();
+  // Flag to track if MCP servers have been initialized
+  let mcpInitialized = false;
 
-    // Check if the selected LLM provider is available
-    Logger.debug('Checking provider health...');
-    const providerAvailable = await manager.checkHealth();
-    Logger.debug(`Provider health check result: ${providerAvailable}`);
-    if (!providerAvailable) {
-      Logger.error(`${providerType} provider is not available. Please check your configuration.`);
-      process.exit(1);
+  /**
+   * Initialize MCP servers on first use
+   */
+  async function initializeMCPServers(): Promise<void> {
+    if (mcpInitialized) {
+      return;
     }
 
-    Logger.info(`${providerType} provider is available`);
-    const models = await manager.getAvailableModels();
-    Logger.debug(`Available models: ${JSON.stringify(models)}`);
+    try {
+      console.log('Initializing MCP servers...');
+      
+      // Load MCP server configuration
+      await manager.loadServersConfig();
 
-    // Start all MCP servers
-    await manager.startAllServers();
-    Logger.info('All MCP servers started');
+      // Check if the selected LLM provider is available
+      Logger.debug('Checking provider health...');
+      const providerAvailable = await manager.checkHealth();
+      Logger.debug(`Provider health check result: ${providerAvailable}`);
+      if (!providerAvailable) {
+        Logger.error(`${providerType} provider is not available. Please check your configuration.`);
+        return;
+      }
 
-    // Show server status and capabilities
-    const status = manager.getServerStatus();
-    Logger.info('\nMCP Server Status and Capabilities:');
-    Logger.info(JSON.stringify(status, null, 2));
+      Logger.info(`${providerType} provider is available`);
+      const models = await manager.getAvailableModels();
+      Logger.debug(`Available models: ${JSON.stringify(models)}`);
+
+      // Start all MCP servers
+      await manager.startAllServers();
+      Logger.info('All MCP servers started');
+
+      mcpInitialized = true;
+      console.log('✅ MCP servers initialized successfully!\n');
+    } catch (error) {
+      Logger.error(`Failed to initialize MCP servers: ${error}`);
+      console.log('⚠️  MCP initialization failed. Some features may not be available.\n');
+    }
+  }
+
+  try {
 
     // Example interactions with the LLM using MCP tools
-    console.log(`\n--- Interactive Chat with ${providerType.toUpperCase()} using MCP tools ---`);
+    console.log(`\n--- Interactive Chat with ${providerType.toUpperCase()} ---`);
     console.log('Type your questions or commands. Special commands:');
     console.log('  - "help" - Show available commands');
+    console.log('  - "login" - Configure LLM provider and authenticate');
     console.log('  - "status" - Show MCP server status');
     console.log('  - "refresh" - Refresh tools cache');
     console.log('  - "cancel" - Cancel current operation');
@@ -104,15 +222,8 @@ async function main() {
     console.log('  - "exit" or "quit" - Exit the program');
     console.log('\nLLM Provider Configuration:');
     console.log('  - Default: Ollama (local)');
-    console.log('  - Set LLM_PROVIDER=github and GITHUB_TOKEN=<token> for GitHub Copilot');
-    console.log('  - Set LLM_PROVIDER=openai and OPENAI_API_KEY=<key> for OpenAI');
-    console.log('\nDuring processing, you can:');
-    console.log('  - Type "cancel" to cancel the current operation');
-    console.log('  - Press Ctrl+C to cancel the current operation');
-    console.log('\nSuggested queries to try:');
-    console.log('  - "What tools and capabilities are available to me?"');
-    console.log('  - "Can you list the current directory contents?"');
-    console.log('  - "What resources can you access?"');
+    console.log('  - Use "login" command to configure GitHub Copilot or OpenAI');
+    console.log('\nMCP servers will be initialized on first use.');
     console.log('');
     
     // Create readline interface for interactive input
@@ -139,7 +250,9 @@ async function main() {
           }
           console.log('\nGoodbye!');
           rl.close();
-          await manager.stopAllServers();
+          if (mcpInitialized) {
+            await manager.stopAllServers();
+          }
           process.exit(0);
         }
         
@@ -158,6 +271,7 @@ async function main() {
         if (query.toLowerCase() === 'help') {
           console.log('\nAvailable commands:');
           console.log('  - help: Show this help message');
+          console.log('  - login: Configure LLM provider and authenticate');
           console.log('  - status: Show MCP server status and capabilities');
           console.log('  - refresh: Refresh tools cache from MCP servers');
           console.log('  - clear: Clear the screen');
@@ -168,8 +282,19 @@ async function main() {
           rl.prompt();
           return;
         }
+
+        if (query.toLowerCase() === 'login') {
+          try {
+            await handleLoginCommand(rl);
+          } catch (error) {
+            console.error(`Login failed: ${error}\n`);
+          }
+          rl.prompt();
+          return;
+        }
         
         if (query.toLowerCase() === 'status') {
+          await initializeMCPServers();
           console.log('\nMCP Server Status:');
           const status = manager.getServerStatus();
           console.log(JSON.stringify(status, null, 2));
@@ -184,6 +309,7 @@ async function main() {
         }
         
         if (query.toLowerCase() === 'refresh') {
+          await initializeMCPServers();
           console.log('Refreshing tools cache...');
           const tools = await manager.refreshToolsCache();
           console.log(`Tools cache refreshed with ${tools.length} tools.\n`);
@@ -205,6 +331,9 @@ async function main() {
         }
         
         try {
+          // Initialize MCP servers on first user query if not already done
+          await initializeMCPServers();
+          
           // Create new AbortController for this operation
           currentAbortController = new AbortController();
           console.log('Assistant: Thinking... (type "cancel" or press Ctrl+C to cancel)');
@@ -230,7 +359,9 @@ async function main() {
       
       rl.on('close', async () => {
         console.log('\nShutting down...');
-        await manager.stopAllServers();
+        if (mcpInitialized) {
+          await manager.stopAllServers();
+        }
         process.exit(0);
       });
       

@@ -11,7 +11,7 @@ A production-ready Express.js server with AI chat capabilities that supports mul
 - **Agent System**: Modular AI agents with custom tools and validation
 - **Tool Caching**: Optimized performance with intelligent tool caching
 - **Security Features**: Rate limiting, CORS, helmet security headers
-- **Interactive CLI**: Console-based interface for testing (cli.ts)
+- **Interactive CLI**: Console-based interface for testing (cli/cli.ts)
 
 ## Quick Start
 
@@ -116,11 +116,32 @@ npx ts-node examples/llm-providers.ts
 
 While running the agent, you can use these commands:
 - `help` - Show available commands
+- `login` - Configure LLM provider and authenticate (GitHub Copilot, OpenAI, or Ollama)
 - `status` - Show MCP server status and capabilities
 - `refresh` - Refresh tools cache
 - `cancel` - Cancel current operation
 - `clear` - Clear the screen
 - `exit` or `quit` - Exit the program
+
+### Login Command
+
+The `login` command provides an interactive way to configure LLM providers:
+
+1. **Ollama (Local)**: No authentication required
+2. **GitHub Copilot**: Uses GitHub OAuth device flow for authentication
+3. **OpenAI**: Prompts for API key input
+
+For GitHub Copilot authentication:
+- Set up a GitHub OAuth App and configure `GITHUB_OAUTH_APP_CLIENT_ID` in your `.env` file
+- The CLI will display a verification URL and user code
+- Visit the URL in your browser and enter the code
+- The system will automatically detect completion and save the token
+- Environment variables are updated automatically
+
+**GitHub OAuth App Setup**:
+1. Go to GitHub Settings > Developer settings > OAuth Apps
+2. Create a new OAuth App with any homepage URL (device flow doesn't need callback URL)
+3. Copy the Client ID and set `GITHUB_OAUTH_APP_CLIENT_ID=your_client_id` in `.env`
 
 ## Architecture
 
