@@ -17,7 +17,7 @@ import { MCPConfig, MCPServer, MCPServerManager } from '../mcp/mcpManager';
 /**
  * Handle the login command - list providers and configure authentication
  */
-async function handleLoginCommand(rl: readline.Interface): Promise<void> {
+async function handleLoginCommand(rl: readline.Interface, updateManagerCallback: () => void): Promise<void> {
   console.log('\n=== LLM Provider Configuration ===');
   console.log('Available LLM providers:');
   console.log('1. Ollama (local) - No authentication required');
@@ -43,8 +43,12 @@ async function handleLoginCommand(rl: readline.Interface): Promise<void> {
       updateEnvVariables({
         'LLM_PROVIDER': 'ollama'
       });
+      
+      // Update the manager with new provider configuration
+      updateManagerCallback();
+      
       console.log('✅ Ollama provider configured successfully!');
-      console.log('Restart the application to use the new provider.\n');
+      console.log('Manager instance updated with new provider configuration.\n');
       break;
 
     case '2':
@@ -61,8 +65,12 @@ async function handleLoginCommand(rl: readline.Interface): Promise<void> {
           updateEnvVariables({
             'LLM_PROVIDER': 'github'
           });
+          
+          // Update the manager with new provider configuration
+          updateManagerCallback();
+          
           console.log('✅ GitHub Copilot provider configured successfully!');
-          console.log('Restart the application to use the new provider.\n');
+          console.log('Manager instance updated with new provider configuration.\n');
           break;
         }
       }
@@ -78,8 +86,11 @@ async function handleLoginCommand(rl: readline.Interface): Promise<void> {
           'GITHUB_TOKEN': token
         });
         
+        // Update the manager with new provider configuration
+        updateManagerCallback();
+        
         console.log('✅ GitHub Copilot provider configured successfully!');
-        console.log('Restart the application to use the new provider.\n');
+        console.log('Manager instance updated with new provider configuration.\n');
       } catch (error) {
         console.error(`GitHub authentication failed: ${error}`);
         console.log('Provider configuration cancelled.\n');
@@ -101,13 +112,113 @@ async function handleLoginCommand(rl: readline.Interface): Promise<void> {
         'OPENAI_API_KEY': apiKey
       });
       
+      // Update the manager with new provider configuration
+      updateManagerCallback();
+      
       console.log('✅ OpenAI provider configured successfully!');
-      console.log('Restart the application to use the new provider.\n');
+      console.log('Manager instance updated with new provider configuration.\n');
       break;
 
     default:
       console.log('Invalid choice. Please select 1, 2, or 3.\n');
       break;
+  }
+}
+
+/**
+ * Handle the model command - list available models and let user choose
+ */
+async function handleModelCommand(rl: readline.Interface, manager: MCPServerManager, updateManagerCallback: () => void): Promise<void> {
+  console.log('\n=== Model Selection ===');
+  
+  // Create a promise-based input function
+  const askQuestion = (question: string): Promise<string> => {
+    return new Promise((resolve) => {
+      rl.question(question, (answer) => {
+        resolve(answer.trim());
+      });
+    });
+  };
+
+  const currentProvider = process.env.LLM_PROVIDER || 'ollama';
+  const currentModel = process.env.LLM_MODEL || 'qwen3:4b';
+  
+  console.log(`Current provider: ${currentProvider}`);
+  console.log(`Current model: ${currentModel}\n`);
+
+  // Get available models from the provider
+  let availableModels: string[] = [];
+  try {
+    console.log('Fetching available models...');
+    availableModels = await manager.getAvailableModels();
+  } catch (error) {
+    console.log(`❌ Error fetching models: ${error}`);
+    console.log('You can still set a custom model name.\n');
+  }
+  
+  if (availableModels.length === 0) {
+    console.log(`❌ No predefined models available for provider: ${currentProvider}`);
+    console.log('You can still set a custom model name.\n');
+    
+    const customModel = await askQuestion('Enter custom model name (or press Enter to cancel): ');
+    if (customModel) {
+      updateEnvVariables({
+        'LLM_MODEL': customModel
+      });
+      console.log(`✅ Model updated to: ${customModel}`);
+      console.log('Restart the application to use the new model.\n');
+    } else {
+      console.log('Model selection cancelled.\n');
+    }
+    return;
+  }
+
+  console.log(`Available models for ${currentProvider}:`);
+  availableModels.forEach((model, index) => {
+    const current = model === currentModel ? ' (current)' : '';
+    console.log(`${index + 1}. ${model}${current}`);
+  });
+  console.log(`${availableModels.length + 1}. Enter custom model name`);
+  console.log('');
+
+  const choice = await askQuestion(`Select a model (1-${availableModels.length + 1}): `);
+  const choiceNum = parseInt(choice);
+
+  if (choiceNum >= 1 && choiceNum <= availableModels.length) {
+    const selectedModel = availableModels[choiceNum - 1];
+    
+    if (selectedModel === currentModel) {
+      console.log(`Model "${selectedModel}" is already selected.\n`);
+      return;
+    }
+
+    updateEnvVariables({
+      'LLM_MODEL': selectedModel
+    });
+    
+    // Update the manager with new model configuration
+    updateManagerCallback();
+    
+    console.log(`✅ Model updated to: ${selectedModel}`);
+    console.log('Manager instance updated with new model configuration.\n');
+    
+  } else if (choiceNum === availableModels.length + 1) {
+    const customModel = await askQuestion('Enter custom model name: ');
+    if (customModel) {
+      updateEnvVariables({
+        'LLM_MODEL': customModel
+      });
+      
+      // Update the manager with new model configuration
+      updateManagerCallback();
+      
+      console.log(`✅ Model updated to: ${customModel}`);
+      console.log('Manager instance updated with new model configuration.\n');
+    } else {
+      console.log('Model selection cancelled.\n');
+    }
+  } else {
+    console.log('Invalid choice. Please select a valid option.\n');
   }
 }
 
@@ -164,48 +275,48 @@ async function main() {
       break;
   }
 
-  const manager = new MCPServerManager(process.env.MCP_SERVERS_PATH, llmProvider, model);
-
-  // Flag to track if MCP servers have been initialized
-  let mcpInitialized = false;
+  const currentManager = new MCPServerManager(process.env.MCP_SERVERS_PATH, llmProvider, model);
 
   /**
-   * Initialize MCP servers on first use
+   * Create a new LLM provider based on current environment variables
    */
-  async function initializeMCPServers(): Promise<void> {
-    if (mcpInitialized) {
-      return;
-    }
-
-    try {
-      console.log('Initializing MCP servers...');
+  function createLLMProvider(): LLMProvider {
+    const currentProviderType = process.env.LLM_PROVIDER || 'ollama';
+    
+    switch (currentProviderType.toLowerCase()) {
+      case 'github':
+      case 'copilot':
+        const githubApiKey = process.env.GITHUB_TOKEN;
+        if (!githubApiKey) {
+          Logger.error('GitHub Copilot requires GITHUB_TOKEN environment variable');
+          throw new Error('GitHub Copilot configuration incomplete');
+        }
+        const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://models.inference.ai.azure.com';
+        return new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
       
-      // Load MCP server configuration
-      await manager.loadServersConfig();
-
-      // Check if the selected LLM provider is available
-      Logger.debug('Checking provider health...');
-      const providerAvailable = await manager.checkHealth();
-      Logger.debug(`Provider health check result: ${providerAvailable}`);
-      if (!providerAvailable) {
-        Logger.error(`${providerType} provider is not available. Please check your configuration.`);
-        return;
-      }
-
-      Logger.info(`${providerType} provider is available`);
-      const models = await manager.getAvailableModels();
-      Logger.debug(`Available models: ${JSON.stringify(models)}`);
-
-      // Start all MCP servers
-      await manager.startAllServers();
-      Logger.info('All MCP servers started');
-
-      mcpInitialized = true;
-      console.log('✅ MCP servers initialized successfully!\n');
-    } catch (error) {
-      Logger.error(`Failed to initialize MCP servers: ${error}`);
-      console.log('⚠️  MCP initialization failed. Some features may not be available.\n');
+      case 'openai':
+        const openaiApiKey = process.env.OPENAI_API_KEY;
+        if (!openaiApiKey) {
+          Logger.error('OpenAI requires OPENAI_API_KEY environment variable');
+          throw new Error('OpenAI configuration incomplete');
+        }
+        return new OpenAIProvider(openaiApiKey);
+      
+      case 'ollama':
+      default:
+        return new OllamaProvider();
     }
+  }
+
+  /**
+   * Update the manager's LLM provider and model based on current environment variables
+   */
+  function updateManagerConfiguration(): void {
+    const newProvider = createLLMProvider();
+    const newModel = process.env.LLM_MODEL || 'qwen3:4b';
+    
+    currentManager.updateConfiguration(newProvider, newModel);
+    Logger.info('Manager configuration updated with new provider/model settings');
   }
 
   try {
@@ -250,9 +361,7 @@ async function main() {
           }
           console.log('\nGoodbye!');
           rl.close();
-          if (mcpInitialized) {
-            await manager.stopAllServers();
-          }
+          await currentManager.stopAllServers();
           process.exit(0);
         }
         
@@ -272,6 +381,7 @@ async function main() {
           console.log('\nAvailable commands:');
           console.log('  - help: Show this help message');
           console.log('  - login: Configure LLM provider and authenticate');
+          console.log('  - model: List and select available models');
           console.log('  - status: Show MCP server status and capabilities');
           console.log('  - refresh: Refresh tools cache from MCP servers');
           console.log('  - clear: Clear the screen');
@@ -285,23 +395,34 @@ async function main() {
 
         if (query.toLowerCase() === 'login') {
           try {
-            await handleLoginCommand(rl);
+            await handleLoginCommand(rl, updateManagerConfiguration);
           } catch (error) {
             console.error(`Login failed: ${error}\n`);
           }
           rl.prompt();
           return;
         }
+
+        if (query.toLowerCase() === 'model') {
+          try {
+            await handleModelCommand(rl, currentManager, updateManagerConfiguration);
+          } catch (error) {
+            console.error(`Model selection failed: ${error}\n`);
+          }
+          rl.prompt();
+          return;
+        }
         
         if (query.toLowerCase() === 'status') {
-          await initializeMCPServers();
           console.log('\nMCP Server Status:');
-          const status = manager.getServerStatus();
+          console.log('\nllmProvider:' + currentManager.getProviderName());
+          console.log('\nmodel:' + currentManager.getCurrentModel());
+          const status = currentManager.getServerStatus();
           console.log(JSON.stringify(status, null, 2));
           
           // Also show tools cache status
-          const toolsCount = manager.getCachedToolsCount();
-          const cacheExists = manager.isToolsCacheValid();
+          const toolsCount = currentManager.getCachedToolsCount();
+          const cacheExists = currentManager.isToolsCacheValid();
           console.log(`\nTools Cache: ${toolsCount} tools ${cacheExists ? 'cached' : 'not cached'}`);
           console.log('');
           rl.prompt();
@@ -309,9 +430,8 @@ async function main() {
         }
         
         if (query.toLowerCase() === 'refresh') {
-          await initializeMCPServers();
           console.log('Refreshing tools cache...');
-          const tools = await manager.refreshToolsCache();
+          const tools = await currentManager.refreshToolsCache();
           console.log(`Tools cache refreshed with ${tools.length} tools.\n`);
           rl.prompt();
           return;
@@ -331,14 +451,11 @@ async function main() {
         }
         
         try {
-          // Initialize MCP servers on first user query if not already done
-          await initializeMCPServers();
-          
           // Create new AbortController for this operation
           currentAbortController = new AbortController();
           console.log('Assistant: Thinking... (type "cancel" or press Ctrl+C to cancel)');
           
-          const response = await manager.chatWithLLM(query, currentAbortController.signal);
+          const response = await currentManager.chatWithLLM(query, currentAbortController.signal);
           
           // Clear the abort controller since operation completed successfully
           currentAbortController = null;
@@ -359,9 +476,7 @@ async function main() {
       
       rl.on('close', async () => {
         console.log('\nShutting down...');
-        if (mcpInitialized) {
-          await manager.stopAllServers();
-        }
+        await currentManager.stopAllServers();
         process.exit(0);
       });
       

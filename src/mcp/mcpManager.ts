@@ -318,6 +318,7 @@ export class MCPServerManager {
   private llmProvider: LLMProvider;
   private model: string;
   private cachedTools: Tool[] | null = null;
+  private initialized: boolean = false;
 
   constructor(
     configPath: string = './mcp-servers.json', 
@@ -327,6 +328,20 @@ export class MCPServerManager {
     this.configPath = configPath;
     this.llmProvider = llmProvider || new OllamaProvider();
     this.model = model;
+  }
+
+  /**
+   * Get the current model name
+   */
+  getCurrentModel(): string {
+    return this.model;
+  }
+
+  /**
+   * Get the current LLM provider name
+   */
+  getProviderName(): string {
+    return this.llmProvider?.name || 'Unknown';
   }
 
   async loadServersConfig(): Promise<void> {
@@ -570,6 +585,46 @@ export class MCPServerManager {
     }
   }
 
+  /**
+   * Ensure MCP servers are initialized on first use
+   */
+  private async ensureInitialized(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+
+    try {
+      Logger.info('Initializing MCP servers...');
+      
+      // Load MCP server configuration
+      await this.loadServersConfig();
+
+      // Check if the selected LLM provider is available
+      Logger.debug('Checking provider health...');
+      const providerAvailable = await this.checkHealth();
+      Logger.debug(`Provider health check result: ${providerAvailable}`);
+      if (!providerAvailable) {
+        const providerName = this.llmProvider.name || 'Unknown';
+        Logger.error(`${providerName} provider is not available. Please check your configuration.`);
+        throw new Error(`${providerName} provider is not available`);
+      }
+
+      Logger.info(`${this.llmProvider.name || 'LLM'} provider is available`);
+      const models = await this.getAvailableModels();
+      Logger.debug(`Available models: ${JSON.stringify(models)}`);
+
+      // Start all MCP servers
+      await this.startAllServers();
+      Logger.info('All MCP servers started');
+
+      this.initialized = true;
+      Logger.info('✅ MCP servers initialized successfully!');
+    } catch (error) {
+      Logger.error(`Failed to initialize MCP servers: ${error}`);
+      throw new Error(`MCP initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   async chatWithLLM(
     message: string, 
     abortSignal?: AbortSignal, 
@@ -577,6 +632,9 @@ export class MCPServerManager {
     serverNames?: string[]
   ): Promise<string> {
     try {
+      // Ensure MCP servers are initialized on first use
+      await this.ensureInitialized();
+
       // Get all tools and filter by server names if specified
       let tools = this.convertMCPToolsToLLMFormat();
       
@@ -739,5 +797,30 @@ When using tools, always provide clear context about what you're doing and inter
     }
     
     return status;
+  }
+
+  /**
+   * Update the LLM provider without recreating the manager
+   */
+  updateLLMProvider(provider: LLMProvider): void {
+    this.llmProvider = provider;
+    Logger.info('LLM provider updated in MCPServerManager');
+  }
+
+  /**
+   * Update the model without recreating the manager
+   */
+  updateModel(model: string): void {
+    this.model = model;
+    Logger.info(`Model updated to: ${model} in MCPServerManager`);
+  }
+
+  /**
+   * Update both LLM provider and model
+   */
+  updateConfiguration(provider: LLMProvider, model: string): void {
+    this.llmProvider = provider;
+    this.model = model;
+    Logger.info(`LLM configuration updated: provider and model=${model}`);
   }
 }
