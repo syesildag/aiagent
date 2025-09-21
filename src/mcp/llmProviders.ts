@@ -205,7 +205,7 @@ export class GitHubCopilotProvider implements LLMProvider {
     const requestBody = {
       model: request.model,
       messages: request.messages,
-      tools: request.tools,
+      //tools: request.tools,
       stream: request.stream || false
     };
 

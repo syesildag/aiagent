@@ -138,27 +138,6 @@ export async function pollForToken(deviceCode: string, interval: number): Promis
 }
 
 /**
- * Save token to local file with secure permissions
- */
-export function saveToken(token: string): void {
-  const tokenFile = './.token';
-  fs.writeFileSync(tokenFile, token, { mode: 0o600 });
-  Logger.info('Token saved securely to .token file');
-}
-
-/**
- * Read token from local file
- */
-export function readToken(): string | null {
-  const tokenFile = './.token';
-  try {
-    return fs.readFileSync(tokenFile, 'utf8').trim();
-  } catch (error) {
-    return null;
-  }
-}
-
-/**
  * Get GitHub user information using access token
  */
 export async function getGitHubUser(token: string): Promise<any> {
@@ -187,9 +166,6 @@ export async function authenticateWithGitHub(): Promise<string> {
   // Poll for token
   const accessToken = await pollForToken(deviceCodeData.device_code, deviceCodeData.interval);
   
-  // Save token locally
-  saveToken(accessToken);
-  
   // Verify token works
   const user = await getGitHubUser(accessToken);
   Logger.info(`Successfully authenticated as: ${user.login}`);
@@ -201,7 +177,7 @@ export async function authenticateWithGitHub(): Promise<string> {
  * Check if user is already authenticated
  */
 export async function whoami(): Promise<string | null> {
-  const token = readToken();
+  const token = process.env.GITHUB_TOKEN;
   if (!token) {
     return null;
   }
