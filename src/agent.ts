@@ -17,7 +17,7 @@ export interface Agent {
    getName(): AgentName;
    getOptions(): Partial<Options> | undefined;
    setMCPManager(manager: MCPServerManager): void;
-   getServerNames(): string[] | undefined;
+   getAllowedServerNames(): string[] | undefined;
 }
 
 const Agents: Record<string, Agent> = {};

@@ -15,7 +15,7 @@ class FileSystemDatabaseAgent extends AbstractAgent {
     return 'filesystem-database-agent' as AgentName;
   }
 
-  getServerNames(): string[] {
+  getAllowedServerNames(): string[] {
     return this.allowedServers;
   }
 
@@ -43,7 +43,7 @@ class WebSearchAgent extends AbstractAgent {
     return 'web-search-agent' as AgentName;
   }
 
-  getServerNames(): string[] {
+  getAllowedServerNames(): string[] {
     return this.allowedServers;
   }
 
@@ -80,7 +80,7 @@ async function demonstrateSpecializedAgents() {
 
     // Demonstrate tool filtering
     console.log('\nFile Agent available tools:', fileAgent.getAvailableTools());
-    console.log('File Agent server names:', fileAgent.getServerNames());
+    console.log('File Agent server names:', fileAgent.getAllowedServerNames());
 
     // Example interactions
     console.log('\n--- File Agent Response ---');

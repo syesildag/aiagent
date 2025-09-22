@@ -12,7 +12,7 @@ class TestSpecializedAgent extends AbstractAgent {
     return 'test-specialized' as AgentName;
   }
 
-  getServerNames(): string[] {
+  getAllowedServerNames(): string[] {
     return ['filesystem', 'database'];
   }
 
@@ -27,7 +27,7 @@ class TestGeneralAgent extends AbstractAgent {
     return 'test-general' as AgentName;
   }
 
-  getServerNames(): string[] | undefined {
+  getAllowedServerNames(): string[] | undefined {
     return undefined; // Use all servers
   }
 
@@ -51,8 +51,8 @@ async function testServerFiltering() {
     generalAgent.setMCPManager(mcpManager);
 
     // Test server names configuration
-    console.log('Specialized agent servers:', specializedAgent.getServerNames());
-    console.log('General agent servers:', generalAgent.getServerNames());
+    console.log('Specialized agent servers:', specializedAgent.getAllowedServerNames());
+    console.log('General agent servers:', generalAgent.getAllowedServerNames());
 
     // Test available tools (would work when MCP servers are running)
     console.log('Specialized agent tools count:', specializedAgent.getAvailableTools().length);

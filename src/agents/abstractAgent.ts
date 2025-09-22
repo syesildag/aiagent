@@ -46,7 +46,7 @@ export default abstract class AbstractAgent implements Agent {
       return false;
    }
 
-   getServerNames(): string[] | undefined {
+   getAllowedServerNames(): string[] | undefined {
       return undefined; // Default implementation - use all servers
    }
 
@@ -58,7 +58,7 @@ export default abstract class AbstractAgent implements Agent {
       // Use MCP system for enhanced capabilities
       try {
          const systemPrompt = this.getSystemPrompt();
-         const serverNames = this.getServerNames();
+         const serverNames = this.getAllowedServerNames();
          const response = await this.mcpManager.chatWithLLM(prompt, abortSignal, systemPrompt, serverNames);
          return response;
       } catch (error) {
@@ -74,7 +74,7 @@ export default abstract class AbstractAgent implements Agent {
       }
 
       // Use provided serverNames, or fall back to agent's own server names, or use all
-      const targetServers = serverNames || this.getServerNames();
+      const targetServers = serverNames || this.getAllowedServerNames();
       
       if (targetServers && targetServers.length > 0) {
          const tools = this.mcpManager.getToolsForServers(targetServers);

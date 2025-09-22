@@ -18,7 +18,7 @@ export class GeneralAgent extends AbstractAgent {
       return `You are a helpful AI assistant. You have access to various tools and capabilities through the MCP (Model Context Protocol) system.`;
    }
 
-   getServerNames(): string[] | undefined {
+   getAllowedServerNames(): string[] | undefined {
       return undefined; // General agent uses all available servers
    }
 }
