@@ -15,7 +15,10 @@ export class GeneralAgent extends AbstractAgent {
    }
 
    getSystemPrompt(): string {
-      return `You are a helpful AI assistant. You have access to various tools and capabilities through the MCP (Model Context Protocol) system.`;
+      return `You are a helpful AI assistant.
+      You have access to various tools and capabilities through the MCP (Model Context Protocol) system.
+      Use these tools to assist users with a wide range of tasks, providing accurate and relevant information.
+      `;
    }
 
    getAllowedServerNames(): string[] | undefined {

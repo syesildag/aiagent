@@ -691,7 +691,7 @@ When using tools, always provide clear context about what you're doing and inter
 
       Logger.debug(`MCPServerManager chatWithLLM request: model=${this.model}, messages=${messages.length}, tools=${tools.length}, provider=${this.llmProvider.name}`);
 
-      const chatPromise = this.llmProvider.chat(chatRequest);
+      const chatPromise = this.llmProvider.chat(chatRequest, abortSignal);
 
       let response;
       if (abortSignal) {
@@ -755,7 +755,7 @@ When using tools, always provide clear context about what you're doing and inter
           model: this.model,
           messages: followUpMessages,
           stream: false
-        });
+        }, abortSignal);
 
         let followUpResponse;
         if (abortSignal) {
