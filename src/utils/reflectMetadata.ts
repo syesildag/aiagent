@@ -16,7 +16,7 @@ export default class ReflectMetadata {
       return ReflectMetadata.getOrCreateMetadata(target)[metadataKey];
    }
 
-   static defineMetadata(metadataKey: any, metadataValue: any, target: any) {
+   static setMetadata(metadataKey: any, metadataValue: any, target: any) {
       ReflectMetadata.getOrCreateMetadata(target)[metadataKey] = metadataValue;
    }
 }
