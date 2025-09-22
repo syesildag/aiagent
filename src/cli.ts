@@ -1,8 +1,8 @@
 import "dotenv/config";
 import * as readline from 'readline';
-import Logger from '../utils/logger';
-import { authenticateWithGitHub, whoami } from '../utils/githubAuth';
-import { updateEnvVariables } from '../utils/envManager';
+import Logger from './utils/logger';
+import { authenticateWithGitHub, whoami } from './utils/githubAuth';
+import { updateEnvVariables } from './utils/envManager';
 import {
   GitHubCopilotProvider,
   LLMChatResponse,
@@ -11,8 +11,8 @@ import {
   OllamaProvider,
   OpenAIProvider,
   Tool
-} from '../mcp/llmProviders';
-import { MCPConfig, MCPServer, MCPServerManager } from '../mcp/mcpManager';
+} from './mcp/llmProviders';
+import { MCPConfig, MCPServer, MCPServerManager } from './mcp/mcpManager';
 
 /**
  * Handle the login command - list providers and configure authentication

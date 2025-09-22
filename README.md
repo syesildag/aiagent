@@ -11,7 +11,7 @@ A production-ready Express.js server with AI chat capabilities that supports mul
 - **Agent System**: Modular AI agents with custom tools and validation
 - **Tool Caching**: Optimized performance with intelligent tool caching
 - **Security Features**: Rate limiting, CORS, helmet security headers
-- **Interactive CLI**: Console-based interface for testing (cli/cli.ts)
+- **Interactive CLI**: Console-based interface for testing (cli.ts)
 
 ## Quick Start
 
