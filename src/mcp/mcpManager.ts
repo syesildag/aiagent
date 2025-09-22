@@ -591,7 +591,7 @@ export class MCPServerManager {
   /**
    * Ensure MCP servers are initialized on first use
    */
-  private async ensureInitialized(): Promise<void> {
+  public async ensureInitialized(): Promise<void> {
     if (this.initialized) {
       return;
     }
@@ -645,7 +645,6 @@ export class MCPServerManager {
         tools = tools.filter(tool => 
           tool.serverName && serverNames.includes(tool.serverName)
         );
-        Logger.debug(`Filtered tools to ${tools.length} tools from servers: ${serverNames.join(', ')}`);
       }
       
       const availableServers = serverNames && serverNames.length > 0 
@@ -654,15 +653,10 @@ export class MCPServerManager {
       
       const defaultSystemPrompt = `You are an assistant with access to various MCP (Model Context Protocol) servers and their tools. 
 Available MCP servers: ${availableServers.join(', ')}
-
-You can use tools to:
-- Access file systems and repositories
-- Query databases
-- Search the web
-- Read and manipulate various resources
-- Execute server-specific operations
-
-When using tools, always provide clear context about what you're doing and interpret the results for the user.`;
+Available tools: ${tools.map(t => t.function.name).join(', ')}
+You should always read all the memory database using the tool call memory_read_graph before taking any action.
+After each conversation, remember to update the memory database with relevant information using the tool call memory_create_entities.
+`;
 
       const systemPrompt = customSystemPrompt ?? defaultSystemPrompt;
       
@@ -688,8 +682,6 @@ When using tools, always provide clear context about what you're doing and inter
         tools: tools,
         stream: false
       };
-
-      Logger.debug(`MCPServerManager chatWithLLM request: model=${this.model}, messages=${messages.length}, tools=${tools.length}, provider=${this.llmProvider.name}`);
 
       const chatPromise = this.llmProvider.chat(chatRequest, abortSignal);
 
@@ -728,6 +720,8 @@ When using tools, always provide clear context about what you're doing and inter
           
           Logger.debug(`Calling tool: ${toolCall.function.name}`);
           const result = await this.handleToolCall(toolCall);
+          Logger.debug(`Tool call result for ${toolCall.function.name}: ${result}`);
+
           toolResults.push(result);
         }
 

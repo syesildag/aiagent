@@ -271,9 +271,6 @@ export class GitHubCopilotProvider implements LLMProvider {
       }));
     }
 
-    Logger.debug(`GitHub Copilot chat request: model=${request.model}, messages=${request.messages.length}, tools=${requestBody.tools?.length || 0}`);
-    Logger.debug(`Request body: ${JSON.stringify(requestBody, null, 2)}`);
-
     const chatPromise = fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: this.createHeaders(),
