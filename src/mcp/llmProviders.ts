@@ -297,7 +297,7 @@ export class GitHubCopilotProvider implements LLMProvider {
             // Log available models for debugging
             const availableModels = await this.getAvailableModels();
             Logger.warn(`Model '${request.model}' appears to be unavailable (token limit of 0).`);
-            Logger.warn(`Available models: ${JSON.stringify(availableModels)}`);Ò
+            Logger.warn(`Available models: ${JSON.stringify(availableModels)}`);
 
             throw new Error(`Model '${request.model}' is not available. Available models: ${availableModels.join(', ')}`);
           }
