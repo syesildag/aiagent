@@ -56,7 +56,8 @@ export async function requestDeviceCode(): Promise<DeviceCodeResponse> {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({
-      'client_id': CLIENT_ID
+      'client_id': CLIENT_ID,
+      'scope': 'copilot'
     })
   });
   
