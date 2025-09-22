@@ -168,10 +168,7 @@ export class GitHubCopilotProvider implements LLMProvider {
       // Personal token headers
       headers['Editor-Version'] = 'AI-Agent/1.0';
       headers['Editor-Plugin-Version'] = 'AI-Agent/1.0';
-      headers['Copilot-Integration-Id'] = 'vscode-chat';
-      
-      // Don't add X-GitHub-Api-Version header at all - it causes issues with Claude models
-      // and the API works fine without it
+      headers['Copilot-Integration-Id'] = 'vscode-chat';      
     }
 
     return headers;
@@ -274,15 +271,6 @@ export class GitHubCopilotProvider implements LLMProvider {
       }));
     }
 
-    // // Add Claude-specific parameters
-    // if (this.isClaudeModel()) {
-    //   requestBody.max_tokens = 4096; // Set appropriate max tokens for Claude
-    //   // Some Claude models might need specific parameters
-    //   if (request.model.includes('sonnet-4')) {
-    //     requestBody.temperature = 0.7;
-    //   }
-    // }
-
     Logger.debug(`GitHub Copilot chat request: model=${request.model}, messages=${request.messages.length}, tools=${requestBody.tools?.length || 0}`);
     Logger.debug(`Request body: ${JSON.stringify(requestBody, null, 2)}`);
 
@@ -305,22 +293,12 @@ export class GitHubCopilotProvider implements LLMProvider {
           const errorData = JSON.parse(errorText);
           if (errorData.error?.code === 'model_max_prompt_tokens_exceeded' && 
               errorData.error?.message?.includes('limit of 0')) {
-            
+
             // Log available models for debugging
             const availableModels = await this.getAvailableModels();
             Logger.warn(`Model '${request.model}' appears to be unavailable (token limit of 0).`);
-            Logger.warn(`Available models: ${JSON.stringify(availableModels)}`);
-            
-            // if (this.isClaudeModel()) {
-            //   const alternatives = this.getClaudeModelAlternatives().filter(alt => 
-            //     availableModels.includes(alt)
-            //   );
-            //   if (alternatives.length > 0) {
-            //     Logger.warn(`Try these Claude alternatives: ${JSON.stringify(alternatives)}`);
-            //     throw new Error(`Model '${request.model}' is not available. Try: ${alternatives.join(', ')}`);
-            //   }
-            // }
-            
+            Logger.warn(`Available models: ${JSON.stringify(availableModels)}`);Ò
+
             throw new Error(`Model '${request.model}' is not available. Available models: ${availableModels.join(', ')}`);
           }
         } catch (parseError) {
