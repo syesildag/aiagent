@@ -39,6 +39,7 @@ const envSchema = z.object({
   
   // MCP Configuration
   MCP_SERVERS_PATH: z.string().min(1).default('./mcp-servers.json'),
+  MAX_LLM_ITERATIONS: z.string().transform(Number).pipe(z.number().min(1).max(10)).default('2'),
 });
 type Environment = z.infer<typeof envSchema>;
 
@@ -61,6 +62,7 @@ function validateEnvironment(): Environment {
       OPENAI_BASE_URL: 'https://api.openai.com',
       GITHUB_COPILOT_BASE_URL: 'https://api.githubcopilot.com',
       MCP_SERVERS_PATH: './mcp-servers.json',
+      MAX_LLM_ITERATIONS: 2,
     } as Environment;
   }
 

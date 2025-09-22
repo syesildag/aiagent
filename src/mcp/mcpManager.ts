@@ -2,6 +2,7 @@ import { ChildProcess, spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import fs from 'fs/promises';
 import Logger from '../utils/logger';
+import { config } from '../utils/config';
 import { LLMMessage, LLMProvider, OllamaProvider, Tool } from './llmProviders';
 
 // MCP Protocol Types
@@ -653,14 +654,19 @@ export class MCPServerManager {
       
       const defaultSystemPrompt = `You are an assistant with access to various MCP (Model Context Protocol) servers and their tools. 
 Available MCP servers: ${availableServers.join(', ')}
-Available tools: ${tools.map(t => t.function.name).join(', ')}
-You should always read all the memory database using the tool call memory_read_graph before taking any action.
-After each conversation, remember to update the memory database with relevant information using the tool call memory_create_entities.
-`;
+
+You can use tools to:
+- Access file systems and repositories
+- Query databases
+- Search the web
+- Read and manipulate various resources
+- Execute server-specific operations
+
+When using tools, always provide clear context about what you're doing and interpret the results for the user.`;
 
       const systemPrompt = customSystemPrompt ?? defaultSystemPrompt;
       
-      const messages: LLMMessage[] = [
+      let messages: LLMMessage[] = [
         {
           role: 'system',
           content: systemPrompt
@@ -671,37 +677,47 @@ After each conversation, remember to update the memory database with relevant in
         }
       ];
 
-      // Check for cancellation before starting
-      if (abortSignal?.aborted) {
-        throw new Error('Operation cancelled by user');
-      }
+      const maxIterations = config.MAX_LLM_ITERATIONS;
+      let currentIteration = 0;
 
-      const chatRequest = {
-        model: this.model,
-        messages: messages,
-        tools: tools,
-        stream: false
-      };
+      while (currentIteration < maxIterations) {
+        // Check for cancellation before each iteration
+        if (abortSignal?.aborted) {
+          throw new Error('Operation cancelled by user');
+        }
 
-      const chatPromise = this.llmProvider.chat(chatRequest, abortSignal);
+        Logger.debug(`MCPServerManager chatWithLLM request: model=${this.model}, messages=${messages.length}, tools=${tools.length}, provider=${this.getProviderName()}`);
 
-      let response;
-      if (abortSignal) {
-        // Create a promise that rejects when the abort signal is triggered
-        const abortPromise = new Promise<never>((_, reject) => {
-          abortSignal.addEventListener('abort', () => {
-            reject(new Error('Operation cancelled by user'));
+        const chatRequest = {
+          model: this.model,
+          messages: messages,
+          tools: tools,
+          stream: false
+        };
+
+        const chatPromise = this.llmProvider.chat(chatRequest, abortSignal);
+
+        let response;
+        if (abortSignal) {
+          // Create a promise that rejects when the abort signal is triggered
+          const abortPromise = new Promise<never>((_, reject) => {
+            abortSignal.addEventListener('abort', () => {
+              reject(new Error('Operation cancelled by user'));
+            });
           });
-        });
 
-        response = await Promise.race([chatPromise, abortPromise]);
-      } else {
-        // No abort signal, just wait for the chat response
-        response = await chatPromise;
-      }
-      
-      // Handle tool calls if present
-      if (response?.message?.tool_calls && response.message.tool_calls.length > 0) {
+          response = await Promise.race([chatPromise, abortPromise]);
+        } else {
+          // No abort signal, just wait for the chat response
+          response = await chatPromise;
+        }
+        
+        // If no tool calls, we're done
+        if (!response?.message?.tool_calls || response.message.tool_calls.length === 0) {
+          return response?.message?.content || 'No response content received';
+        }
+
+        // Handle tool calls
         const toolResults: string[] = [];
         
         Logger.debug(`Executing ${response.message.tool_calls.length} tool calls...`);
@@ -725,48 +741,53 @@ After each conversation, remember to update the memory database with relevant in
           toolResults.push(result);
         }
 
-        // Make a follow-up request with tool results
-        const followUpMessages: LLMMessage[] = [
-          ...messages,
-          {
-            role: 'assistant',
-            content: response.message.content || '',
-            tool_calls: response.message.tool_calls
-          }
-        ];
+        // Add the assistant's response with tool calls to the conversation
+        messages.push({
+          role: 'assistant',
+          content: response.message.content || '',
+          tool_calls: response.message.tool_calls
+        });
 
         // Add individual tool result messages
         for (let i = 0; i < response.message.tool_calls.length; i++) {
           const toolCall = response.message.tool_calls[i];
-          followUpMessages.push({
+          messages.push({
             role: 'tool',
             content: toolResults[i],
             tool_call_id: toolCall.id
           });
         }
 
-        const followUpChatPromise = this.llmProvider.chat({
-          model: this.model,
-          messages: followUpMessages,
-          stream: false
-        }, abortSignal);
-
-        let followUpResponse;
-        if (abortSignal) {
-          // Create a new abort promise for the follow-up request
-          const followUpAbortPromise = new Promise<never>((_, reject) => {
-            abortSignal.addEventListener('abort', () => {
-              reject(new Error('Operation cancelled by user'));
-            });
-          });
-          followUpResponse = await Promise.race([followUpChatPromise, followUpAbortPromise]);
-        } else {
-          followUpResponse = await followUpChatPromise;
-        }
-        return followUpResponse?.message?.content || 'No response content received';
+        currentIteration++;
+        Logger.debug(`Completed iteration ${currentIteration}/${maxIterations}`);
       }
 
-      return response?.message?.content || 'No response content received';
+      // If we've reached max iterations, make one final call without tools to get a response
+      Logger.debug(`Reached max iterations (${maxIterations}), making final response call`);
+      
+      if (abortSignal?.aborted) {
+        throw new Error('Operation cancelled by user');
+      }
+
+      const finalChatPromise = this.llmProvider.chat({
+        model: this.model,
+        messages: messages,
+        stream: false
+      }, abortSignal);
+
+      let finalResponse;
+      if (abortSignal) {
+        const finalAbortPromise = new Promise<never>((_, reject) => {
+          abortSignal.addEventListener('abort', () => {
+            reject(new Error('Operation cancelled by user'));
+          });
+        });
+        finalResponse = await Promise.race([finalChatPromise, finalAbortPromise]);
+      } else {
+        finalResponse = await finalChatPromise;
+      }
+
+      return finalResponse?.message?.content || 'No response content received after maximum iterations';
     } catch (error) {
       if (error instanceof Error && error.message === 'Operation cancelled by user') {
         throw error;
