@@ -734,7 +734,7 @@ When using tools, always provide clear context about what you're doing and inter
             continue;
           }
           
-          Logger.debug(`Calling tool: ${toolCall.function.name}`);
+          Logger.debug(`Calling tool: ${JSON.stringify(toolCall)}`);
           const result = await this.handleToolCall(toolCall);
           Logger.debug(`Tool call result for ${toolCall.function.name}: ${result}`);
 
