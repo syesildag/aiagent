@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="900" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 20px; font-weight: bold; fill: #2c3e50; }
+      .header { font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; fill: #34495e; }
+      .text { font-family: Arial, sans-serif; font-size: 12px; fill: #2c3e50; }
+      .small-text { font-family: Arial, sans-serif; font-size: 10px; fill: #7f8c8d; }
+      .component { fill: #3498db; stroke: #2980b9; stroke-width: 2; rx: 8; }
+      .command { fill: #e74c3c; stroke: #c0392b; stroke-width: 2; rx: 6; }
+      .provider { fill: #27ae60; stroke: #229954; stroke-width: 2; rx: 6; }
+      .flow { fill: #f39c12; stroke: #e67e22; stroke-width: 2; rx: 6; }
+      .interface { fill: #9b59b6; stroke: #8e44ad; stroke-width: 2; rx: 6; }
+      .config { fill: #95a5a6; stroke: #7f8c8d; stroke-width: 2; rx: 6; }
+      .arrow { stroke: #34495e; stroke-width: 2; marker-end: url(#arrowhead); }
+      .data-flow { stroke: #e67e22; stroke-width: 2; stroke-dasharray: 5,5; marker-end: url(#arrowhead-orange); }
+      .command-flow { stroke: #e74c3c; stroke-width: 2; stroke-dasharray: 3,3; marker-end: url(#arrowhead-red); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+            refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#34495e" />
+    </marker>
+    <marker id="arrowhead-orange" markerWidth="10" markerHeight="7" 
+            refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#e67e22" />
+    </marker>
+    <marker id="arrowhead-red" markerWidth="10" markerHeight="7" 
+            refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#e74c3c" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="900" fill="#ecf0f1"/>
+
+  <!-- Title -->
+  <text x="600" y="30" text-anchor="middle" class="title">CLI Interface Architecture (cli.ts)</text>
+  <text x="600" y="50" text-anchor="middle" class="small-text">Interactive Command Line Interface for LLM Provider Management</text>
+
+  <!-- Main Entry Point -->
+  <rect x="480" y="80" width="240" height="60" class="component"/>
+  <text x="600" y="105" text-anchor="middle" class="header">main()</text>
+  <text x="600" y="120" text-anchor="middle" class="text">Entry Point</text>
+  <text x="600" y="130" text-anchor="middle" class="small-text">Initialize MCP Manager and CLI</text>
+
+  <!-- Configuration Layer -->
+  <rect x="50" y="180" width="200" height="80" class="config"/>
+  <text x="150" y="205" text-anchor="middle" class="header">Configuration</text>
+  <text x="150" y="220" text-anchor="middle" class="text">Environment Setup</text>
+  <text x="150" y="235" text-anchor="middle" class="small-text">Config.ts</text>
+  <text x="150" y="245" text-anchor="middle" class="small-text">Environment Variables</text>
+  <text x="150" y="255" text-anchor="middle" class="small-text">Provider Settings</text>
+
+  <!-- MCP Manager -->
+  <rect x="300" y="180" width="200" height="80" class="component"/>
+  <text x="400" y="205" text-anchor="middle" class="header">MCPManager</text>
+  <text x="400" y="220" text-anchor="middle" class="text">Core Management</text>
+  <text x="400" y="235" text-anchor="middle" class="small-text">Provider Initialization</text>
+  <text x="400" y="245" text-anchor="middle" class="small-text">Server Management</text>
+  <text x="400" y="255" text-anchor="middle" class="small-text">Tool Caching</text>
+
+  <!-- Provider Configuration -->
+  <rect x="550" y="180" width="200" height="80" class="provider"/>
+  <text x="650" y="205" text-anchor="middle" class="header">Provider Config</text>
+  <text x="650" y="220" text-anchor="middle" class="text">LLM Provider Setup</text>
+  <text x="650" y="235" text-anchor="middle" class="small-text">updateManagerConfiguration()</text>
+  <text x="650" y="245" text-anchor="middle" class="small-text">Dynamic Provider Switching</text>
+  <text x="650" y="255" text-anchor="middle" class="small-text">Model Selection</text>
+
+  <!-- Readline Interface -->
+  <rect x="800" y="180" width="200" height="80" class="interface"/>
+  <text x="900" y="205" text-anchor="middle" class="header">Readline Interface</text>
+  <text x="900" y="220" text-anchor="middle" class="text">User Interaction</text>
+  <text x="900" y="235" text-anchor="middle" class="small-text">readline.createInterface()</text>
+  <text x="900" y="245" text-anchor="middle" class="small-text">Input Processing</text>
+  <text x="900" y="255" text-anchor="middle" class="small-text">Prompt Management</text>
+
+  <!-- Command Processing Layer -->
+  <rect x="200" y="320" width="800" height="40" class="flow"/>
+  <text x="600" y="345" text-anchor="middle" class="header">Command Processing Loop (chatLoop)</text>
+
+  <!-- Command Handlers -->
+  <rect x="50" y="400" width="150" height="70" class="command"/>
+  <text x="125" y="420" text-anchor="middle" class="text">help</text>
+  <text x="125" y="435" text-anchor="middle" class="small-text">Show Commands</text>
+  <text x="125" y="445" text-anchor="middle" class="small-text">Usage Instructions</text>
+  <text x="125" y="455" text-anchor="middle" class="small-text">Available Options</text>
+
+  <rect x="220" y="400" width="150" height="70" class="command"/>
+  <text x="295" y="420" text-anchor="middle" class="text">exit/quit</text>
+  <text x="295" y="435" text-anchor="middle" class="small-text">Graceful Shutdown</text>
+  <text x="295" y="445" text-anchor="middle" class="small-text">Stop All Servers</text>
+  <text x="295" y="455" text-anchor="middle" class="small-text">Process Exit</text>
+
+  <rect x="390" y="400" width="150" height="70" class="command"/>
+  <text x="465" y="420" text-anchor="middle" class="text">login</text>
+  <text x="465" y="435" text-anchor="middle" class="small-text">handleLoginCommand()</text>
+  <text x="465" y="445" text-anchor="middle" class="small-text">Provider Authentication</text>
+  <text x="465" y="455" text-anchor="middle" class="small-text">OAuth Flow</text>
+
+  <rect x="560" y="400" width="150" height="70" class="command"/>
+  <text x="635" y="420" text-anchor="middle" class="text">model</text>
+  <text x="635" y="435" text-anchor="middle" class="small-text">handleModelCommand()</text>
+  <text x="635" y="445" text-anchor="middle" class="small-text">Model Selection</text>
+  <text x="635" y="455" text-anchor="middle" class="small-text">Provider Configuration</text>
+
+  <rect x="730" y="400" width="150" height="70" class="command"/>
+  <text x="805" y="420" text-anchor="middle" class="text">status</text>
+  <text x="805" y="435" text-anchor="middle" class="small-text">Current Provider</text>
+  <text x="805" y="445" text-anchor="middle" class="small-text">Server Status</text>
+  <text x="805" y="455" text-anchor="middle" class="small-text">Tools Cache Info</text>
+
+  <rect x="900" y="400" width="150" height="70" class="command"/>
+  <text x="975" y="420" text-anchor="middle" class="text">refresh</text>
+  <text x="975" y="435" text-anchor="middle" class="small-text">Refresh Tools Cache</text>
+  <text x="975" y="445" text-anchor="middle" class="small-text">Update Tool List</text>
+  <text x="975" y="455" text-anchor="middle" class="small-text">Cache Validation</text>
+
+  <!-- Utility Commands -->
+  <rect x="50" y="500" width="150" height="60" class="command"/>
+  <text x="125" y="520" text-anchor="middle" class="text">clear</text>
+  <text x="125" y="535" text-anchor="middle" class="small-text">Clear Terminal</text>
+  <text x="125" y="545" text-anchor="middle" class="small-text">Reset Interface</text>
+
+  <rect x="220" y="500" width="150" height="60" class="command"/>
+  <text x="295" y="520" text-anchor="middle" class="text">cancel</text>
+  <text x="295" y="535" text-anchor="middle" class="small-text">Abort Operation</text>
+  <text x="295" y="545" text-anchor="middle" class="small-text">AbortController</text>
+
+  <!-- Chat Processing -->
+  <rect x="420" y="500" width="280" height="60" class="flow"/>
+  <text x="560" y="520" text-anchor="middle" class="header">Chat Processing</text>
+  <text x="560" y="535" text-anchor="middle" class="text">currentManager.chatWithLLM(query, signal)</text>
+  <text x="560" y="545" text-anchor="middle" class="small-text">LLM Interaction with MCP Tools</text>
+
+  <!-- Signal Handling -->
+  <rect x="750" y="500" width="200" height="60" class="interface"/>
+  <text x="850" y="520" text-anchor="middle" class="header">Signal Handling</text>
+  <text x="850" y="535" text-anchor="middle" class="text">SIGINT (Ctrl+C)</text>
+  <text x="850" y="545" text-anchor="middle" class="small-text">Graceful Cancellation</text>
+
+  <!-- Authentication Flow -->
+  <rect x="50" y="600" width="300" height="80" class="provider"/>
+  <text x="200" y="625" text-anchor="middle" class="header">Authentication Flow (handleLoginCommand)</text>
+  <text x="200" y="640" text-anchor="middle" class="text">1. Select Provider → 2. OAuth Flow → 3. Token Storage</text>
+  <text x="200" y="655" text-anchor="middle" class="small-text">Interactive Provider Selection</text>
+  <text x="200" y="665" text-anchor="middle" class="small-text">Device Code Flow for GitHub/Azure</text>
+
+  <!-- Model Selection Flow -->
+  <rect x="380" y="600" width="300" height="80" class="provider"/>
+  <text x="530" y="625" text-anchor="middle" class="header">Model Selection (handleModelCommand)</text>
+  <text x="530" y="640" text-anchor="middle" class="text">1. List Models → 2. User Choice → 3. Update Config</text>
+  <text x="530" y="655" text-anchor="middle" class="small-text">Available Models Query</text>
+  <text x="530" y="665" text-anchor="middle" class="small-text">Dynamic Configuration Update</text>
+
+  <!-- Error Handling -->
+  <rect x="710" y="600" width="240" height="80" class="config"/>
+  <text x="830" y="625" text-anchor="middle" class="header">Error Handling and Logging</text>
+  <text x="830" y="640" text-anchor="middle" class="text">Try/Catch Blocks</text>
+  <text x="830" y="655" text-anchor="middle" class="small-text">Logger Integration</text>
+  <text x="830" y="665" text-anchor="middle" class="small-text">User-Friendly Error Messages</text>
+
+  <!-- Interactive Loop -->
+  <rect x="300" y="720" width="600" height="60" class="flow"/>
+  <text x="600" y="745" text-anchor="middle" class="header">Interactive Loop</text>
+  <text x="600" y="760" text-anchor="middle" class="text">Continuous Input Processing → Command Execution → Prompt Return</text>
+
+  <!-- Key Features -->
+  <rect x="50" y="810" width="280" height="70" class="interface"/>
+  <text x="190" y="830" text-anchor="middle" class="header">Key Features</text>
+  <text x="190" y="845" text-anchor="middle" class="small-text">• Real-time Provider Switching</text>
+  <text x="190" y="855" text-anchor="middle" class="small-text">• Interactive Authentication</text>
+  <text x="190" y="865" text-anchor="middle" class="small-text">• Operation Cancellation (Ctrl+C)</text>
+
+  <rect x="350" y="810" width="280" height="70" class="config"/>
+  <text x="490" y="830" text-anchor="middle" class="header">State Management</text>
+  <text x="490" y="845" text-anchor="middle" class="small-text">• Current Provider Tracking</text>
+  <text x="490" y="855" text-anchor="middle" class="small-text">• Tools Cache Management</text>
+  <text x="490" y="865" text-anchor="middle" class="small-text">• Abort Controller State</text>
+
+  <rect x="650" y="810" width="280" height="70" class="command"/>
+  <text x="790" y="830" text-anchor="middle" class="header">User Experience</text>
+  <text x="790" y="845" text-anchor="middle" class="small-text">• Clear Command Help</text>
+  <text x="790" y="855" text-anchor="middle" class="small-text">• Status Information</text>
+  <text x="790" y="865" text-anchor="middle" class="small-text">• Progress Indicators</text>
+
+  <!-- Flow Arrows -->
+  <!-- Main initialization flow -->
+  <line x1="600" y1="140" x2="600" y2="175" class="arrow"/>
+  
+  <!-- Configuration to MCP Manager -->
+  <line x1="250" y1="220" x2="295" y2="220" class="arrow"/>
+  
+  <!-- MCP Manager to Provider Config -->
+  <line x1="500" y1="220" x2="545" y2="220" class="arrow"/>
+  
+  <!-- Provider Config to Readline -->
+  <line x1="750" y1="220" x2="795" y2="220" class="arrow"/>
+  
+  <!-- To Command Processing -->
+  <line x1="600" y1="260" x2="600" y2="315" class="arrow"/>
+  
+  <!-- From Command Processing to Commands -->
+  <line x1="300" y1="360" x2="125" y2="395" class="command-flow"/>
+  <line x1="400" y1="360" x2="295" y2="395" class="command-flow"/>
+  <line x1="500" y1="360" x2="465" y2="395" class="command-flow"/>
+  <line x1="600" y1="360" x2="635" y2="395" class="command-flow"/>
+  <line x1="700" y1="360" x2="805" y2="395" class="command-flow"/>
+  <line x1="800" y1="360" x2="975" y2="395" class="command-flow"/>
+  
+  <!-- From Commands to Processing -->
+  <line x1="465" y1="470" x2="560" y2="495" class="data-flow"/>
+  <line x1="635" y1="470" x2="560" y2="495" class="data-flow"/>
+  
+  <!-- Signal handling connection -->
+  <line x1="850" y1="500" x2="850" y2="480" class="arrow"/>
+  <line x1="850" y1="480" x2="700" y2="480" class="arrow"/>
+  <line x1="700" y1="480" x2="700" y2="530" class="arrow"/>
+  
+  <!-- Authentication and Model flows -->
+  <line x1="200" y1="600" x2="465" y2="470" class="data-flow"/>
+  <line x1="530" y1="600" x2="635" y2="470" class="data-flow"/>
+  
+  <!-- Interactive loop connection -->
+  <line x1="600" y1="720" x2="600" y2="680" class="arrow"/>
+  <line x1="600" y1="680" x2="600" y2="360" class="arrow"/>
+
+</svg>
