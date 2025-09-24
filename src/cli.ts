@@ -17,7 +17,7 @@ import { MCPConfig, MCPServer, MCPServerManager } from './mcp/mcpManager';
 /**
  * Handle the login command - list providers and configure authentication
  */
-async function handleLoginCommand(rl: readline.Interface, updateManagerCallback: () => void): Promise<void> {
+async function handleLoginCommand(rl: readline.Interface, updateManagerCallback: () => Promise<void>): Promise<void> {
   console.log('\n=== LLM Provider Configuration ===');
   console.log('Available LLM providers:');
   console.log('1. Ollama (local) - No authentication required');
@@ -45,7 +45,7 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
       });
       
       // Update the manager with new provider configuration
-      updateManagerCallback();
+      await updateManagerCallback();
       
       console.log('✅ Ollama provider configured successfully!');
       console.log('Manager instance updated with new provider configuration.\n');
@@ -128,7 +128,7 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
 /**
  * Handle the model command - list available models and let user choose
  */
-async function handleModelCommand(rl: readline.Interface, manager: MCPServerManager, updateManagerCallback: () => void): Promise<void> {
+async function handleModelCommand(rl: readline.Interface, manager: MCPServerManager, updateManagerCallback: () => Promise<void>): Promise<void> {
   console.log('\n=== Model Selection ===');
   
   // Create a promise-based input function
@@ -247,12 +247,14 @@ async function main() {
   switch (providerType.toLowerCase()) {
     case 'github':
     case 'copilot':
-      const githubApiKey = process.env.GITHUB_TOKEN;
+      // Use OAuth system to get current GitHub Copilot token
+      const { AuthGithubCopilot } = await import('./utils/githubAuth');
+      const githubApiKey = await AuthGithubCopilot.access();
       if (!githubApiKey) {
-        Logger.error('GitHub Copilot requires GITHUB_TOKEN environment variable');
+        Logger.error('GitHub Copilot requires authentication. Run "login" command to authenticate.');
         process.exit(1);
       }
-      const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://models.inference.ai.azure.com';
+      const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
       Logger.debug(`GitHub Base URL: ${githubBaseUrl}`);
       llmProvider = new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
       Logger.info('Using GitHub Copilot provider');
@@ -280,18 +282,19 @@ async function main() {
   /**
    * Create a new LLM provider based on current environment variables
    */
-  function createLLMProvider(): LLMProvider {
+  async function createLLMProvider(): Promise<LLMProvider> {
     const currentProviderType = process.env.LLM_PROVIDER || 'ollama';
     
     switch (currentProviderType.toLowerCase()) {
       case 'github':
       case 'copilot':
-        const githubApiKey = process.env.GITHUB_TOKEN;
+        const { AuthGithubCopilot } = await import('./utils/githubAuth');
+        const githubApiKey = await AuthGithubCopilot.access();
         if (!githubApiKey) {
-          Logger.error('GitHub Copilot requires GITHUB_TOKEN environment variable');
+          Logger.error('GitHub Copilot requires authentication. Run "login" command to authenticate.');
           throw new Error('GitHub Copilot configuration incomplete');
         }
-        const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://models.inference.ai.azure.com';
+        const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
         return new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
       
       case 'openai':
@@ -311,8 +314,8 @@ async function main() {
   /**
    * Update the manager's LLM provider and model based on current environment variables
    */
-  function updateManagerConfiguration(): void {
-    const newProvider = createLLMProvider();
+  async function updateManagerConfiguration(): Promise<void> {
+    const newProvider = await createLLMProvider();
     const newModel = process.env.LLM_MODEL || 'qwen3:4b';
     
     currentManager.updateConfiguration(newProvider, newModel);
@@ -346,6 +349,7 @@ async function main() {
 
     // Interactive chat loop
     let currentAbortController: AbortController | null = null;
+    let isShuttingDown = false;
     
     const chatLoop = () => {
       rl.prompt();
@@ -359,10 +363,13 @@ async function main() {
             currentAbortController.abort();
             currentAbortController = null;
           }
-          console.log('\nGoodbye!');
-          rl.close();
-          await currentManager.stopAllServers();
-          process.exit(0);
+          if (!isShuttingDown) {
+            isShuttingDown = true;
+            console.log('\nGoodbye!');
+            rl.close();
+            await currentManager.stopAllServers();
+            process.exit(0);
+          }
         }
         
         if (query.toLowerCase() === 'cancel') {
@@ -475,9 +482,12 @@ async function main() {
       });
       
       rl.on('close', async () => {
-        console.log('\nShutting down...');
-        await currentManager.stopAllServers();
-        process.exit(0);
+        if (!isShuttingDown) {
+          isShuttingDown = true;
+          console.log('\nShutting down...');
+          await currentManager.stopAllServers();
+          process.exit(0);
+        }
       });
       
       // Handle Ctrl+C gracefully

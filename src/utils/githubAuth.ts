@@ -102,35 +102,66 @@ export namespace AuthGithubCopilot {
       }
       return
     }
-    if (info.access && info.expires > Date.now()) return info.access
-
-    // Get new Copilot API token
-    const response = await fetch(COPILOT_API_KEY_URL, {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${info.refresh}`,
-        "User-Agent": "GitHubCopilotChat/0.26.7",
-        "Editor-Version": "vscode/1.99.3",
-        "Editor-Plugin-Version": "copilot-chat/0.26.7",
-      },
-    })
-
-    if (!response.ok) {
-      Logger.warn("Failed to refresh Copilot token, falling back to stored OAuth token")
-      return info.refresh
+    
+    // Check if current access token is still valid
+    if (info.access && info.expires > Date.now()) {
+      Logger.debug("Using cached Copilot access token")
+      return info.access
     }
 
-    const tokenData: CopilotTokenResponse = await response.json()
+    // Token expired, try to refresh
+    Logger.debug("Copilot access token expired, attempting refresh...")
+    
+    try {
+      // Get new Copilot API token using refresh token
+      const response = await fetch(COPILOT_API_KEY_URL, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${info.refresh}`,
+          "User-Agent": "GitHubCopilotChat/0.26.7",
+          "Editor-Version": "vscode/1.99.3",
+          "Editor-Plugin-Version": "copilot-chat/0.26.7",
+        },
+      })
 
-    // Store the Copilot API token
-    await Auth.set("github-copilot", {
-      type: "oauth",
-      refresh: info.refresh,
-      access: tokenData.token,
-      expires: tokenData.expires_at * 1000,
-    })
+      if (!response.ok) {
+        const errorText = await response.text()
+        Logger.error(`Failed to refresh Copilot token: ${response.status} ${response.statusText} - ${errorText}`)
+        
+        // If refresh fails, the OAuth token itself might be expired
+        // Clear the stored token and require re-authentication
+        await Auth.remove("github-copilot")
+        throw new Error(`Copilot token refresh failed: ${response.status} ${response.statusText}`)
+      }
 
-    return tokenData.token
+      const tokenData: CopilotTokenResponse = await response.json()
+
+      // Store the new Copilot API token
+      await Auth.set("github-copilot", {
+        type: "oauth",
+        refresh: info.refresh,
+        access: tokenData.token,
+        expires: tokenData.expires_at * 1000,
+      })
+
+      Logger.debug("Successfully refreshed Copilot access token")
+      return tokenData.token
+      
+    } catch (error) {
+      Logger.error(`Error refreshing Copilot token: ${error}`)
+      
+      // Clear invalid token
+      await Auth.remove("github-copilot")
+      
+      // Try fallback to GITHUB_TOKEN if available
+      const fallbackToken = process.env.GITHUB_TOKEN
+      if (fallbackToken) {
+        Logger.warn("Using fallback GITHUB_TOKEN after OAuth token refresh failure")
+        return fallbackToken
+      }
+      
+      throw new Error("Authentication failed. Please run 'login' command to re-authenticate.")
+    }
   }
 
   export const DeviceCodeError = createNamedError("DeviceCodeError", z.object({}))
@@ -256,18 +287,44 @@ export async function getGitHubUser(token: string): Promise<any> {
   return response.json()
 }
 
-export async function whoami(): Promise<string | null> {
-  const token = process.env.GITHUB_TOKEN
-  if (!token) {
-    return null
-  }
-  
+export async function whoami(): Promise<string | undefined> {
   try {
-    const user = await getGitHubUser(token)
-    return user.login
+    // For whoami, we need to use the OAuth refresh token (which has GitHub API permissions)
+    // not the Copilot access token (which only has Copilot API permissions)
+    const info = await Auth.get("github-copilot")
+    
+    // First try OAuth refresh token if available
+    if (info && info.type === "oauth" && info.refresh) {
+      try {
+        const user = await getGitHubUser(info.refresh)
+        if (user?.login) {
+          Logger.debug(`Authenticated as GitHub user: ${user.login}`)
+          return user.login
+        }
+      } catch (error) {
+        Logger.debug(`OAuth refresh token failed for user info: ${error}`)
+      }
+    }
+    
+    // Fallback to environment GITHUB_TOKEN
+    const fallbackToken = process.env.GITHUB_TOKEN
+    if (fallbackToken) {
+      try {
+        const user = await getGitHubUser(fallbackToken)
+        if (user?.login) {
+          Logger.debug(`Using fallback GITHUB_TOKEN, authenticated as: ${user.login}`)
+          return user.login
+        }
+      } catch (error) {
+        Logger.debug(`Fallback GITHUB_TOKEN failed for user info: ${error}`)
+      }
+    }
+    
+    Logger.debug("No valid GitHub token available for user info")
+    return undefined
   } catch (error) {
-    Logger.warn('Stored token is invalid or expired')
-    return null
+    Logger.error(`Error in whoami: ${error}`)
+    return undefined
   }
 }
 

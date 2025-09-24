@@ -30,7 +30,7 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
    }
 
    // Initialize global MCP manager
-   const llmProvider = createLLMProvider();
+   const llmProvider = await createLLMProvider();
    const model = getLLMModel();
    globalMCPManager = new MCPServerManager(config.MCP_SERVERS_PATH, llmProvider, model);
    

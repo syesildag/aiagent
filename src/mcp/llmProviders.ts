@@ -1,5 +1,24 @@
 import { Ollama } from 'ollama';
 import Logger from '../utils/logger';
+import { AuthGithubCopilot } from '../utils/githubAuth';
+
+/**
+ * Universal LLM Provider System with Centralized Token Management
+ * 
+ * This module provides a unified interface for multiple LLM providers with intelligent
+ * token limit handling. Key features:
+ * 
+ * 1. **Provider Support**: OpenAI, GitHub Copilot, Ollama, and extensible for others
+ * 2. **Centralized Token Limits**: Single source of truth for 80+ models via getModelMaxTokens()
+ * 3. **Universal Token Handling**: Smart truncation via handleTokenLimits() for all providers
+ * 4. **Conversation Preservation**: Maintains system messages and recent context when truncating
+ * 5. **Tool Call Integrity**: Ensures assistant tool calls have corresponding responses
+ * 
+ * Usage:
+ * - Each provider automatically applies model-specific token limits
+ * - Token handling preserves conversation flow and tool call consistency
+ * - Extensible architecture allows easy addition of new providers
+ */
 
 // LLM Provider Types
 export interface LLMMessage {
@@ -55,6 +74,410 @@ export interface Tool {
   };
 }
 
+/**
+ * Get the maximum token limit for any LLM model across all providers
+ * 
+ * This centralized function maintains token limits for models from all major providers:
+ * - OpenAI (GPT-4, GPT-3.5, o1, etc.)
+ * - Anthropic (Claude models)  
+ * - Google (Gemini models)
+ * - Meta (Llama models via Ollama)
+ * - Mistral (Mistral/Mixtral models)
+ * - Alibaba (Qwen models)
+ * - And many others
+ * 
+ * @param model - The model name/identifier
+ * @returns Maximum context window size in tokens
+ * 
+ * @example
+ * ```typescript
+ * const maxTokens = getModelMaxTokens('gpt-4o'); // Returns 128000
+ * const claudeTokens = getModelMaxTokens('claude-sonnet-4'); // Returns 200000  
+ * const geminiTokens = getModelMaxTokens('gemini-2.5-pro'); // Returns 1048576
+ * ```
+ */
+export function getModelMaxTokens(model: string): number {
+  // Comprehensive model token limits database
+  const modelLimits: Record<string, number> = {
+    // OpenAI GPT-4 models
+    'gpt-4o': 128000,
+    'gpt-4o-mini': 128000,
+    'gpt-4': 8192,
+    'gpt-4-32k': 32768,
+    'gpt-4-1106-preview': 128000,
+    'gpt-4-0125-preview': 128000,
+    'gpt-4-turbo': 128000,
+    'gpt-4-turbo-preview': 128000,
+    'gpt-4-vision-preview': 128000,
+    'gpt-4.1': 128000,
+    'gpt-5': 128000,
+    'gpt-5-mini': 128000,
+    
+    // OpenAI GPT-3.5 models
+    'gpt-3.5-turbo': 16385,
+    'gpt-3.5-turbo-16k': 16385,
+    'gpt-3.5-turbo-1106': 16385,
+    'gpt-3.5-turbo-0125': 16385,
+    'gpt-3.5-turbo-0613': 16385,
+    'gpt-3.5-turbo-instruct': 4096,
+    
+    // OpenAI o1 models
+    'o1-preview': 128000,
+    'o1-mini': 128000,
+    'o3-mini': 128000,
+    'o4-mini': 128000,
+    
+    // OpenAI legacy models
+    'text-davinci-003': 4097,
+    'text-davinci-002': 4097,
+    'code-davinci-002': 8001,
+    
+    // Anthropic Claude models
+    'claude-3-opus': 200000,
+    'claude-3-sonnet': 200000,
+    'claude-3-haiku': 200000,
+    'claude-3.5-sonnet': 200000,
+    'claude-3.7-sonnet': 200000,
+    'claude-3.7-sonnet-thought': 200000,
+    'claude-sonnet-4': 200000,
+    
+    // Google Gemini models
+    'gemini-1.5-pro': 1048576,  // 1M tokens
+    'gemini-1.5-flash': 1048576,
+    'gemini-2.0-flash-001': 1048576,
+    'gemini-2.5-pro': 1048576,
+    'gemini-pro': 32768,
+    
+    // Ollama Llama models
+    'llama3.2:1b': 131072,
+    'llama3.2:3b': 131072,
+    'llama3.1:8b': 131072,
+    'llama3.1:70b': 131072,
+    'llama3.1:405b': 131072,
+    'llama3:8b': 8192,
+    'llama3:70b': 8192,
+    'llama2:7b': 4096,
+    'llama2:13b': 4096,
+    'llama2:70b': 4096,
+    
+    // Mistral models
+    'mistral:7b': 32768,
+    'mixtral:8x7b': 32768,
+    'mixtral:8x22b': 65536,
+    
+    // Qwen models
+    'qwen2.5:7b': 32768,
+    'qwen2.5:14b': 32768,
+    'qwen2.5:32b': 32768,
+    'qwen2.5:72b': 32768,
+    'qwen2:7b': 32768,
+    'qwen2:72b': 32768,
+    'qwen3:4b': 32768,
+    
+    // Code models
+    'codellama:7b': 16384,
+    'codellama:13b': 16384,
+    'codellama:34b': 16384,
+    'codeqwen:7b': 65536,
+    'deepseek-coder:6.7b': 16384,
+    'deepseek-coder:33b': 16384,
+    
+    // Other models
+    'gemma2:2b': 8192,
+    'gemma2:9b': 8192,
+    'gemma2:27b': 8192,
+    'phi3:3.8b': 128000,
+    'phi3:14b': 128000,
+    
+    // Embedding models
+    'text-embedding-ada-002': 8191,
+    'text-embedding-3-small': 8191,
+    'text-embedding-3-large': 8191,
+  };
+
+  // Try exact match first
+  if (modelLimits[model]) {
+    return modelLimits[model];
+  }
+
+  // Try partial matches for versioned models
+  for (const [knownModel, limit] of Object.entries(modelLimits)) {
+    if (model.includes(knownModel) || knownModel.includes(model)) {
+      return limit;
+    }
+  }
+
+  // Pattern-based matching for model families
+  if (model.includes('gpt-4')) {
+    return model.includes('32k') ? 32768 : 128000;
+  }
+  if (model.includes('gpt-3.5')) {
+    return 16385;
+  }
+  if (model.includes('claude')) {
+    return 200000;
+  }
+  if (model.includes('gemini')) {
+    return model.includes('1.5') || model.includes('2.') ? 1048576 : 32768;
+  }
+  if (model.includes('llama3.1') || model.includes('llama3.2')) {
+    return 131072;
+  }
+  if (model.includes('llama3')) {
+    return 8192;
+  }
+  if (model.includes('llama2')) {
+    return 4096;
+  }
+  if (model.includes('mistral') || model.includes('mixtral')) {
+    return model.includes('8x22b') ? 65536 : 32768;
+  }
+  if (model.includes('qwen')) {
+    return 32768;
+  }
+  if (model.includes('phi3')) {
+    return 128000;
+  }
+  if (model.includes('o1') || model.includes('o3') || model.includes('o4')) {
+    return 128000;
+  }
+
+  // Default fallback
+  Logger.warn(`Unknown model '${model}', using default context limit of 8192 tokens`);
+  return 8192;
+}
+
+/**
+ * Estimate tokens for a string (rough approximation: ~4 characters per token)
+ */
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Handle token limits by truncating messages if needed
+ * This function can be used by any LLM provider to manage token limits
+ * 
+ * @param request - The original chat request
+ * @param maxTokens - Maximum token limit (if undefined, no limits applied)
+ * @returns Adjusted request with messages truncated if needed
+ */
+export function handleTokenLimits(request: LLMChatRequest, maxTokens?: number): LLMChatRequest {
+  // If maxTokens is undefined, treat as infinity (no limits)
+  if (maxTokens === undefined) {
+    return request;
+  }
+  
+  // Calculate token usage for budget management (use 80% of limit)
+  const tokenBudget = Math.floor(maxTokens * 0.8);
+  
+  // Estimate tokens for tools
+  let toolTokens = 0;
+  if (request.tools && request.tools.length > 0) {
+    const toolsText = JSON.stringify(request.tools);
+    toolTokens = estimateTokens(toolsText);
+  }
+
+  // Estimate tokens for messages
+  let messageTokens = 0;
+  const messageTexts = request.messages.map(msg => {
+    let content = msg.content || '';
+    if (msg.tool_calls) {
+      content += JSON.stringify(msg.tool_calls);
+    }
+    return content;
+  });
+  
+  for (const text of messageTexts) {
+    messageTokens += estimateTokens(text);
+  }
+
+  const totalTokens = toolTokens + messageTokens;
+  
+  Logger.debug(`Token estimation: tools=${toolTokens}, messages=${messageTokens}, total=${totalTokens}, budget=${tokenBudget}`);
+
+  // If within budget, return as-is
+  if (totalTokens <= tokenBudget) {
+    return request;
+  }
+
+  Logger.warn(`Token limit exceeded (${totalTokens} > ${tokenBudget}), truncating messages`);
+
+  // Build a smarter message preservation strategy
+  const systemMessage = request.messages.find(msg => msg.role === 'system');
+  const lastUserMessage = request.messages.filter(msg => msg.role === 'user').pop();
+  
+  // Start with minimal viable conversation: system + last user
+  let preservedMessages: LLMMessage[] = [];
+  let preservedTokens = toolTokens;
+  
+  if (systemMessage) {
+    preservedMessages.push(systemMessage);
+    preservedTokens += estimateTokens(systemMessage.content || '');
+  }
+  
+  if (lastUserMessage) {
+    preservedMessages.push(lastUserMessage);
+    preservedTokens += estimateTokens(lastUserMessage.content || '');
+  }
+
+  Logger.debug(`Starting with minimal messages: ${preservedMessages.length} messages, ${preservedTokens} tokens`);
+
+  // Try to add complete assistant-tool conversation blocks from most recent backwards
+  const messages = request.messages;
+  const conversationBlocks: LLMMessage[][] = [];
+  
+  // Group messages into conversation blocks (assistant + tool responses)
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    
+    // Skip if already included or if it's system/last user
+    if (msg === systemMessage || msg === lastUserMessage) continue;
+    
+    if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+      const block: LLMMessage[] = [msg];
+      const toolCallIds = msg.tool_calls.map(tc => tc.id);
+      
+      // Find all corresponding tool responses immediately following
+      for (let j = i + 1; j < messages.length; j++) {
+        const responseMsg = messages[j];
+        if (responseMsg.role === 'tool' && responseMsg.tool_call_id && 
+            toolCallIds.includes(responseMsg.tool_call_id)) {
+          block.push(responseMsg);
+        } else if (responseMsg.role !== 'tool') {
+          // Stop when we hit a non-tool message
+          break;
+        }
+      }
+      
+      // Only add complete blocks (all tool calls have responses)
+      const foundResponses = block.filter(m => m.role === 'tool').length;
+      if (foundResponses === toolCallIds.length) {
+        conversationBlocks.push(block);
+      }
+    } else if (msg.role === 'user' && msg !== lastUserMessage) {
+      // Add standalone user messages as single-item blocks
+      conversationBlocks.push([msg]);
+    }
+  }
+
+  // Add conversation blocks from most recent first, if they fit in budget
+  conversationBlocks.reverse(); // Most recent first
+  
+  for (const block of conversationBlocks) {
+    let blockTokens = 0;
+    for (const msg of block) {
+      let content = msg.content || '';
+      if (msg.tool_calls) {
+        content += JSON.stringify(msg.tool_calls);
+      }
+      blockTokens += estimateTokens(content);
+    }
+    
+    if (preservedTokens + blockTokens <= tokenBudget) {
+      // Insert before the last user message to maintain conversation order
+      const insertIndex = preservedMessages.length - (lastUserMessage ? 1 : 0);
+      preservedMessages.splice(insertIndex, 0, ...block);
+      preservedTokens += blockTokens;
+      Logger.debug(`Added conversation block with ${block.length} messages, ${blockTokens} tokens`);
+    } else {
+      Logger.debug(`Skipping conversation block: would exceed budget (${preservedTokens + blockTokens} > ${tokenBudget})`);
+      break;
+    }
+  }
+
+  // If still over budget, try aggressive truncation
+  if (preservedTokens > tokenBudget) {
+    Logger.warn(`Still over budget after basic truncation (${preservedTokens} > ${tokenBudget}), using aggressive fallback`);
+    
+    // Use only 50% of limit for aggressive fallback
+    const aggressiveBudget = Math.floor(maxTokens * 0.5);
+    
+    // Try to fit just system message and truncated user message
+    const truncatedRequest: LLMChatRequest = {
+      ...request,
+      messages: systemMessage ? [systemMessage] : []
+    };
+
+    if (lastUserMessage) {
+      let userContent = lastUserMessage.content;
+      let userTokens = estimateTokens(userContent);
+      
+      // Truncate user message if too long
+      if (userTokens > aggressiveBudget / 2) {
+        const targetLength = Math.floor((aggressiveBudget / 2) * 4); // Convert back to characters
+        userContent = userContent.substring(0, targetLength) + '... [truncated]';
+      }
+      
+      truncatedRequest.messages.push({
+        ...lastUserMessage,
+        content: userContent
+      });
+    }
+
+    return truncatedRequest;
+  }
+
+  Logger.debug(`Message truncation successful: preserved ${preservedMessages.length} messages, ${preservedTokens} tokens`);
+  
+  // Debug: Log the message structure to verify correctness
+  Logger.debug('Final message structure:');
+  for (let i = 0; i < preservedMessages.length; i++) {
+    const msg = preservedMessages[i];
+    if (msg.role === 'assistant' && msg.tool_calls) {
+      Logger.debug(`  ${i}: assistant with ${msg.tool_calls.length} tool calls: ${msg.tool_calls.map(tc => tc.id).join(', ')}`);
+    } else if (msg.role === 'tool') {
+      Logger.debug(`  ${i}: tool response for call_id: ${msg.tool_call_id}`);
+    } else {
+      Logger.debug(`  ${i}: ${msg.role} message`);
+    }
+  }
+  
+  // Validate message integrity - ensure all assistant tool_calls have corresponding tool responses
+  const assistantMessages = preservedMessages.filter(msg => msg.role === 'assistant' && msg.tool_calls);
+  for (const assistantMsg of assistantMessages) {
+    if (!assistantMsg.tool_calls) continue;
+    
+    for (const toolCall of assistantMsg.tool_calls) {
+      const hasResponse = preservedMessages.some(msg => 
+        msg.role === 'tool' && msg.tool_call_id === toolCall.id
+      );
+      
+      if (!hasResponse) {
+        Logger.error(`Validation failed: tool_call_id ${toolCall.id} has no corresponding tool response`);
+        Logger.error('This would cause a 400 error from the API');
+        
+        // Emergency fallback: remove this assistant message and its orphaned tool calls
+        const filteredMessages = preservedMessages.filter(msg => msg !== assistantMsg);
+        Logger.warn('Emergency fallback: removing assistant message with orphaned tool calls');
+        
+        return {
+          ...request,
+          messages: filteredMessages
+        };
+      }
+    }
+  }
+
+  return {
+    ...request,
+    messages: preservedMessages
+  };
+}
+
+/**
+ * Utility function to apply smart token handling to any LLM request
+ * Automatically detects model limits and applies appropriate truncation
+ * 
+ * @param request - The original chat request
+ * @param customMaxTokens - Override the model's default token limit (optional)
+ * @returns Request with smart token management applied
+ */
+export function withTokenManagement(request: LLMChatRequest, customMaxTokens?: number): LLMChatRequest {
+  const maxTokens = customMaxTokens || getModelMaxTokens(request.model);
+  return handleTokenLimits(request, maxTokens);
+}
+
 // LLM Provider Implementations
 export class OllamaProvider implements LLMProvider {
   name = 'Ollama';
@@ -85,8 +508,12 @@ export class OllamaProvider implements LLMProvider {
   }
 
   async chat(request: LLMChatRequest, abortSignal?: AbortSignal): Promise<LLMChatResponse> {
+    // Handle token limits for Ollama
+    const modelMaxTokens = getModelMaxTokens(request.model);
+    const adjustedRequest = handleTokenLimits(request, modelMaxTokens);
+
     // Convert LLMMessage to Ollama Message format
-    const ollamaMessages = request.messages.map(msg => ({
+    const ollamaMessages = adjustedRequest.messages.map(msg => ({
       role: msg.role,
       content: msg.content,
       tool_calls: msg.tool_calls?.map(tc => ({
@@ -100,9 +527,9 @@ export class OllamaProvider implements LLMProvider {
     }));
 
     const chatPromise = this.ollama.chat({
-      model: request.model,
+      model: adjustedRequest.model,
       messages: ollamaMessages,
-      tools: request.tools,
+      tools: adjustedRequest.tools,
       stream: false
     });
 
@@ -149,9 +576,12 @@ export class GitHubCopilotProvider implements LLMProvider {
   /**
    * Create headers for GitHub Copilot API requests
    */
-  private createHeaders(): Record<string, string> {
+  private async createHeaders(): Promise<Record<string, string>> {
+    // Get the current token (this will refresh if needed)
+    const currentToken = await AuthGithubCopilot.access() || this.apiKey;
+    
     const headers: Record<string, string> = {
-      'Authorization': `Bearer ${this.apiKey}`,
+      'Authorization': `Bearer ${currentToken}`,
       'Content-Type': 'application/json',
       ...this.extraHeaders
     };
@@ -207,7 +637,7 @@ export class GitHubCopilotProvider implements LLMProvider {
   async checkHealth(): Promise<boolean> {
     try {
       const response = await fetch(`${this.baseUrl}/models`, {
-        headers: this.createHeaders()
+        headers: await this.createHeaders()
       });
       
       if (!response.ok) {
@@ -226,7 +656,7 @@ export class GitHubCopilotProvider implements LLMProvider {
   async getAvailableModels(): Promise<string[]> {
     try {
       const response = await fetch(`${this.baseUrl}/models`, {
-        headers: this.createHeaders()
+        headers: await this.createHeaders()
       });
       
       if (!response.ok) {
@@ -248,220 +678,14 @@ export class GitHubCopilotProvider implements LLMProvider {
     }
   }
 
-  /**
-   * Estimate tokens for a string (rough approximation: ~4 characters per token)
-   */
-  private estimateTokens(text: string): number {
-    return Math.ceil(text.length / 4);
-  }
-
-  /**
-   * Handle token limits by truncating messages if needed
-   */
-  private handleTokenLimits(request: LLMChatRequest, maxTokens: number = 8000): LLMChatRequest {
-    // Calculate token usage for budget management (use 80% of limit)
-    const tokenBudget = Math.floor(maxTokens * 0.8);
-    
-    // Estimate tokens for tools
-    let toolTokens = 0;
-    if (request.tools && request.tools.length > 0) {
-      const toolsText = JSON.stringify(request.tools);
-      toolTokens = this.estimateTokens(toolsText);
-    }
-
-    // Estimate tokens for messages
-    let messageTokens = 0;
-    const messageTexts = request.messages.map(msg => {
-      let content = msg.content || '';
-      if (msg.tool_calls) {
-        content += JSON.stringify(msg.tool_calls);
-      }
-      return content;
-    });
-    
-    for (const text of messageTexts) {
-      messageTokens += this.estimateTokens(text);
-    }
-
-    const totalTokens = toolTokens + messageTokens;
-    
-    Logger.debug(`Token estimation: tools=${toolTokens}, messages=${messageTokens}, total=${totalTokens}, budget=${tokenBudget}`);
-
-    // If within budget, return as-is
-    if (totalTokens <= tokenBudget) {
-      return request;
-    }
-
-    Logger.warn(`Token limit exceeded (${totalTokens} > ${tokenBudget}), truncating messages`);
-
-    // Build a smarter message preservation strategy
-    const systemMessage = request.messages.find(msg => msg.role === 'system');
-    const lastUserMessage = request.messages.filter(msg => msg.role === 'user').pop();
-    
-    // Start with minimal viable conversation: system + last user
-    let preservedMessages: LLMMessage[] = [];
-    let preservedTokens = toolTokens;
-    
-    if (systemMessage) {
-      preservedMessages.push(systemMessage);
-      preservedTokens += this.estimateTokens(systemMessage.content || '');
-    }
-    
-    if (lastUserMessage) {
-      preservedMessages.push(lastUserMessage);
-      preservedTokens += this.estimateTokens(lastUserMessage.content || '');
-    }
-
-    Logger.debug(`Starting with minimal messages: ${preservedMessages.length} messages, ${preservedTokens} tokens`);
-
-    // Try to add complete assistant-tool conversation blocks from most recent backwards
-    const messages = request.messages;
-    const conversationBlocks: LLMMessage[][] = [];
-    
-    // Group messages into conversation blocks (assistant + tool responses)
-    for (let i = 0; i < messages.length; i++) {
-      const msg = messages[i];
-      
-      // Skip if already included or if it's system/last user
-      if (msg === systemMessage || msg === lastUserMessage) continue;
-      
-      if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
-        const block: LLMMessage[] = [msg];
-        const toolCallIds = msg.tool_calls.map(tc => tc.id);
-        
-        // Find all corresponding tool responses immediately following
-        for (let j = i + 1; j < messages.length; j++) {
-          const responseMsg = messages[j];
-          if (responseMsg.role === 'tool' && responseMsg.tool_call_id && 
-              toolCallIds.includes(responseMsg.tool_call_id)) {
-            block.push(responseMsg);
-          } else if (responseMsg.role !== 'tool') {
-            // Stop when we hit a non-tool message
-            break;
-          }
-        }
-        
-        // Only add complete blocks (all tool calls have responses)
-        const foundResponses = block.filter(m => m.role === 'tool').length;
-        if (foundResponses === toolCallIds.length) {
-          conversationBlocks.push(block);
-        }
-      } else if (msg.role === 'user' && msg !== lastUserMessage) {
-        // Add standalone user messages as single-item blocks
-        conversationBlocks.push([msg]);
-      }
-    }
-
-    // Add conversation blocks from most recent first, if they fit in budget
-    conversationBlocks.reverse(); // Most recent first
-    
-    for (const block of conversationBlocks) {
-      let blockTokens = 0;
-      for (const msg of block) {
-        let content = msg.content || '';
-        if (msg.tool_calls) {
-          content += JSON.stringify(msg.tool_calls);
-        }
-        blockTokens += this.estimateTokens(content);
-      }
-      
-      if (preservedTokens + blockTokens <= tokenBudget) {
-        // Insert before the last user message to maintain conversation order
-        const insertIndex = preservedMessages.length - (lastUserMessage ? 1 : 0);
-        preservedMessages.splice(insertIndex, 0, ...block);
-        preservedTokens += blockTokens;
-        Logger.debug(`Added conversation block with ${block.length} messages, ${blockTokens} tokens`);
-      } else {
-        Logger.debug(`Skipping conversation block: would exceed budget (${preservedTokens + blockTokens} > ${tokenBudget})`);
-        break;
-      }
-    }
-
-    // If still over budget, try aggressive truncation
-    if (preservedTokens > tokenBudget) {
-      Logger.warn(`Still over budget after basic truncation (${preservedTokens} > ${tokenBudget}), using aggressive fallback`);
-      
-      // Use only 50% of limit for aggressive fallback
-      const aggressiveBudget = Math.floor(maxTokens * 0.5);
-      
-      // Try to fit just system message and truncated user message
-      const truncatedRequest: LLMChatRequest = {
-        ...request,
-        messages: systemMessage ? [systemMessage] : []
-      };
-
-      if (lastUserMessage) {
-        let userContent = lastUserMessage.content;
-        let userTokens = this.estimateTokens(userContent);
-        
-        // Truncate user message if too long
-        if (userTokens > aggressiveBudget / 2) {
-          const targetLength = Math.floor((aggressiveBudget / 2) * 4); // Convert back to characters
-          userContent = userContent.substring(0, targetLength) + '... [truncated]';
-        }
-        
-        truncatedRequest.messages.push({
-          ...lastUserMessage,
-          content: userContent
-        });
-      }
-
-      return truncatedRequest;
-    }
-
-    Logger.debug(`Message truncation successful: preserved ${preservedMessages.length} messages, ${preservedTokens} tokens`);
-    
-    // Debug: Log the message structure to verify correctness
-    Logger.debug('Final message structure:');
-    for (let i = 0; i < preservedMessages.length; i++) {
-      const msg = preservedMessages[i];
-      if (msg.role === 'assistant' && msg.tool_calls) {
-        Logger.debug(`  ${i}: assistant with ${msg.tool_calls.length} tool calls: ${msg.tool_calls.map(tc => tc.id).join(', ')}`);
-      } else if (msg.role === 'tool') {
-        Logger.debug(`  ${i}: tool response for call_id: ${msg.tool_call_id}`);
-      } else {
-        Logger.debug(`  ${i}: ${msg.role} message`);
-      }
-    }
-    
-    // Validate message integrity - ensure all assistant tool_calls have corresponding tool responses
-    const assistantMessages = preservedMessages.filter(msg => msg.role === 'assistant' && msg.tool_calls);
-    for (const assistantMsg of assistantMessages) {
-      if (!assistantMsg.tool_calls) continue;
-      
-      for (const toolCall of assistantMsg.tool_calls) {
-        const hasResponse = preservedMessages.some(msg => 
-          msg.role === 'tool' && msg.tool_call_id === toolCall.id
-        );
-        
-        if (!hasResponse) {
-          Logger.error(`Validation failed: tool_call_id ${toolCall.id} has no corresponding tool response`);
-          Logger.error('This would cause a 400 error from the API');
-          
-          // Emergency fallback: remove this assistant message and its orphaned tool calls
-          const filteredMessages = preservedMessages.filter(msg => msg !== assistantMsg);
-          Logger.warn('Emergency fallback: removing assistant message with orphaned tool calls');
-          
-          return {
-            ...request,
-            messages: filteredMessages
-          };
-        }
-      }
-    }
-
-    return {
-      ...request,
-      messages: preservedMessages
-    };
-  }
-
   async chat(request: LLMChatRequest, abortSignal?: AbortSignal): Promise<LLMChatResponse> {
     // Store the model for this request
     this.model = request.model;
 
     // Handle token limits for GitHub Copilot API
-    const adjustedRequest = this.handleTokenLimits(request);
+    // Use the model's actual max token limit if maxTokens is not specified
+    const modelMaxTokens = getModelMaxTokens(request.model);
+    const adjustedRequest = handleTokenLimits(request, modelMaxTokens);
 
     const requestBody: any = {
       model: adjustedRequest.model,
@@ -484,7 +708,7 @@ export class GitHubCopilotProvider implements LLMProvider {
 
     const chatPromise = fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: this.createHeaders(),
+      headers: await this.createHeaders(),
       body: JSON.stringify(requestBody),
       signal: abortSignal
     });
@@ -505,7 +729,7 @@ export class GitHubCopilotProvider implements LLMProvider {
           if (errorData.error?.code === 'tokens_limit_reached') {
             // Extract the actual token limit from the error message if available
             const maxTokens = 6000; // Use more conservative limit for retry
-            const retryRequest = this.handleTokenLimits(request, maxTokens);
+            const retryRequest = handleTokenLimits(request, maxTokens);
             
             // Try again with more aggressive truncation
             const retryBody: any = {
@@ -515,7 +739,7 @@ export class GitHubCopilotProvider implements LLMProvider {
             };
             
             if (retryRequest.tools && retryRequest.tools.length > 0) {
-              retryBody.tools = retryRequest.tools.map(tool => ({
+              retryBody.tools = retryRequest.tools.map((tool: Tool) => ({
                 type: 'function',
                 function: {
                   name: tool.function.name,
@@ -527,7 +751,7 @@ export class GitHubCopilotProvider implements LLMProvider {
             
             const retryResponse = await fetch(`${this.baseUrl}/chat/completions`, {
               method: 'POST',
-              headers: this.createHeaders(),
+              headers: await this.createHeaders(),
               body: JSON.stringify(retryBody),
               signal: abortSignal
             });
@@ -592,7 +816,7 @@ export class GitHubCopilotProvider implements LLMProvider {
         
         // Retry with more conservative token limit
         const maxTokens = 6000;
-        const retryRequest = this.handleTokenLimits(request, maxTokens);
+        const retryRequest = handleTokenLimits(request, maxTokens);
         
         const retryBody: any = {
           model: retryRequest.model,
@@ -601,7 +825,7 @@ export class GitHubCopilotProvider implements LLMProvider {
         };
         
         if (retryRequest.tools && retryRequest.tools.length > 0) {
-          retryBody.tools = retryRequest.tools.map(tool => ({
+          retryBody.tools = retryRequest.tools.map((tool: Tool) => ({
             type: 'function',
             function: {
               name: tool.function.name,
@@ -614,7 +838,7 @@ export class GitHubCopilotProvider implements LLMProvider {
         try {
           const retryResponse = await fetch(`${this.baseUrl}/chat/completions`, {
             method: 'POST',
-            headers: this.createHeaders(),
+            headers: await this.createHeaders(),
             body: JSON.stringify(retryBody),
             signal: abortSignal
           });
@@ -723,13 +947,17 @@ export class OpenAIProvider implements LLMProvider {
   }
 
   async chat(request: LLMChatRequest, abortSignal?: AbortSignal): Promise<LLMChatResponse> {
-    Logger.debug(`GitHub Copilot chat request: model=${request.model}, messages=${request.messages.length}, tools=${request.tools?.length || 0}`);
+    // Handle token limits for OpenAI
+    const modelMaxTokens = getModelMaxTokens(request.model);
+    const adjustedRequest = handleTokenLimits(request, modelMaxTokens);
+
+    Logger.debug(`OpenAI chat request: model=${adjustedRequest.model}, messages=${adjustedRequest.messages.length}, tools=${adjustedRequest.tools?.length || 0}`);
 
     const requestBody = {
-      model: request.model,
-      messages: request.messages,
-      tools: request.tools,
-      stream: request.stream || false
+      model: adjustedRequest.model,
+      messages: adjustedRequest.messages,
+      tools: adjustedRequest.tools,
+      stream: adjustedRequest.stream || false
     };
 
     Logger.debug(`Request body: ${JSON.stringify(requestBody, null, 2)}`);
