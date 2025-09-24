@@ -1,193 +1,290 @@
-import * as fs from 'fs';
+import z from "zod"
+import { Auth } from "./auth/index"
 import Logger from './logger';
 
-// GitHub OAuth App Client ID
-// To set up GitHub OAuth for your application:
-// 1. Go to GitHub Settings > Developer settings > OAuth Apps
-// 2. Create a new OAuth App with:
-//    - Application name: Your app name
-//    - Homepage URL: Your app URL (can be localhost for development)
-//    - Authorization callback URL: Not needed for device flow
-// 3. Copy the Client ID and set it in GITHUB_OAUTH_APP_CLIENT_ID environment variable
-// 4. The device flow doesn't require a client secret
-const CLIENT_ID = process.env.GITHUB_OAUTH_APP_CLIENT_ID || "Iv1.b507a08c87ecfe98"; // Fallback for development
+export namespace AuthGithubCopilot {
+  const CLIENT_ID = "Iv1.b507a08c87ecfe98"
+  const DEVICE_CODE_URL = "https://github.com/login/device/code"
+  const ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
+  const COPILOT_API_KEY_URL = "https://api.github.com/copilot_internal/v2/token"
 
-interface DeviceCodeResponse {
-  device_code: string;
-  user_code: string;
-  verification_uri: string;
-  interval: number;
-  expires_in: number;
-}
-
-interface TokenResponse {
-  access_token?: string;
-  error?: string;
-  error_description?: string;
-}
-
-/**
- * Parse HTTP response and handle common error cases
- */
-async function parseResponse(response: Response): Promise<any> {
-  const data = await response.json();
-  
-  if (response.ok) {
-    return data;
+  interface DeviceCodeResponse {
+    device_code: string
+    user_code: string
+    verification_uri: string
+    expires_in: number
+    interval: number
   }
-  
-  if (response.status === 401) {
-    Logger.error('You are not authorized. Run the `login` command.');
-    process.exit(1);
+
+  interface AccessTokenResponse {
+    access_token?: string
+    error?: string
+    error_description?: string
   }
-  
-  Logger.error(`HTTP ${response.status}: ${JSON.stringify(data)}`);
-  process.exit(1);
-}
 
-/**
- * Request device code from GitHub
- */
-export async function requestDeviceCode(): Promise<DeviceCodeResponse> {
-  const response = await fetch('https://github.com/login/device/code', {
-    method: 'POST',
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      'client_id': CLIENT_ID,
-      'scope': 'copilot'
+  interface CopilotTokenResponse {
+    token: string
+    expires_at: number
+    refresh_in: number
+    endpoints: {
+      api: string
+    }
+  }
+
+  export async function authorize() {
+    const deviceResponse = await fetch(DEVICE_CODE_URL, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "GitHubCopilotChat/0.26.7",
+      },
+      body: JSON.stringify({
+        client_id: CLIENT_ID,
+        scope: "read:user",
+      }),
     })
-  });
-  
-  return parseResponse(response);
-}
+    const deviceData: DeviceCodeResponse = await deviceResponse.json()
+    return {
+      device: deviceData.device_code,
+      user: deviceData.user_code,
+      verification: deviceData.verification_uri,
+      interval: deviceData.interval || 5,
+      expiry: deviceData.expires_in,
+    }
+  }
 
-/**
- * Request access token using device code
- */
-async function requestToken(deviceCode: string): Promise<TokenResponse> {
-  const response = await fetch('https://github.com/login/oauth/access_token', {
-    method: 'POST',
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      'client_id': CLIENT_ID,
-      'device_code': deviceCode,
-      'grant_type': 'urn:ietf:params:oauth:grant-type:device_code'
+  export async function poll(device_code: string) {
+    const response = await fetch(ACCESS_TOKEN_URL, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "GitHubCopilotChat/0.26.7",
+      },
+      body: JSON.stringify({
+        client_id: CLIENT_ID,
+        device_code,
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      }),
     })
-  });
-  
-  return parseResponse(response);
+
+    if (!response.ok) return "failed"
+
+    const data: AccessTokenResponse = await response.json()
+
+    if (data.access_token) {
+      // Store the GitHub OAuth token
+      await Auth.set("github-copilot", {
+        type: "oauth",
+        refresh: data.access_token,
+        access: "",
+        expires: 0,
+      })
+      return "complete"
+    }
+
+    if (data.error === "authorization_pending") return "pending"
+
+    if (data.error) return "failed"
+
+    return "pending"
+  }
+
+  export async function access() {
+    const info = await Auth.get("github-copilot")
+    if (!info || info.type !== "oauth") {
+      // Fallback to environment variable if no OAuth stored
+      const fallbackToken = process.env.GITHUB_TOKEN
+      if (fallbackToken) {
+        Logger.debug("Using fallback GITHUB_TOKEN from environment")
+        return fallbackToken
+      }
+      return
+    }
+    if (info.access && info.expires > Date.now()) return info.access
+
+    // Get new Copilot API token
+    const response = await fetch(COPILOT_API_KEY_URL, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${info.refresh}`,
+        "User-Agent": "GitHubCopilotChat/0.26.7",
+        "Editor-Version": "vscode/1.99.3",
+        "Editor-Plugin-Version": "copilot-chat/0.26.7",
+      },
+    })
+
+    if (!response.ok) {
+      Logger.warn("Failed to refresh Copilot token, falling back to stored OAuth token")
+      return info.refresh
+    }
+
+    const tokenData: CopilotTokenResponse = await response.json()
+
+    // Store the Copilot API token
+    await Auth.set("github-copilot", {
+      type: "oauth",
+      refresh: info.refresh,
+      access: tokenData.token,
+      expires: tokenData.expires_at * 1000,
+    })
+
+    return tokenData.token
+  }
+
+  export const DeviceCodeError = createNamedError("DeviceCodeError", z.object({}))
+
+  export const TokenExchangeError = createNamedError(
+    "TokenExchangeError",
+    z.object({
+      message: z.string(),
+    }),
+  )
+
+  export const AuthenticationError = createNamedError(
+    "AuthenticationError",
+    z.object({
+      message: z.string(),
+    }),
+  )
+
+  export const CopilotTokenError = createNamedError(
+    "CopilotTokenError",
+    z.object({
+      message: z.string(),
+    }),
+  )
 }
 
-/**
- * Poll for access token until user completes authentication
- */
+// Simple NamedError implementation
+function createNamedError<T extends z.ZodTypeAny>(name: string, schema: T) {
+  return class extends Error {
+    name = name
+    data: z.infer<T>
+    
+    constructor(data: z.infer<T>) {
+      super(`${name}: ${JSON.stringify(data)}`)
+      this.data = data
+    }
+  }
+}
+
+// Legacy API functions for backward compatibility
+export async function requestDeviceCode() {
+  const result = await AuthGithubCopilot.authorize()
+  return {
+    device_code: result.device,
+    user_code: result.user,
+    verification_uri: result.verification,
+    interval: result.interval,
+    expires_in: result.expiry,
+  }
+}
+
 export async function pollForToken(deviceCode: string, interval: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const poll = async () => {
       try {
-        const response = await requestToken(deviceCode);
+        const result = await AuthGithubCopilot.poll(deviceCode)
         
-        if (response.error) {
-          switch (response.error) {
-            case 'authorization_pending':
-              // The user has not yet entered the code.
-              // Wait, then poll again.
-              setTimeout(poll, interval * 1000);
-              return;
-              
-            case 'slow_down':
-              // The app polled too fast.
-              // Wait for the interval plus 5 seconds, then poll again.
-              setTimeout(poll, (interval + 5) * 1000);
-              return;
-              
-            case 'expired_token':
-              // The device_code expired, and the process needs to restart.
-              reject(new Error('The device code has expired. Please run `login` again.'));
-              return;
-              
-            case 'access_denied':
-              // The user cancelled the process. Stop polling.
-              reject(new Error('Login cancelled by user.'));
-              return;
-              
-            default:
-              reject(new Error(`Authentication error: ${response.error} - ${response.error_description}`));
-              return;
-          }
-        }
-        
-        if (response.access_token) {
-          resolve(response.access_token);
-        } else {
-          reject(new Error('No access token received'));
+        switch (result) {
+          case "complete":
+            const token = await AuthGithubCopilot.access()
+            if (token) {
+              resolve(token)
+            } else {
+              reject(new Error('No access token received'))
+            }
+            return
+            
+          case "pending":
+            setTimeout(poll, interval * 1000)
+            return
+            
+          case "failed":
+          default:
+            reject(new Error('Authentication failed'))
+            return
         }
       } catch (error) {
-        reject(error);
+        reject(error)
       }
-    };
+    }
     
     // Start polling
-    poll();
-  });
+    poll()
+  })
 }
 
-/**
- * Get GitHub user information using access token
- */
+export async function authenticateWithGitHub(): Promise<string> {
+  Logger.info('Starting GitHub authentication...')
+  
+  // Request device code
+  const deviceCodeData = await requestDeviceCode()
+  
+  console.log(`\nPlease visit: ${deviceCodeData.verification_uri}`)
+  console.log(`and enter code: ${deviceCodeData.user_code}\n`)
+  
+  // Poll for token
+  const accessToken = await pollForToken(deviceCodeData.device_code, deviceCodeData.interval)
+  
+  Logger.info('Successfully authenticated with GitHub Copilot')
+  
+  return accessToken
+}
+
 export async function getGitHubUser(token: string): Promise<any> {
   const response = await fetch('https://api.github.com/user', {
     headers: {
       'Accept': 'application/vnd.github+json',
       'Authorization': `Bearer ${token}`,
     }
-  });
+  })
   
-  return parseResponse(response);
+  if (!response.ok) {
+    if (response.status === 401) {
+      Logger.error('You are not authorized. Run the `login` command.')
+      process.exit(1)
+    }
+    
+    const data = await response.json()
+    Logger.error(`HTTP ${response.status}: ${JSON.stringify(data)}`)
+    process.exit(1)
+  }
+  
+  return response.json()
 }
 
-/**
- * Complete GitHub OAuth device flow
- */
-export async function authenticateWithGitHub(): Promise<string> {
-  Logger.info('Starting GitHub authentication...');
-  
-  // Request device code
-  const deviceCodeData = await requestDeviceCode();
-  
-  console.log(`\nPlease visit: ${deviceCodeData.verification_uri}`);
-  console.log(`and enter code: ${deviceCodeData.user_code}\n`);
-  
-  // Poll for token
-  const accessToken = await pollForToken(deviceCodeData.device_code, deviceCodeData.interval);
-  
-  // Verify token works
-  const user = await getGitHubUser(accessToken);
-  Logger.info(`Successfully authenticated as: ${user.login}`);
-  
-  return accessToken;
-}
-
-/**
- * Check if user is already authenticated
- */
 export async function whoami(): Promise<string | null> {
-  const token = process.env.GITHUB_TOKEN;
+  const token = process.env.GITHUB_TOKEN
   if (!token) {
-    return null;
+    return null
   }
   
   try {
-    const user = await getGitHubUser(token);
-    return user.login;
+    const user = await getGitHubUser(token)
+    return user.login
   } catch (error) {
-    Logger.warn('Stored token is invalid or expired');
-    return null;
+    Logger.warn('Stored token is invalid or expired')
+    return null
   }
+}
+
+/**
+ * Get the best available GitHub token (OAuth Copilot token preferred, fallback to GITHUB_TOKEN)
+ */
+export async function getBestGitHubToken(): Promise<string | null> {
+  try {
+    // Try to get OAuth Copilot token first (most up-to-date)
+    const copilotToken = await AuthGithubCopilot.access()
+    if (copilotToken) {
+      return copilotToken
+    }
+  } catch (error) {
+    Logger.debug(`Failed to get Copilot token: ${error}`)
+  }
+  
+  // Fallback to environment variable
+  return process.env.GITHUB_TOKEN || null
 }
