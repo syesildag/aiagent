@@ -462,7 +462,12 @@ async function main() {
           currentAbortController = new AbortController();
           console.log('Assistant: Thinking... (type "cancel" or press Ctrl+C to cancel)');
           
-          const response = await currentManager.chatWithLLM(query, currentAbortController.signal);
+          const response = await currentManager.chatWithLLM(query,currentAbortController.signal,
+            `You are a helpful AI assistant.
+            Use available tools to answer user queries.
+            If no tools are needed, just answer directly.
+            Memorize relevant information for future interactions.
+            Read the memory database before responding and update it after each conversation.`);
           
           // Clear the abort controller since operation completed successfully
           currentAbortController = null;
