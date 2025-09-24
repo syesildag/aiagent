@@ -1,5 +1,5 @@
 import z from "zod"
-import { Auth } from "./auth/index"
+import { Auth } from "./auth"
 import Logger from './logger';
 
 export namespace AuthGithubCopilot {

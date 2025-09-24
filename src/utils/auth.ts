@@ -1,5 +1,5 @@
-import Logger from '../logger';
-import { updateEnvVariable, readEnvVariable } from '../envManager';
+import Logger from './logger';
+import { updateEnvVariable, readEnvVariable } from './envManager';
 
 interface OAuthTokenInfo {
   type: 'oauth';
