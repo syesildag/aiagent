@@ -406,12 +406,6 @@ export class GitHubCopilotProvider implements LLMProvider {
         });
       }
 
-      // Try switching to smaller model if available
-      if (request.model === 'gpt-4o') {
-        Logger.warn('Switching to gpt-4o-mini due to token constraints');
-        truncatedRequest.model = 'gpt-4o-mini';
-      }
-
       return truncatedRequest;
     }
 

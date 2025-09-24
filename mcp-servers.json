@@ -16,7 +16,7 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/home/serkan/workspace"
+        "/Users/serkan/Workspace"
       ],
       "env": {},
       "enabled": true
@@ -28,7 +28,7 @@
         "-y",
         "@modelcontextprotocol/server-git",
         "--repository",
-        "/home/serkan/workspace/aiagent"
+        "/Users/serkan/Workspace/aiagent"
       ],
       "env": {},
       "enabled": false
