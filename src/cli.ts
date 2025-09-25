@@ -43,10 +43,10 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
       updateEnvVariables({
         'LLM_PROVIDER': 'ollama'
       });
-      
+
       // Update the manager with new provider configuration
       await updateManagerCallback();
-      
+
       console.log('✅ Ollama provider configured successfully!');
       console.log('Manager instance updated with new provider configuration.\n');
       break;
@@ -54,7 +54,7 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
     case '2':
       // GitHub Copilot
       console.log('\nConfiguring GitHub Copilot provider...');
-      
+
       // Check if already authenticated
       const currentUser = await whoami();
       if (currentUser) {
@@ -65,10 +65,10 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
           updateEnvVariables({
             'LLM_PROVIDER': 'github'
           });
-          
+
           // Update the manager with new provider configuration
           updateManagerCallback();
-          
+
           console.log('✅ GitHub Copilot provider configured successfully!');
           console.log('Manager instance updated with new provider configuration.\n');
           break;
@@ -79,16 +79,16 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
       console.log('Starting GitHub authentication...');
       try {
         const token = await authenticateWithGitHub();
-        
+
         // Update environment variables
         updateEnvVariables({
           'LLM_PROVIDER': 'github',
           'GITHUB_TOKEN': token
         });
-        
+
         // Update the manager with new provider configuration
         updateManagerCallback();
-        
+
         console.log('✅ GitHub Copilot provider configured successfully!');
         console.log('Manager instance updated with new provider configuration.\n');
       } catch (error) {
@@ -101,7 +101,7 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
       // OpenAI
       console.log('\nConfiguring OpenAI provider...');
       const apiKey = await askQuestion('Enter your OpenAI API key: ');
-      
+
       if (!apiKey) {
         console.log('API key is required for OpenAI provider.\n');
         break;
@@ -111,10 +111,10 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
         'LLM_PROVIDER': 'openai',
         'OPENAI_API_KEY': apiKey
       });
-      
+
       // Update the manager with new provider configuration
       updateManagerCallback();
-      
+
       console.log('✅ OpenAI provider configured successfully!');
       console.log('Manager instance updated with new provider configuration.\n');
       break;
@@ -130,7 +130,7 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
  */
 async function handleModelCommand(rl: readline.Interface, manager: MCPServerManager, updateManagerCallback: () => Promise<void>): Promise<void> {
   console.log('\n=== Model Selection ===');
-  
+
   // Create a promise-based input function
   const askQuestion = (question: string): Promise<string> => {
     return new Promise((resolve) => {
@@ -142,7 +142,7 @@ async function handleModelCommand(rl: readline.Interface, manager: MCPServerMana
 
   const currentProvider = process.env.LLM_PROVIDER || 'ollama';
   const currentModel = process.env.LLM_MODEL || 'qwen3:4b';
-  
+
   console.log(`Current provider: ${currentProvider}`);
   console.log(`Current model: ${currentModel}\n`);
 
@@ -155,11 +155,11 @@ async function handleModelCommand(rl: readline.Interface, manager: MCPServerMana
     console.log(`❌ Error fetching models: ${error}`);
     console.log('You can still set a custom model name.\n');
   }
-  
+
   if (availableModels.length === 0) {
     console.log(`❌ No predefined models available for provider: ${currentProvider}`);
     console.log('You can still set a custom model name.\n');
-    
+
     const customModel = await askQuestion('Enter custom model name (or press Enter to cancel): ');
     if (customModel) {
       updateEnvVariables({
@@ -186,7 +186,7 @@ async function handleModelCommand(rl: readline.Interface, manager: MCPServerMana
 
   if (choiceNum >= 1 && choiceNum <= availableModels.length) {
     const selectedModel = availableModels[choiceNum - 1];
-    
+
     if (selectedModel === currentModel) {
       console.log(`Model "${selectedModel}" is already selected.\n`);
       return;
@@ -195,23 +195,23 @@ async function handleModelCommand(rl: readline.Interface, manager: MCPServerMana
     updateEnvVariables({
       'LLM_MODEL': selectedModel
     });
-    
+
     // Update the manager with new model configuration
     updateManagerCallback();
-    
+
     console.log(`✅ Model updated to: ${selectedModel}`);
     console.log('Manager instance updated with new model configuration.\n');
-    
+
   } else if (choiceNum === availableModels.length + 1) {
     const customModel = await askQuestion('Enter custom model name: ');
     if (customModel) {
       updateEnvVariables({
         'LLM_MODEL': customModel
       });
-      
+
       // Update the manager with new model configuration
       updateManagerCallback();
-      
+
       console.log(`✅ Model updated to: ${customModel}`);
       console.log('Manager instance updated with new model configuration.\n');
     } else {
@@ -236,14 +236,14 @@ async function main() {
   // - Read from environment variables
   // - Use command line arguments
   // - Prompt user for selection
-  
+
   let llmProvider: LLMProvider;
   let model: string = process.env.LLM_MODEL || 'qwen3:4b'; // get model from .env or default
   const providerType = process.env.LLM_PROVIDER || 'ollama';
-  
+
   Logger.debug(`Provider: ${providerType}`);
   Logger.debug(`Model: ${model}`);
-  
+
   switch (providerType.toLowerCase()) {
     case 'github':
     case 'copilot':
@@ -252,24 +252,28 @@ async function main() {
       const githubApiKey = await AuthGithubCopilot.access();
       if (!githubApiKey) {
         Logger.error('GitHub Copilot requires authentication. Run "login" command to authenticate.');
-        process.exit(1);
+        //process.exit(1);
       }
-      const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
-      Logger.debug(`GitHub Base URL: ${githubBaseUrl}`);
-      llmProvider = new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
-      Logger.info('Using GitHub Copilot provider');
-      break;
-    
+      else {
+        const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
+        Logger.debug(`GitHub Base URL: ${githubBaseUrl}`);
+        llmProvider = new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
+        Logger.info('Using GitHub Copilot provider');
+        break;
+      }
+
     case 'openai':
       const openaiApiKey = process.env.OPENAI_API_KEY;
       if (!openaiApiKey) {
         Logger.error('OpenAI requires OPENAI_API_KEY environment variable');
-        process.exit(1);
+        //process.exit(1);
       }
-      llmProvider = new OpenAIProvider(openaiApiKey);
-      Logger.info('Using OpenAI provider');
-      break;
-    
+      else {
+        llmProvider = new OpenAIProvider(openaiApiKey);
+        Logger.info('Using OpenAI provider');
+        break;
+      }
+
     case 'ollama':
     default:
       llmProvider = new OllamaProvider();
@@ -284,7 +288,7 @@ async function main() {
    */
   async function createLLMProvider(): Promise<LLMProvider> {
     const currentProviderType = process.env.LLM_PROVIDER || 'ollama';
-    
+
     switch (currentProviderType.toLowerCase()) {
       case 'github':
       case 'copilot':
@@ -296,7 +300,7 @@ async function main() {
         }
         const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
         return new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
-      
+
       case 'openai':
         const openaiApiKey = process.env.OPENAI_API_KEY;
         if (!openaiApiKey) {
@@ -304,7 +308,7 @@ async function main() {
           throw new Error('OpenAI configuration incomplete');
         }
         return new OpenAIProvider(openaiApiKey);
-      
+
       case 'ollama':
       default:
         return new OllamaProvider();
@@ -317,7 +321,7 @@ async function main() {
   async function updateManagerConfiguration(): Promise<void> {
     const newProvider = await createLLMProvider();
     const newModel = process.env.LLM_MODEL || 'qwen3:4b';
-    
+
     currentManager.updateConfiguration(newProvider, newModel);
     Logger.info('Manager configuration updated with new provider/model settings');
   }
@@ -343,7 +347,7 @@ async function main() {
     console.log('  - Use "login" command to configure GitHub Copilot or OpenAI');
     console.log('\nMCP servers will be initialized on first use.');
     console.log('');
-    
+
     // Create readline interface for interactive input
     const rl = readline.createInterface({
       input: process.stdin,
@@ -354,13 +358,13 @@ async function main() {
     // Interactive chat loop
     let currentAbortController: AbortController | null = null;
     let isShuttingDown = false;
-    
+
     const chatLoop = () => {
       rl.prompt();
-      
+
       rl.on('line', async (input: string) => {
         const query = input.trim();
-        
+
         if (query.toLowerCase() === 'exit' || query.toLowerCase() === 'quit') {
           // Cancel any ongoing operation
           if (currentAbortController) {
@@ -375,7 +379,7 @@ async function main() {
             process.exit(0);
           }
         }
-        
+
         if (query.toLowerCase() === 'cancel') {
           if (currentAbortController) {
             currentAbortController.abort();
@@ -387,7 +391,7 @@ async function main() {
           rl.prompt();
           return;
         }
-        
+
         if (query.toLowerCase() === 'help') {
           console.log('\nAvailable commands:');
           console.log('  - help: Show this help message');
@@ -427,14 +431,14 @@ async function main() {
           rl.prompt();
           return;
         }
-        
+
         if (query.toLowerCase() === 'status') {
           console.log('\nMCP Server Status:');
           console.log('\nllmProvider:' + currentManager.getProviderName());
           console.log('\nmodel:' + currentManager.getCurrentModel());
           const status = currentManager.getServerStatus();
           console.log(JSON.stringify(status, null, 2));
-          
+
           // Also show tools cache status
           const toolsCount = currentManager.getCachedToolsCount();
           const cacheExists = currentManager.isToolsCacheValid();
@@ -443,7 +447,7 @@ async function main() {
           rl.prompt();
           return;
         }
-        
+
         if (query.toLowerCase() === 'refresh') {
           console.log('Refreshing tools cache...');
           const tools = await currentManager.refreshToolsCache();
@@ -451,7 +455,7 @@ async function main() {
           rl.prompt();
           return;
         }
-        
+
         if (query.toLowerCase() === 'clear') {
           console.clear();
           console.log('--- Interactive Chat with LLM using MCP tools ---');
@@ -459,7 +463,7 @@ async function main() {
           rl.prompt();
           return;
         }
-        
+
         if (query.toLowerCase() === 'new' || query.toLowerCase() === 'newchat') {
           try {
             const conversationId = await currentManager.startNewConversation();
@@ -470,7 +474,7 @@ async function main() {
           rl.prompt();
           return;
         }
-        
+
         if (query.toLowerCase() === 'history') {
           try {
             const conversations = await currentManager.getConversations();
@@ -489,7 +493,7 @@ async function main() {
           rl.prompt();
           return;
         }
-        
+
         if (query.toLowerCase() === 'current') {
           try {
             const messages = await currentManager.getCurrentConversation();
@@ -508,7 +512,7 @@ async function main() {
           rl.prompt();
           return;
         }
-        
+
         if (query.toLowerCase() === 'clearchat') {
           try {
             await currentManager.clearConversationHistory();
@@ -519,18 +523,18 @@ async function main() {
           rl.prompt();
           return;
         }
-        
+
         if (query === '') {
           rl.prompt();
           return;
         }
-        
+
         try {
           // Create new AbortController for this operation
           currentAbortController = new AbortController();
           console.log('Assistant: Thinking... (type "cancel" or press Ctrl+C to cancel)');
-          
-          const response = await currentManager.chatWithLLM(query,currentAbortController.signal, `
+
+          const response = await currentManager.chatWithLLM(query, currentAbortController.signal, `
             You are a helpful AI assistant.
             Use available tools to answer user queries.
             If no tools are needed, just answer directly.
@@ -566,17 +570,17 @@ async function main() {
         } catch (error) {
           // Clear the abort controller
           currentAbortController = null;
-          
+
           if (error instanceof Error && error.message === 'Operation cancelled by user') {
             console.log('Operation was cancelled.\n');
           } else {
             console.error(`Error: ${error}\n`);
           }
         }
-        
+
         rl.prompt();
       });
-      
+
       rl.on('close', async () => {
         if (!isShuttingDown) {
           isShuttingDown = true;
@@ -585,7 +589,7 @@ async function main() {
           process.exit(0);
         }
       });
-      
+
       // Handle Ctrl+C gracefully
       rl.on('SIGINT', () => {
         if (currentAbortController) {
