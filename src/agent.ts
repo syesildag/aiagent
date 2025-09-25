@@ -35,8 +35,7 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
    globalMCPManager = new MCPServerManager(config.MCP_SERVERS_PATH, llmProvider, model);
    
    try {
-      await globalMCPManager.loadServersConfig();
-      await globalMCPManager.startAllServers();
+      await globalMCPManager.ensureInitialized();
       Logger.info('Global MCP manager initialized successfully');
    } catch (error) {
       Logger.error(`Failed to initialize global MCP manager: ${error}`);

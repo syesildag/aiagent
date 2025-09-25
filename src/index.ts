@@ -101,7 +101,14 @@ app.post("/login", async (req: Request, res: Response) => {
    const b64auth = (req.headers.authorization ?? '').split(' ')[1] ?? ''
    const [username, password] = Buffer.from(b64auth, 'base64').toString().split(':')
    const sqlQuery = ` SELECT id FROM "user" WHERE login = $1 AND password = $2`;
-   const results = await queryDatabase(sqlQuery, [username, crypto.createHash('sha256').update(password).digest('base64')]);
+   const hmacKey = process.env.HMAC_SECRET_KEY;
+   if (!hmacKey) {
+      Logger.error('HMAC_SECRET_KEY environment variable is not set');
+      res.status(500).send('Server configuration error');
+      return;
+   }
+   const passwordHash = crypto.createHmac('sha256', hmacKey).update(password).digest('base64');
+   const results = await queryDatabase(sqlQuery, [username, passwordHash]);
    if (results.length === 0) {
       sendAuthenticationRequired(res); // custom message
       return;

@@ -16,7 +16,7 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/home/serkan/workspace"
+        "/Users/serkan/Workspace"
       ],
       "env": {},
       "enabled": true
@@ -28,7 +28,7 @@
         "-y",
         "@modelcontextprotocol/server-git",
         "--repository",
-        "/home/serkan/workspace/aiagent"
+        "/Users/serkan/Workspace/aiagent"
       ],
       "env": {},
       "enabled": false
@@ -112,7 +112,7 @@
         "@modelcontextprotocol/server-memory"
       ],
       "env": {
-        "MEMORY_FILE_PATH": "/home/serkan/workspace/aiagent/memory.json"
+        "MEMORY_FILE_PATH": "/Users/serkan/Workspace/aiagent/memory.json"
       },
       "enabled": true
     },
