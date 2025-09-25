@@ -248,7 +248,7 @@ async function main() {
     case 'github':
     case 'copilot':
       // Use OAuth system to get current GitHub Copilot token
-      const { AuthGithubCopilot } = await import('./utils/githubAuth');
+      const { AuthGithubCopilot } = await import('./utils/githubAuth.js');
       const githubApiKey = await AuthGithubCopilot.access();
       if (!githubApiKey) {
         Logger.error('GitHub Copilot requires authentication. Run "login" command to authenticate.');
@@ -288,7 +288,7 @@ async function main() {
     switch (currentProviderType.toLowerCase()) {
       case 'github':
       case 'copilot':
-        const { AuthGithubCopilot } = await import('./utils/githubAuth');
+        const { AuthGithubCopilot } = await import('./utils/githubAuth.js');
         const githubApiKey = await AuthGithubCopilot.access();
         if (!githubApiKey) {
           Logger.error('GitHub Copilot requires authentication. Run "login" command to authenticate.');
@@ -542,7 +542,7 @@ async function main() {
               - If you have not identified Serkan, proactively try to do so.
 
             2. Memory Retrieval:
-              - Always begin your chat by saying only "Remembering..." and retrieve all relevant information from your knowledge graph
+              - Always begin your chat by retrieving all the information from your knowledge graph
               - Always refer to your knowledge graph as your "memory"
 
             3. Memory

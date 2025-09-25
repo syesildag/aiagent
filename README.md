@@ -49,6 +49,22 @@ OPENAI_API_KEY=your_openai_api_key
 npm run build && npm start
 ```
 
+### 4. Local SSL Certificate Generation
+
+For local HTTPS development, you need to generate a self-signed certificate.
+
+1.  **Install OpenSSL**:
+    Ensure OpenSSL is installed on your system. You can check with `openssl version`.
+
+2.  **Generate Certificate**:
+    Run the following command in the project root to create `server.key` and `server.cert`:
+
+    ```bash
+    openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.cert -days 365 -nodes -subj "/C=US/ST=California/L=San Francisco/O=Local Dev/CN=localhost"
+    ```
+
+    The server will automatically use these files for HTTPS.
+
 ## API Endpoints
 
 ### Authentication
