@@ -111,7 +111,9 @@
         "-y",
         "@modelcontextprotocol/server-memory"
       ],
-      "env": {},
+      "env": {
+        "MEMORY_FILE_PATH": "/home/serkan/workspace/aiagent/memory.json"
+      },
       "enabled": true
     },
     {

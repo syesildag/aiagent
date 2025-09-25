@@ -133,3 +133,4 @@ dist
 .pnp.*
 .token
 .env.copy
+memory.json
