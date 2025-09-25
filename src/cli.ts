@@ -331,6 +331,10 @@ async function main() {
     console.log('  - "login" - Configure LLM provider and authenticate');
     console.log('  - "status" - Show MCP server status');
     console.log('  - "refresh" - Refresh tools cache');
+    console.log('  - "new/newchat" - Start a new conversation');
+    console.log('  - "history" - Show conversation history');
+    console.log('  - "current" - Show current conversation');
+    console.log('  - "clearchat" - Clear conversation history');
     console.log('  - "cancel" - Cancel current operation');
     console.log('  - "clear" - Clear the screen');
     console.log('  - "exit" or "quit" - Exit the program');
@@ -392,6 +396,10 @@ async function main() {
           console.log('  - status: Show MCP server status and capabilities');
           console.log('  - refresh: Refresh tools cache from MCP servers');
           console.log('  - clear: Clear the screen');
+          console.log('  - new/newchat: Start a new conversation');
+          console.log('  - history: Show conversation history');
+          console.log('  - current: Show current conversation messages');
+          console.log('  - clearchat: Clear all conversation history');
           console.log('  - cancel: Cancel current operation');
           console.log('  - exit/quit: Exit the program');
           console.log('\nOr ask any question to chat with the AI assistant using MCP tools.');
@@ -448,6 +456,66 @@ async function main() {
           console.clear();
           console.log('--- Interactive Chat with LLM using MCP tools ---');
           console.log('Type "help" for available commands.\n');
+          rl.prompt();
+          return;
+        }
+        
+        if (query.toLowerCase() === 'new' || query.toLowerCase() === 'newchat') {
+          try {
+            const conversationId = await currentManager.startNewConversation();
+            console.log(`Started new conversation: ${conversationId}\n`);
+          } catch (error) {
+            console.error(`Failed to start new conversation: ${error}\n`);
+          }
+          rl.prompt();
+          return;
+        }
+        
+        if (query.toLowerCase() === 'history') {
+          try {
+            const conversations = await currentManager.getConversations();
+            console.log('\nConversation History:');
+            if (conversations.length === 0) {
+              console.log('No conversations found.\n');
+            } else {
+              conversations.forEach((conv, index) => {
+                console.log(`${index + 1}. ID: ${conv.id} - ${conv.messages.length} messages (${conv.createdAt})`);
+              });
+              console.log('');
+            }
+          } catch (error) {
+            console.error(`Failed to get conversation history: ${error}\n`);
+          }
+          rl.prompt();
+          return;
+        }
+        
+        if (query.toLowerCase() === 'current') {
+          try {
+            const messages = await currentManager.getCurrentConversation();
+            console.log('\nCurrent Conversation:');
+            if (messages.length === 0) {
+              console.log('No messages in current conversation.\n');
+            } else {
+              messages.forEach((msg, index) => {
+                console.log(`${index + 1}. [${msg.role}]: ${msg.content.substring(0, 100)}${msg.content.length > 100 ? '...' : ''}`);
+              });
+              console.log('');
+            }
+          } catch (error) {
+            console.error(`Failed to get current conversation: ${error}\n`);
+          }
+          rl.prompt();
+          return;
+        }
+        
+        if (query.toLowerCase() === 'clearchat') {
+          try {
+            await currentManager.clearConversationHistory();
+            console.log('All conversation history cleared.\n');
+          } catch (error) {
+            console.error(`Failed to clear conversation history: ${error}\n`);
+          }
           rl.prompt();
           return;
         }

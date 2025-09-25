@@ -4,6 +4,8 @@ import fs from 'fs/promises';
 import Logger from '../utils/logger';
 import { config } from '../utils/config';
 import { LLMMessage, LLMProvider, OllamaProvider, Tool } from './llmProviders';
+import { IConversationHistory } from '../descriptions/conversationTypes';
+import { ConversationHistoryFactory } from '../utils/conversationHistoryFactory';
 
 // MCP Protocol Types
 interface MCPRequest {
@@ -320,6 +322,7 @@ export class MCPServerManager {
   private model: string;
   private cachedTools: Tool[] | null = null;
   private initialized: boolean = false;
+  private conversationHistory: IConversationHistory;
 
   constructor(
     configPath: string = './mcp-servers.json', 
@@ -329,6 +332,7 @@ export class MCPServerManager {
     this.configPath = configPath;
     this.llmProvider = llmProvider || new OllamaProvider();
     this.model = model;
+    this.conversationHistory = ConversationHistoryFactory.getInstance();
   }
 
   /**
@@ -666,15 +670,20 @@ When using tools, always provide clear context about what you're doing and inter
 
       const systemPrompt = customSystemPrompt ?? defaultSystemPrompt;
       
+      // Add user message to conversation history
+      await this.conversationHistory.addMessage({
+        role: 'user',
+        content: message
+      });
+      
+      // Get conversation history and add system prompt at the beginning
+      const conversationMessages = await this.conversationHistory.getCurrentConversation();
       let messages: LLMMessage[] = [
         {
           role: 'system',
           content: systemPrompt
         },
-        {
-          role: 'user',
-          content: message
-        }
+        ...conversationMessages
       ];
 
       const maxIterations = config.MAX_LLM_ITERATIONS;
@@ -714,7 +723,15 @@ When using tools, always provide clear context about what you're doing and inter
         
         // If no tool calls, we're done
         if (!response?.message?.tool_calls || response.message.tool_calls.length === 0) {
-          return response?.message?.content || 'No response content received';
+          const finalContent = response?.message?.content || 'No response content received';
+          
+          // Add assistant's response to conversation history
+          await this.conversationHistory.addMessage({
+            role: 'assistant',
+            content: finalContent
+          });
+          
+          return finalContent;
         }
 
         // Handle tool calls
@@ -787,7 +804,15 @@ When using tools, always provide clear context about what you're doing and inter
         finalResponse = await finalChatPromise;
       }
 
-      return finalResponse?.message?.content || 'No response content received after maximum iterations';
+      const finalContent = finalResponse?.message?.content || 'No response content received after maximum iterations';
+      
+      // Add assistant's response to conversation history
+      await this.conversationHistory.addMessage({
+        role: 'assistant',
+        content: finalContent
+      });
+      
+      return finalContent;
     } catch (error) {
       if (error instanceof Error && error.message === 'Operation cancelled by user') {
         throw error;
@@ -846,5 +871,50 @@ When using tools, always provide clear context about what you're doing and inter
     this.llmProvider = provider;
     this.model = model;
     Logger.info(`LLM configuration updated: provider and model=${model}`);
+  }
+
+  /**
+   * Start a new conversation
+   */
+  async startNewConversation(sessionId?: string, userId?: string): Promise<string> {
+    const conversationId = await this.conversationHistory.startNewConversation(sessionId, userId);
+    Logger.info(`Started new conversation: ${conversationId}`);
+    return conversationId;
+  }
+
+  /**
+   * Get current conversation messages
+   */
+  async getCurrentConversation(): Promise<any[]> {
+    return await this.conversationHistory.getCurrentConversation();
+  }
+
+  /**
+   * Get all conversations within the sliding window
+   */
+  async getConversations(limit?: number): Promise<any[]> {
+    return await this.conversationHistory.getConversations(limit);
+  }
+
+  /**
+   * Clear conversation history
+   */
+  async clearConversationHistory(): Promise<void> {
+    await this.conversationHistory.clearHistory();
+    Logger.info('Conversation history cleared');
+  }
+
+  /**
+   * Get conversation count
+   */
+  async getConversationCount(): Promise<number> {
+    return await this.conversationHistory.getConversationCount();
+  }
+
+  /**
+   * Get conversation by ID
+   */
+  async getConversation(conversationId: string): Promise<any | null> {
+    return await this.conversationHistory.getConversation(conversationId);
   }
 }
