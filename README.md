@@ -284,4 +284,27 @@ If you want to scale down instead of deleting, use:
 kubectl scale deployment aiagent --replicas=0
 ```
 
+## Accessing Kubernetes NodePort Services on macOS (Docker Desktop)
+
+On macOS with Docker Desktop, NodePort services may not be accessible using the node’s INTERNAL-IP. Instead, use:
+
+- For HTTPS (self-signed cert):
+  ```sh
+  curl --insecure https://localhost:<NodePort>/login
+  ```
+- For HTTP:
+  ```sh
+  curl http://localhost:<NodePort>/login
+  ```
+
+Replace `<NodePort>` with the port you configured (e.g., 30000).
+
+If localhost does not work, use `kubectl port-forward` for reliable access:
+```sh
+kubectl port-forward deployment/aiagent 8443:3000
+curl --insecure https://localhost:8443/login
+```
+
+This is a common workaround for local development on macOS/Docker Desktop.
+
 ---
