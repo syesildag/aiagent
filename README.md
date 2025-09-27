@@ -117,7 +117,7 @@ npm install
 npm run build && npm start
 
 # With environment variable
-LLM_PROVIDER=ollama npm run build && node dist/ttt.js
+LLM_PROVIDER=ollama npm run build && node dist/cli.js
 ```
 
 ## Examples
