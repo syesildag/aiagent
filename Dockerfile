@@ -20,6 +20,10 @@ RUN npm run clean
 # Build TypeScript
 RUN npm run build
 
+RUN node dist/utils/initSQL.js
+
+RUN node dist/utils/addUser.js username password
+
 # Expose port (default: 443 for HTTPS, or 3000 if you use HTTP)
 EXPOSE 3000
 
