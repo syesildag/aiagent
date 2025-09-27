@@ -10,6 +10,9 @@ export abstract class Entity {
    public save() {
       return repository.get(this.constructor as Constructor<Entity>)?.save(this);
    }
+   public delete() {
+      return repository.get(this.constructor as Constructor<Entity>)?.delete(this);
+   }
 }
 
 export interface Constructor<T, A extends any[] = any[]> {
@@ -134,5 +137,42 @@ export abstract class AbstractRepository<C extends Entity> {
          `;
       const rows = await queryDatabase(sqlQuery);
       return rows.map((row: any) => this.createEntity(row));
+   }
+
+   public async delete(entity: C) {
+      const id = entity.getId();
+      if (id === undefined) {
+         throw new Error('Cannot delete entity without ID');
+      }
+      
+      const sqlQuery = `
+         DELETE FROM ${this.table}
+         WHERE ${this.idColumnName} = $1
+      `;
+      
+      await queryDatabase(sqlQuery, [id]);
+   }
+
+   public async deleteAll() {
+      const sqlQuery = `DELETE FROM ${this.table}`;
+      await queryDatabase(sqlQuery);
+   }
+
+   /**
+      TRUNCATE TABLE: Removes all rows from the table more efficiently than DELETE
+      RESTART IDENTITY: Resets any auto-increment/serial columns back to their starting value
+      CASCADE: Automatically truncates tables that have foreign key references to this table
+
+      The key differences between deleteAll() and truncate():
+
+      Performance: TRUNCATE is generally faster for large tables
+      Identity reset: TRUNCATE resets auto-increment counters, DELETE doesn't
+      Triggers: TRUNCATE doesn't fire row-level triggers, DELETE does
+      Transaction log: TRUNCATE generates less transaction log data
+      Foreign keys: TRUNCATE with CASCADE handles foreign key constraints automatically
+    */
+   public async truncate() {
+      const sqlQuery = `TRUNCATE TABLE ${this.table} RESTART IDENTITY CASCADE`;
+      await queryDatabase(sqlQuery);
    }
 }

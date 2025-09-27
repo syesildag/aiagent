@@ -1,20 +1,20 @@
 import compression from "compression";
-import crypto from 'crypto';
-import fs from 'fs';
-import https from 'https';
-import { Agent, getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
-import { closeDatabase, queryDatabase } from "./utils/pgClient";
-import { rateLimit } from 'express-rate-limit'
-import helmet from 'helmet';
 import cors from 'cors';
 import "dotenv/config";
 import express, { NextFunction, Request, Response } from "express";
+import { rateLimit } from 'express-rate-limit';
+import fs from 'fs';
+import helmet from 'helmet';
+import https from 'https';
 import { Duplex } from "stream";
 import { z } from 'zod';
+import { Agent, getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
 import { Session } from "./repository/entities/session";
 import { repository } from "./repository/repository";
-import randomAlphaNumeric from './utils/randomAlphaNumeric';
+import { hashPassword } from './utils/hashPassword';
 import Logger from "./utils/logger";
+import { closeDatabase, queryDatabase } from "./utils/pgClient";
+import randomAlphaNumeric from './utils/randomAlphaNumeric';
 
 // Load SSL certificate and private key
 const options: https.ServerOptions = {
@@ -107,7 +107,7 @@ app.post("/login", async (req: Request, res: Response) => {
       res.status(500).send('Server configuration error');
       return;
    }
-   const passwordHash = crypto.createHmac('sha256', hmacKey).update(password).digest('base64');
+   const passwordHash = hashPassword(password, hmacKey);
    const results = await queryDatabase(sqlQuery, [username, passwordHash]);
    if (results.length === 0) {
       sendAuthenticationRequired(res); // custom message
@@ -120,6 +120,22 @@ app.post("/login", async (req: Request, res: Response) => {
    new Session({ name: session, username }).save();
 
    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ session }));
+});
+
+// Logout endpoint: deletes session from database
+app.post("/logout", async (req: Request, res: Response) => {
+   if (!res.locals.session) {
+      res.status(400).send('Missing session');
+      return;
+   }
+   try {
+      // Delete session from database
+      (res.locals.session as Session).delete();
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }));
+   } catch (error) {
+      Logger.error(`Logout error: ${error instanceof Error ? error.message : String(error)}`);
+      res.status(500).send('Logout failed');
+   }
 });
 
 app.post("/validate/:agent", async (req: Request, res: Response) => {

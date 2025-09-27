@@ -276,12 +276,10 @@ export async function getGitHubUser(token: string): Promise<any> {
   if (!response.ok) {
     if (response.status === 401) {
       Logger.error('You are not authorized. Run the `login` command.')
-      process.exit(1)
     }
     
     const data = await response.json()
     Logger.error(`HTTP ${response.status}: ${JSON.stringify(data)}`)
-    process.exit(1)
   }
   
   return response.json()

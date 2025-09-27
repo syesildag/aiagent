@@ -33,8 +33,6 @@ const envSchema = z.object({
   
   // GitHub Copilot
   GITHUB_COPILOT_BASE_URL: z.string().url().default('https://api.githubcopilot.com'),
-  GITHUB_OAUTH_APP_CLIENT_ID: z.string().min(1).optional(),
-  GITHUB_OAUTH_APP_CLIENT_SECRET: z.string().min(1).optional(),
   AUTH_GITHUB_COPILOT: z.string().optional(),
   
   // External APIs

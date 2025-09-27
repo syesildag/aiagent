@@ -148,7 +148,6 @@ The `login` command provides an interactive way to configure LLM providers:
 3. **OpenAI**: Prompts for API key input
 
 For GitHub Copilot authentication:
-- Set up a GitHub OAuth App and configure `GITHUB_OAUTH_APP_CLIENT_ID` in your `.env` file
 - The CLI will display a verification URL and user code
 - Visit the URL in your browser and enter the code
 - The system will automatically detect completion and save the token
@@ -157,7 +156,6 @@ For GitHub Copilot authentication:
 **GitHub OAuth App Setup**:
 1. Go to GitHub Settings > Developer settings > OAuth Apps
 2. Create a new OAuth App with any homepage URL (device flow doesn't need callback URL)
-3. Copy the Client ID and set `GITHUB_OAUTH_APP_CLIENT_ID=your_client_id` in `.env`
 
 ## Architecture
 
