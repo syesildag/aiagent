@@ -1,4 +1,4 @@
-CREATE TABLE public."user"
+CREATE TABLE public."user" IF NOT EXISTS
 (
     id serial NOT NULL,
     login character varying NOT NULL,
@@ -7,7 +7,7 @@ CREATE TABLE public."user"
     CONSTRAINT user_login UNIQUE (login)
 );
 
-CREATE TABLE public.session
+CREATE TABLE public.session IF NOT EXISTS
 (
     id serial NOT NULL,
     name character varying NOT NULL,
