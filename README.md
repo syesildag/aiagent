@@ -165,3 +165,38 @@ The system uses a provider pattern to abstract different LLM services:
 - `GitHubCopilotProvider` for GitHub Copilot API
 - `OpenAIProvider` for OpenAI API
 - `MCPServerManager` for coordinating MCP servers and LLM interactions
+
+## Docker Usage
+
+You can build and run the AI Agent server in a Docker container for easy deployment.
+
+### 1. Build the Docker Image
+
+```bash
+docker build -t aiagent .
+```
+
+### 2. Run the Container
+
+Mount your `.env` file and SSL certificates for HTTPS:
+
+```bash
+docker run -p 443:3000 \
+  --env-file .env \
+  -v $(pwd)/server.key:/app/server.key \
+  -v $(pwd)/server.cert:/app/server.cert \
+  aiagent
+```
+
+- The server will use the environment variables from `.env` and the SSL certificates you provide.
+- Adjust the port mapping if you use a different port in your `.env`.
+
+### 3. Development Tips
+- For local development, you can use self-signed certificates (see instructions above).
+- For production, use real certificates and secure environment variable management.
+
+### 4. Customization
+- You can override environment variables with `-e VAR=value` or by editing `.env`.
+- For multi-container setups (e.g., with PostgreSQL), consider using `docker-compose`.
+
+---

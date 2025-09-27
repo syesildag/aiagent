@@ -8,13 +8,19 @@ import helmet from 'helmet';
 import https from 'https';
 import { Duplex } from "stream";
 import { z } from 'zod';
-import { Agent, getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
+import { getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
 import { Session } from "./repository/entities/session";
 import { repository } from "./repository/repository";
 import { hashPassword } from './utils/hashPassword';
 import Logger from "./utils/logger";
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
+// Async handler utility for error handling
+function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) {
+   return (req: Request, res: Response, next: NextFunction) => {
+      Promise.resolve(fn(req, res, next)).catch(next);
+   };
+}
 
 // Load SSL certificate and private key
 const options: https.ServerOptions = {
@@ -95,11 +101,15 @@ async function sessionMiddleware(req: Request, res: Response, next: NextFunction
 
 app.use(sessionMiddleware);
 
-app.post("/login", async (req: Request, res: Response) => {
-
+app.post("/login", asyncHandler(async (req: Request, res: Response) => {
    // parse login and password from headers
-   const b64auth = (req.headers.authorization ?? '').split(' ')[1] ?? ''
-   const [username, password] = Buffer.from(b64auth, 'base64').toString().split(':')
+   const b64auth = (req.headers.authorization ?? '').split(' ')[1] ?? '';
+   const [username, password] = Buffer.from(b64auth, 'base64').toString().split(':');
+   if (!username || !password) {
+      Logger.warn('Missing username or password in authorization header');
+      sendAuthenticationRequired(res);
+      return;
+   }
    const sqlQuery = ` SELECT id FROM "user" WHERE login = $1 AND password = $2`;
    const hmacKey = process.env.HMAC_SECRET_KEY;
    if (!hmacKey) {
@@ -110,81 +120,52 @@ app.post("/login", async (req: Request, res: Response) => {
    const passwordHash = hashPassword(password, hmacKey);
    const results = await queryDatabase(sqlQuery, [username, passwordHash]);
    if (results.length === 0) {
+      Logger.warn(`Authentication failed for user: ${username}`);
       sendAuthenticationRequired(res); // custom message
       return;
    }
 
    //save session to database
    const session = randomAlphaNumeric(3);
-
-   new Session({ name: session, username }).save();
+   await new Session({ name: session, username }).save();
 
    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ session }));
-});
+}));
 
 // Logout endpoint: deletes session from database
-app.post("/logout", async (req: Request, res: Response) => {
+app.post("/logout", asyncHandler(async (req: Request, res: Response) => {
    if (!res.locals.session) {
+      Logger.warn('Logout failed: Missing session');
       res.status(400).send('Missing session');
       return;
    }
-   try {
-      // Delete session from database
-      (res.locals.session as Session).delete();
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }));
-   } catch (error) {
-      Logger.error(`Logout error: ${error instanceof Error ? error.message : String(error)}`);
-      res.status(500).send('Logout failed');
-   }
-});
+   // Delete session from database
+   await (res.locals.session as Session).delete();
+   res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }));
+}));
 
-app.post("/validate/:agent", async (req: Request, res: Response) => {
-
-   let error, validated;
-   try {
-      const agent = await getAgentFromName(req.params.agent);
-      agent.setSession(res.locals.session);
-      const { data } = Validate.parse(req.body);
-      validated = await agent.validate(data);
-   } catch (e) {
-      error = e;
-   }
-
-   if (error)
-      res.status(500).send("Error: " + error);
-   else {
-      const content = JSON.stringify({ validated });
-      Logger.debug(content);
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
-   }
-});
-app.post("/chat/:agent", async (req: Request, res: Response) => {
-
-   let agent: Agent,
-      validate: boolean = false,
-      error,
-      answer: string = "";
-   try {
-      const { prompt } = Query.parse(req.body);
-      agent = await getAgentFromName(req.params.agent);
-      agent.setSession(res.locals.session);
-      answer = await agent.chat(prompt);
-      validate = agent.shouldValidate();
-   } catch (e) {
-      error = e;
-   }
-
-   if (error)
-      res.status(500).send("Error: " + error);
-   else {
-      const response: any = { answer };
-      if(validate)
-         response.validate = true;
-
-      const content = JSON.stringify(response);
-      Logger.debug(content);      res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
-   }
-});
+app.post("/validate/:agent", asyncHandler(async (req: Request, res: Response) => {
+   const agent = await getAgentFromName(req.params.agent);
+   agent.setSession(res.locals.session);
+   const { data } = Validate.parse(req.body);
+   const validated = await agent.validate(data);
+   const content = JSON.stringify({ validated });
+   Logger.debug(content);
+   res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
+}));
+app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
+   const { prompt } = Query.parse(req.body);
+   const agent = await getAgentFromName(req.params.agent);
+   agent.setSession(res.locals.session);
+   const answer = await agent.chat(prompt);
+   const validate = agent.shouldValidate();
+   const response: any = { answer };
+   if (validate)
+      response.validate = true;
+   const content = JSON.stringify(response);
+   Logger.debug(content);
+   res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
+}));
 
 const PORT: number = +process.env.PORT!;
 const HOST: string = process.env.HOST!;
