@@ -14,15 +14,8 @@ RUN npm ci --omit=dev
 # Copy source code
 COPY . .
 
-# Clean up
-RUN npm run clean
-
 # Build TypeScript
 RUN npm run build
-
-RUN node dist/utils/initSQL.js
-
-RUN node dist/utils/addUser.js username password
 
 # Expose port (default: 443 for HTTPS, or 3000 if you use HTTP)
 EXPOSE 3000
@@ -31,4 +24,4 @@ EXPOSE 3000
 ENV NODE_ENV=development
 
 # Start the server
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "dockerDev"]

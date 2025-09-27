@@ -6,7 +6,9 @@
    "scripts": {
       "clean": "rm -fr dist",
       "start": "NODE_ENV=production node dist/index.js",
+      "docker": "node dist/utils/initSQL.js && node dist/utils/addUser.js username password",
       "dev": "NODE_ENV=development node --trace-deprecation dist/index.js",
+      "dockerDev": "npm run docker && npm run",
       "cli:prod": "NODE_ENV=production node dist/cli.js",
       "cli:dev": "NODE_ENV=development node dist/cli.js",
       "compile": "tsc",
