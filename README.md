@@ -199,4 +199,89 @@ docker run -p 443:3000 \
 - You can override environment variables with `-e VAR=value` or by editing `.env`.
 - For multi-container setups (e.g., with PostgreSQL), consider using `docker-compose`.
 
+## Using a Private Docker Registry
+
+You can host your own private Docker registry to store and share images securely.
+
+### 1. Start a Local Private Registry
+
+```bash
+docker run -d -p 6000:5000 --restart=always --name registry registry:3
+```
+This starts a registry on `localhost:6000`.
+
+### 2. Tag Your Image for the Registry
+
+```bash
+docker tag aiagent:latest localhost:6000/aiagent:latest
+```
+
+### 3. Push Your Image
+
+```bash
+docker push localhost:6000/aiagent:latest
+```
+
+### 4. Pull Your Image
+
+```bash
+docker pull localhost:6000/aiagent:latest
+```
+
+## Kubernetes Deployment
+
+To deploy your application and services in Kubernetes:
+
+### 1. Apply Deployment YAML
+
+Run this command in your project directory:
+
+```sh
+kubectl apply -f deployment.yaml
+```
+
+### 2. Apply Service YAML (if you have one)
+
+```sh
+kubectl apply -f service.yaml
+```
+
+### 3. Check Status
+
+```sh
+kubectl get deployments
+kubectl get pods
+kubectl get services
+```
+
+Make sure your Kubernetes cluster is running and `kubectl` is configured.
+
+## Stopping/Deleting Kubernetes Deployments and Services
+
+To stop (delete) your deployment and its pods:
+
+```sh
+kubectl delete deployment aiagent
+```
+
+To stop (delete) your service:
+
+```sh
+kubectl delete service aiagent-service
+```
+(Replace `aiagent-service` with your actual service name.)
+
+To delete all resources defined in a YAML file:
+
+```sh
+kubectl delete -f deployment.yaml
+kubectl delete -f service.yaml
+```
+
+If you want to scale down instead of deleting, use:
+
+```sh
+kubectl scale deployment aiagent --replicas=0
+```
+
 ---
