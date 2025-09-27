@@ -8,7 +8,8 @@
  *    npm run start
  * 
  * 2. Using GitHub Copilot:
- *    GITHUB_TOKEN=your_token LLM_PROVIDER=github npm run start
+ *    LLM_PROVIDER=github npm run start
+ *    (Authentication via OAuth - use CLI 'login' command)
  * 
  * 3. Using OpenAI:
  *    OPENAI_API_KEY=your_key LLM_PROVIDER=openai npm run start
@@ -39,11 +40,14 @@ async function demonstrateProviders() {
   }
   Logger.info('');
 
-  // Example 2: Using GitHub Copilot provider (if token available)
+  // Example 2: Using GitHub Copilot provider (if authenticated)
   Logger.info('2. GitHub Copilot Provider Usage:');
-  if (process.env.GITHUB_TOKEN) {
-    try {
-      const copilotProvider = new GitHubCopilotProvider(process.env.GITHUB_TOKEN);
+  try {
+    const { AuthGithubCopilot } = await import('../src/utils/githubAuth');
+    const copilotToken = await AuthGithubCopilot.access();
+    
+    if (copilotToken) {
+      const copilotProvider = new GitHubCopilotProvider(copilotToken);
       const copilotManager = new MCPServerManager(process.env.MCP_SERVERS_PATH, copilotProvider, 'gpt-4o');
       
       const isHealthy = await copilotManager.checkHealth();
@@ -53,11 +57,11 @@ async function demonstrateProviders() {
         const models = await copilotManager.getAvailableModels();
         Logger.info(`   Available Models: ${models.join(', ')}`);
       }
-    } catch (error) {
-      Logger.info(`   Error: ${error instanceof Error ? error.message : String(error)}`);
+    } else {
+      Logger.info('   Skipped - Not authenticated with GitHub Copilot');
     }
-  } else {
-    Logger.info('   Skipped - GITHUB_TOKEN not set');
+  } catch (error) {
+    Logger.info(`   Error: ${error instanceof Error ? error.message : String(error)}`);
   }
   Logger.info('');
 
@@ -84,12 +88,11 @@ async function demonstrateProviders() {
   Logger.info('');
 
   Logger.info('=== Provider Configuration Tips ===');
-  Logger.info('• For GitHub Copilot: Get token from https://github.com/settings/tokens');
+  Logger.info('• For GitHub Copilot: Use CLI "login" command for OAuth authentication');
   Logger.info('• For OpenAI: Get API key from https://platform.openai.com/api-keys');
   Logger.info('• For Ollama: Make sure Ollama is running locally (ollama serve)');
   Logger.info('');
   Logger.info('Environment Variables:');
-  Logger.info('  export GITHUB_TOKEN="your_github_token"');
   Logger.info('  export OPENAI_API_KEY="your_openai_key"');
   Logger.info('  export LLM_PROVIDER="ollama|github|openai"');
 }

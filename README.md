@@ -37,7 +37,7 @@ npm start
 ```bash
 # Set in .env file:
 LLM_PROVIDER=github
-GITHUB_TOKEN=your_github_token
+# Authentication will be handled via OAuth - run the CLI and use 'login' command
 npm run build && npm start
 ```
 
@@ -96,7 +96,7 @@ OPENAI_API_KEY=your_key
 OPENAI_BASE_URL=https://api.openai.com
 
 # GitHub Copilot
-GITHUB_TOKEN=your_token  
+# Authentication handled via OAuth - use CLI 'login' command
 GITHUB_COPILOT_BASE_URL=https://api.githubcopilot.com
 ```
 npm run build && node dist/ttt.js

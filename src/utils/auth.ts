@@ -71,46 +71,5 @@ export class Auth {
     Logger.debug(`Removed auth info for service: ${service} from environment variable: ${envKey}`);
   }
 
-  /**
-   * Check if a service has stored authentication
-   */
-  static async has(service: string): Promise<boolean> {
-    const authInfo = await Auth.get(service);
-    return !!authInfo;
-  }
 
-  /**
-   * List all services with stored authentication
-   */
-  static async list(): Promise<string[]> {
-    const services: string[] = [];
-    const authPrefix = 'AUTH_';
-    
-    // Check all environment variables for AUTH_ prefix
-    for (const key in process.env) {
-      if (key.startsWith(authPrefix) && process.env[key]) {
-        // Convert AUTH_SERVICE_NAME back to service-name
-        const serviceName = key
-          .substring(authPrefix.length)
-          .toLowerCase()
-          .replace(/_/g, '-');
-        services.push(serviceName);
-      }
-    }
-    
-    return services;
-  }
-
-  /**
-   * Clear all stored authentication data
-   */
-  static async clear(): Promise<void> {
-    const services = await Auth.list();
-    
-    for (const service of services) {
-      await Auth.remove(service);
-    }
-    
-    Logger.debug('Cleared all auth data from environment variables');
-  }
 }

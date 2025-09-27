@@ -94,12 +94,7 @@ export namespace AuthGithubCopilot {
   export async function access() {
     const info = await Auth.get("github-copilot")
     if (!info || info.type !== "oauth") {
-      // Fallback to environment variable if no OAuth stored
-      const fallbackToken = process.env.GITHUB_TOKEN
-      if (fallbackToken) {
-        Logger.debug("Using fallback GITHUB_TOKEN from environment")
-        return fallbackToken
-      }
+      Logger.debug("No OAuth authentication stored. Please run 'login' command.")
       return
     }
     
@@ -152,13 +147,6 @@ export namespace AuthGithubCopilot {
       
       // Clear invalid token
       await Auth.remove("github-copilot")
-      
-      // Try fallback to GITHUB_TOKEN if available
-      const fallbackToken = process.env.GITHUB_TOKEN
-      if (fallbackToken) {
-        Logger.warn("Using fallback GITHUB_TOKEN after OAuth token refresh failure")
-        return fallbackToken
-      }
       
       throw new Error("Authentication failed. Please run 'login' command to re-authenticate.")
     }
@@ -304,21 +292,7 @@ export async function whoami(): Promise<string | undefined> {
       }
     }
     
-    // Fallback to environment GITHUB_TOKEN
-    const fallbackToken = process.env.GITHUB_TOKEN
-    if (fallbackToken) {
-      try {
-        const user = await getGitHubUser(fallbackToken)
-        if (user?.login) {
-          Logger.debug(`Using fallback GITHUB_TOKEN, authenticated as: ${user.login}`)
-          return user.login
-        }
-      } catch (error) {
-        Logger.debug(`Fallback GITHUB_TOKEN failed for user info: ${error}`)
-      }
-    }
-    
-    Logger.debug("No valid GitHub token available for user info")
+    Logger.debug("No valid GitHub authentication available for user info")
     return undefined
   } catch (error) {
     Logger.error(`Error in whoami: ${error}`)
@@ -327,11 +301,11 @@ export async function whoami(): Promise<string | undefined> {
 }
 
 /**
- * Get the best available GitHub token (OAuth Copilot token preferred, fallback to GITHUB_TOKEN)
+ * Get the best available GitHub token (OAuth Copilot token only)
  */
 export async function getBestGitHubToken(): Promise<string | null> {
   try {
-    // Try to get OAuth Copilot token first (most up-to-date)
+    // Try to get OAuth Copilot token
     const copilotToken = await AuthGithubCopilot.access()
     if (copilotToken) {
       return copilotToken
@@ -340,6 +314,5 @@ export async function getBestGitHubToken(): Promise<string | null> {
     Logger.debug(`Failed to get Copilot token: ${error}`)
   }
   
-  // Fallback to environment variable
-  return process.env.GITHUB_TOKEN || null
+  return null
 }

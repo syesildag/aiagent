@@ -82,8 +82,7 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
 
         // Update environment variables
         updateEnvVariables({
-          'LLM_PROVIDER': 'github',
-          'GITHUB_TOKEN': token
+          'LLM_PROVIDER': 'github'
         });
 
         // Update the manager with new provider configuration
