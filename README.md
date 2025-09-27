@@ -243,7 +243,11 @@ kubectl apply -f deployment.yaml
 ### 2. Apply Service YAML (if you have one)
 
 ```sh
-kubectl apply -f service.yaml
+kubectl apply -f aiagent-service.yaml
+```
+
+```sh
+kubectl apply -f postgres-service.yaml
 ```
 
 ### 3. Check Status
@@ -268,14 +272,13 @@ To stop (delete) your service:
 
 ```sh
 kubectl delete service aiagent-service
+kubectl delete service postgres-service
 ```
-(Replace `aiagent-service` with your actual service name.)
-
-To delete all resources defined in a YAML file:
 
 ```sh
 kubectl delete -f deployment.yaml
-kubectl delete -f service.yaml
+kubectl delete -f aiagent-service.yaml
+kubectl delete -f postgres-service.yaml
 ```
 
 If you want to scale down instead of deleting, use:
