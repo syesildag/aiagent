@@ -35,10 +35,3 @@ spec:
       - name: postgres-data
         persistentVolumeClaim:
           claimName: postgres-pvc
-      # initContainers:
-      #   - name: wait-for-postgres
-      #     image: postgres:15
-      #     env:
-      #       - name: POSTGRES_USER
-      #         value: serkan
-      #     command: ['sh', '-c', 'until pg_isready -h postgres-service -p 5432 -U serkan; do sleep 2; done;']
