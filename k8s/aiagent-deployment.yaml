@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiagent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aiagent
+  template:
+    metadata:
+      labels:
+        app: aiagent
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox
+          command:
+            - sh
+            - -c
+            - "until nc -z postgres-service 5432; do sleep 2; done;"
+      containers:
+        - name: aiagent
+          image: localhost:6000/aiagent:latest
+          ports:
+            - containerPort: 3000
