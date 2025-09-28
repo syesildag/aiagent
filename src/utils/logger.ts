@@ -1,3 +1,4 @@
+import { config } from './config';
 /*
 TRACE: Provides very detailed information, more fine-grained than DEBUG. It is useful for tracing the flow of the application.
 DEBUG: Used for fine-grained informational events that are most useful to debug an application.
@@ -58,6 +59,6 @@ export class DummyLogger implements Logger {
    }
 }
 
-const Logger: Logger = process.env.NODE_ENV === 'production' ? new DummyLogger() : new ConsoleLogger();
+const Logger: Logger = config.NODE_ENV === 'production' ? new DummyLogger() : new ConsoleLogger();
 
 export default Logger;
