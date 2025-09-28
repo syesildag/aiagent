@@ -12,13 +12,12 @@ CREATE TABLE IF NOT EXISTS public.session
     id serial NOT NULL,
     name character varying NOT NULL,
     username character varying NOT NULL,
-    "timestamp" timestamp without time zone,
+    "timestamp" timestamp without time zone NOT NULL DEFAULT now(),
     ping timestamp without time zone,
     CONSTRAINT session_id PRIMARY KEY (id),
     CONSTRAINT session_name UNIQUE (name),
-    FOREIGN KEY (username)
+    CONSTRAINT session_username_fkey FOREIGN KEY (username)
         REFERENCES public."user" (login) MATCH SIMPLE
         ON UPDATE NO ACTION
         ON DELETE NO ACTION
-        NOT VALID
 );

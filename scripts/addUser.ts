@@ -1,6 +1,6 @@
-import { queryDatabase, closeDatabase } from './pgClient';
-import Logger from './logger';
-import { hashPassword } from './hashPassword';
+import { queryDatabase, closeDatabase } from '../src/utils/pgClient';
+import Logger from '../src/utils/logger';
+import { hashPassword } from '../src/utils/hashPassword';
 import "dotenv/config";
 
 async function addUser(username: string, password: string) {

@@ -96,7 +96,7 @@
    "include": [
       "src/**/*",
       "global.d.ts"
-   ],
+, "scripts/addUser.ts", "scripts/deleteAllSessions.ts", "scripts/initSql.ts", "scripts/dockerBuild.ts"   ],
    "exclude": [
       "node_modules"
    ]
