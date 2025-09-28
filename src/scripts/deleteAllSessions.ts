@@ -1,7 +1,7 @@
-import { closeDatabase } from '../src/utils/pgClient';
-import { Session } from '../src/repository/entities/session';
-import { repository } from '../src/repository/repository';
-import Logger from '../src/utils/logger';
+import { closeDatabase } from '../utils/pgClient';
+import { Session } from '../repository/entities/session';
+import { repository } from '../repository/repository';
+import Logger from '../utils/logger';
 
 async function deleteAllSessions() {
   try {

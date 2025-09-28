@@ -1,7 +1,7 @@
 import { Client } from 'pg';
 import fs from 'fs';
 import path from 'path';
-import { config } from '../src/utils/config';
+import { config } from '../utils/config';
 
 async function initSql() {
   const sqlPath = path.resolve(__dirname, '../database/init.sql');

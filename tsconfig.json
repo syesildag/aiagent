@@ -95,7 +95,6 @@
    },
    "include": [
       "src/**/*",
-      "scripts/**/*",
       "global.d.ts"
    ],
    "exclude": [
