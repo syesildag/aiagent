@@ -13,7 +13,6 @@ import { Session } from "./repository/entities/session";
 import { repository } from "./repository/repository";
 import { hashPassword } from './utils/hashPassword';
 import Logger from "./utils/logger";
-import { config } from "./utils/config";
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
 // Async handler utility for error handling
@@ -112,7 +111,7 @@ app.post("/login", asyncHandler(async (req: Request, res: Response) => {
       return;
    }
    const sqlQuery = ` SELECT id FROM "user" WHERE login = $1 AND password = $2`;
-   const hmacKey = config.HMAC_SECRET_KEY;
+   const hmacKey = process.env.HMAC_SECRET_KEY;
    if (!hmacKey) {
       Logger.error('HMAC_SECRET_KEY environment variable is not set');
       res.status(500).send('Server configuration error');
@@ -168,8 +167,8 @@ app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
    res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
 }));
 
-const PORT: number = config.PORT;
-const HOST: string = config.HOST;
+const PORT: number = +process.env.PORT!;
+const HOST: string = process.env.HOST!;
 const server = https.createServer(options, app).listen(PORT, HOST, async () => {
    Logger.info(`[server]: Server is running at http://${HOST}:${PORT}`);
    
@@ -245,5 +244,5 @@ async function gracefulShutdown(event: NodeJS.Signals) {
       Logger.error('Could not close connections in time, forcefully shutting down');
       connections.forEach(curr => curr.destroy());
       process.exit(1);
-   }, config.SERVER_TERMINATE_TIMEOUT);
+   }, +process.env.SERVER_TERMINATE_TIMEOUT!);
 }
