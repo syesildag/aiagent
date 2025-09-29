@@ -18,8 +18,18 @@
         "@modelcontextprotocol/server-memory"
       ],
       "env": {
-        "MEMORY_FILE_PATH": "./memory.json"
+        "MEMORY_FILE_PATH": "/home/serkan/workspace/aiagent/memory.json"
       },
+      "enabled": true
+    },
+    {
+      "name": "filesystem",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/home/serkan/workspace/aiagent"
+      ],
       "enabled": true
     }
   ]
