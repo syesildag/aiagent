@@ -40,7 +40,7 @@ const notes: { [id: string]: Note } = {
  */
 const server = new Server(
   {
-    name: "time-server",
+    name: "notes-server",
     version: "0.1.0",
   },
   {
@@ -116,6 +116,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ["title", "content"]
         }
+      },
+      {
+        name: "delete_note",
+        description: "Delete an existing note by ID",
+        inputSchema: {
+          type: "object",
+          properties: {
+            id: {
+              type: "string",
+              description: "ID of the note to delete"
+            }
+          },
+          required: ["id"]
+        }
       }
     ]
   };
@@ -141,6 +155,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [{
           type: "text",
           text: `Created note ${id}: ${title}`
+        }]
+      };
+    }
+
+    case "delete_note": {
+      const id = String(request.params.arguments?.id);
+      if (!id) {
+        throw new Error("Note ID is required");
+      }
+
+      const note = notes[id];
+      if (!note) {
+        throw new Error(`Note ${id} not found`);
+      }
+
+      const noteTitle = note.title;
+      delete notes[id];
+
+      return {
+        content: [{
+          type: "text",
+          text: `Deleted note ${id}: ${noteTitle}`
         }]
       };
     }
