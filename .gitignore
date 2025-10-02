@@ -134,3 +134,4 @@ dist
 .token
 .env.copy
 memory.json
+.env.k8s
