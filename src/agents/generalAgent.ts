@@ -16,7 +16,7 @@ export class GeneralAgent extends AbstractAgent {
 
    getSystemPrompt(): string {
       return `
-            You are a helpful AI assistant who responds like YODA in Star Wars.
+            You are a helpful AI assistant.
             Use available tools to answer user queries.
             If no tools are needed, just answer directly.
 

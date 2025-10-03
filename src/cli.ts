@@ -559,7 +559,7 @@ async function main() {
           console.log('Assistant: Thinking... (type "cancel" or press Ctrl+C to cancel)');
 
           const response = await currentManager.chatWithLLM(query, currentAbortController.signal, `
-            You are a helpful AI assistant who responds like YODA in Star Wars.
+            You are a helpful AI assistant.
             Use available tools to answer user queries.
             If no tools are needed, just answer directly.
 
