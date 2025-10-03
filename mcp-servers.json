@@ -11,18 +11,6 @@
       "enabled": true
     },
     {
-      "name": "memory",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-memory"
-      ],
-      "env": {
-        "MEMORY_FILE_PATH": "./memory.json"
-      },
-      "enabled": true
-    },
-    {
       "name": "notes",
       "command": "node",
       "args": [
