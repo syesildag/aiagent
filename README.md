@@ -166,6 +166,48 @@ The system uses a provider pattern to abstract different LLM services:
 - `OpenAIProvider` for OpenAI API
 - `MCPServerManager` for coordinating MCP servers and LLM interactions
 
+## Architecture Diagram
+
+```mermaid
+graph TD
+    subgraph Client
+        CLI[Interactive CLI]
+        API[REST API Client]
+    end
+
+    subgraph Server
+        Express[Express.js HTTPS Server]
+        Auth[Session-based Authentication]
+        AgentSystem[Agent System]
+        MCPManager[MCPServerManager]
+        LLMProviders[LLM Providers]
+        ToolCache[Tool Caching]
+        Security[Security Features]
+    end
+
+    subgraph Database
+        Postgres[(PostgreSQL + pgvector)]
+    end
+
+    subgraph MCP
+        MCPServers[MCP Servers]
+    end
+
+    CLI --> Express
+    API --> Express
+    Express -->|Routes| Auth
+    Express -->|Routes| AgentSystem
+    AgentSystem --> MCPManager
+    MCPManager --> ToolCache
+    MCPManager --> LLMProviders
+    MCPManager --> MCPServers
+    Auth --> Postgres
+    AgentSystem --> Postgres
+    Security --> Express
+```
+
+*You can view this diagram visually in VS Code (with Mermaid extension), GitHub, or the Mermaid Live Editor.*
+
 ## Docker Usage
 
 You can build and run the AI Agent server in a Docker container for easy deployment.

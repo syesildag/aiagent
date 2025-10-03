@@ -4,7 +4,7 @@ import path from 'path';
 import { config } from '../utils/config';
 
 async function initSql() {
-  const sqlPath = path.resolve(__dirname, '../database/init.sql');
+  const sqlPath = path.resolve(__dirname, '../../database/init.sql');
   const sql = fs.readFileSync(sqlPath, 'utf8');
 
   const client = new Client({

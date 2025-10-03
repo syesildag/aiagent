@@ -21,6 +21,14 @@
         "MEMORY_FILE_PATH": "./memory.json"
       },
       "enabled": true
+    },
+    {
+      "name": "notes",
+      "command": "node",
+      "args": [
+        "dist/scripts/mcp/notes.js"
+      ],
+      "enabled": true
     }
   ]
 }

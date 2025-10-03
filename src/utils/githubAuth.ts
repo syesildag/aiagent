@@ -148,7 +148,8 @@ export namespace AuthGithubCopilot {
       // Clear invalid token
       await Auth.remove("github-copilot")
       
-      throw new Error("Authentication failed. Please run 'login' command to re-authenticate.")
+      Logger.warn("Authentication failed. Please run 'login' command to re-authenticate.")
+      return null
     }
   }
 

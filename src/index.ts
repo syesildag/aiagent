@@ -167,6 +167,26 @@ app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
    res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
 }));
 
+// Health endpoint
+app.get('/healthz', (req: Request, res: Response) => {
+   // Basic health check: server is up
+   res.status(200).json({ status: 'ok' });
+});
+
+// Readiness endpoint
+app.get('/readyz', async (req: Request, res: Response) => {
+   // Readiness check: database and agent system
+   try {
+      // Example: check database connection
+      await queryDatabase('SELECT 1');
+      // Optionally, check agent system readiness here
+      res.status(200).json({ status: 'ready' });
+   } catch (error) {
+      Logger.error('Readiness check failed:', error);
+      res.status(503).json({ status: 'not ready', error: error instanceof Error ? error.message : String(error) });
+   }
+});
+
 const PORT: number = +process.env.PORT!;
 const HOST: string = process.env.HOST!;
 const server = https.createServer(options, app).listen(PORT, HOST, async () => {

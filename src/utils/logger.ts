@@ -11,7 +11,7 @@ export interface Logger {
    debug: (message: any) => void;
    info: (message: any) => void;
    warn: (message: any) => void;
-   error: (message: any) => void;
+   error(message?: any, ...optionalParams: any[]): void;
 }
 
 export class ConsoleLogger implements Logger {
@@ -35,8 +35,8 @@ export class ConsoleLogger implements Logger {
    warn(message: any) {
       console.warn(this.createLogMessage(message));
    }
-   error(message: any) {
-      console.error(this.createLogMessage(message));
+   error(message?: any, ...optionalParams: any[]) {
+      console.error(this.createLogMessage(message), ...optionalParams);
    }
 }
 
@@ -53,7 +53,7 @@ export class DummyLogger implements Logger {
    warn(_message: any) {
       // do nothing
    }
-   error(_message: any) {
+   error(_message?: any, ...optionalParams: any[]) {
       // do nothing
    }
 }

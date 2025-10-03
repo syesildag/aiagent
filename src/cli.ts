@@ -140,7 +140,7 @@ async function handleModelCommand(rl: readline.Interface, manager: MCPServerMana
   };
 
   const currentProvider = process.env.LLM_PROVIDER || 'ollama';
-  const currentModel = process.env.LLM_MODEL || 'qwen3:4b';
+  const currentModel = process.env.LLM_MODEL || 'llama3.2:3b';
 
   console.log(`Current provider: ${currentProvider}`);
   console.log(`Current model: ${currentModel}\n`);
@@ -237,8 +237,9 @@ async function main() {
   // - Prompt user for selection
 
   let llmProvider: LLMProvider;
-  let model: string = process.env.LLM_MODEL || 'qwen3:4b'; // get model from .env or default
+  let model: string = process.env.LLM_MODEL || 'llama3.2:3b'; // get model from .env or default
   const providerType = process.env.LLM_PROVIDER || 'ollama';
+  let actualProviderType = providerType; // Track the actual provider being used (after fallbacks)
 
   Logger.debug(`Provider: ${providerType}`);
   Logger.debug(`Model: ${model}`);
@@ -248,28 +249,44 @@ async function main() {
     case 'copilot':
       // Use OAuth system to get current GitHub Copilot token
       const { AuthGithubCopilot } = await import('./utils/githubAuth.js');
-      const githubApiKey = await AuthGithubCopilot.access();
-      if (!githubApiKey) {
-        Logger.error('GitHub Copilot requires authentication. Run "login" command to authenticate.');
-        //process.exit(1);
+      try {
+        const githubApiKey = await AuthGithubCopilot.access();
+        if (!githubApiKey) {
+          Logger.error('GitHub Copilot requires authentication. Run "login" command to authenticate.');
+          Logger.info('Falling back to Ollama provider...');
+          llmProvider = new OllamaProvider();
+          model = 'llama3.2:3b'; // Default model for Ollama
+          actualProviderType = 'ollama'; // Update actual provider type
+        } else {
+          const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
+          Logger.debug(`GitHub Base URL: ${githubBaseUrl}`);
+          llmProvider = new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
+          Logger.info('Using GitHub Copilot provider');
+          actualProviderType = 'github'; // Keep original provider type
+        }
+      } catch (error) {
+        Logger.error(`GitHub Copilot authentication failed: ${error}`);
+        Logger.info('Falling back to Ollama provider...');
+        llmProvider = new OllamaProvider();
+        model = 'llama3.2:3b'; // Default model for Ollama
+        actualProviderType = 'ollama'; // Update actual provider type
       }
-      else {
-        const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
-        Logger.debug(`GitHub Base URL: ${githubBaseUrl}`);
-        llmProvider = new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
-        Logger.info('Using GitHub Copilot provider');
-        break;
-      }
+      break;
 
     case 'openai':
       const openaiApiKey = process.env.OPENAI_API_KEY;
       if (!openaiApiKey) {
         Logger.error('OpenAI requires OPENAI_API_KEY environment variable');
-        //process.exit(1);
+        Logger.info('Falling back to Ollama provider...');
+        llmProvider = new OllamaProvider();
+        model = 'llama3.2:3b'; // Default model for Ollama
+        actualProviderType = 'ollama';
+        break;
       }
       else {
         llmProvider = new OpenAIProvider(openaiApiKey);
         Logger.info('Using OpenAI provider');
+        actualProviderType = 'openai';
         break;
       }
 
@@ -277,6 +294,7 @@ async function main() {
     default:
       llmProvider = new OllamaProvider();
       Logger.info('Using Ollama provider (local)');
+      actualProviderType = 'ollama';
       break;
   }
 
@@ -292,13 +310,20 @@ async function main() {
       case 'github':
       case 'copilot':
         const { AuthGithubCopilot } = await import('./utils/githubAuth.js');
-        const githubApiKey = await AuthGithubCopilot.access();
-        if (!githubApiKey) {
-          Logger.error('GitHub Copilot requires authentication. Run "login" command to authenticate.');
-          throw new Error('GitHub Copilot configuration incomplete');
+        try {
+          const githubApiKey = await AuthGithubCopilot.access();
+          if (!githubApiKey) {
+            Logger.error('GitHub Copilot requires authentication. Run "login" command to authenticate.');
+            Logger.info('Falling back to Ollama provider...');
+            return new OllamaProvider();
+          }
+          const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
+          return new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
+        } catch (error) {
+          Logger.error(`GitHub Copilot authentication failed: ${error}`);
+          Logger.info('Falling back to Ollama provider...');
+          return new OllamaProvider();
         }
-        const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
-        return new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
 
       case 'openai':
         const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -319,7 +344,7 @@ async function main() {
    */
   async function updateManagerConfiguration(): Promise<void> {
     const newProvider = await createLLMProvider();
-    const newModel = process.env.LLM_MODEL || 'qwen3:4b';
+    const newModel = process.env.LLM_MODEL || 'llama3.2:3b';
 
     currentManager.updateConfiguration(newProvider, newModel);
     Logger.info('Manager configuration updated with new provider/model settings');
@@ -328,7 +353,7 @@ async function main() {
   try {
 
     // Example interactions with the LLM using MCP tools
-    console.log(`\n--- Interactive Chat with ${providerType.toUpperCase()} ---`);
+    console.log(`\n--- Interactive Chat with ${actualProviderType.toUpperCase()} ---`);
     console.log('Type your questions or commands. Special commands:');
     console.log('  - "help" - Show available commands');
     console.log('  - "login" - Configure LLM provider and authenticate');
@@ -534,7 +559,7 @@ async function main() {
           console.log('Assistant: Thinking... (type "cancel" or press Ctrl+C to cancel)');
 
           const response = await currentManager.chatWithLLM(query, currentAbortController.signal, `
-            You are a helpful AI assistant.
+            You are a helpful AI assistant who responds like YODA in Star Wars.
             Use available tools to answer user queries.
             If no tools are needed, just answer directly.
 
