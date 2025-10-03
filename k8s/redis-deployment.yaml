@@ -50,12 +50,6 @@ spec:
                 - sh
                 - -c
                 - 'redis-cli -a "$REDIS_PASSWORD" ping'
-            env:
-              - name: REDIS_PASSWORD
-                valueFrom:
-                  secretKeyRef:
-                    name: redis-secret
-                    key: redis-password
             initialDelaySeconds: 30
             timeoutSeconds: 5
             periodSeconds: 10
