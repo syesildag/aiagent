@@ -1,6 +1,5 @@
-import { InMemoryConversationHistory } from './conversationHistory';
-import { Message } from '../descriptions/conversationTypes';
 import { config } from './config';
+import { InMemoryConversationHistory } from './conversationHistory';
 
 describe('InMemoryConversationHistory', () => {
   let conversationHistory: InMemoryConversationHistory;
