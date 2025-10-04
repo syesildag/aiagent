@@ -1,7 +1,7 @@
 import { Options } from "ollama";
 import { Agent, AgentName } from "../agent";
 import { MCPServerManager } from "../mcp/mcpManager";
-import { AiAgentSession } from "../repository/entities/ai-agent-session";
+import { AiAgentSession } from "../entities/ai-agent-session";
 import Logger from "../utils/logger";
 
 export default abstract class AbstractAgent implements Agent {

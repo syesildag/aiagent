@@ -9,7 +9,7 @@ import https from 'https';
 import { Duplex } from "stream";
 import { z } from 'zod';
 import { getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
-import { AiAgentSession } from "./repository/entities/ai-agent-session";
+import { AiAgentSession } from "./entities/ai-agent-session";
 import { repository } from "./repository/repository";
 import { hashPassword } from './utils/hashPassword';
 import Logger from "./utils/logger";

@@ -202,7 +202,7 @@ describe('EmbeddingService', () => {
       };
 
       // Mock the constructor
-      const { OllamaProvider } = require('../../mcp/llmProviders');
+      const { OllamaProvider } = require('../mcp/llmProviders');
       OllamaProvider.mockImplementation(() => mockOllamaProvider);
 
       provider = new OllamaEmbeddingProvider({

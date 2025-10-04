@@ -1,5 +1,5 @@
 import { closeDatabase } from '../utils/pgClient';
-import { AiAgentSession } from '../repository/entities/ai-agent-session';
+import { AiAgentSession } from '../entities/ai-agent-session';
 import { repository } from '../repository/repository';
 import Logger from '../utils/logger';
 

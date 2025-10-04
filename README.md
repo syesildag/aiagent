@@ -366,10 +366,10 @@ The project includes an automated PostgreSQL entity generator that creates TypeS
 npm run build
 
 # Generate entity for a single table
-node dist/utils/entityGeneratorCLI.js --table table_name --output src/repository/entities
+node dist/utils/entityGenerator.js --table table_name --output src/repository/entities
 
 # Generate entities for entire schema
-node dist/utils/entityGeneratorCLI.js --schema public --output src/repository/entities
+node dist/utils/entityGenerator.js --schema public --output src/repository/entities
 
 # Test the generator
 npm run test-entity-generator:dev

@@ -33,12 +33,12 @@ POSTGRES_PASSWORD=your_password
 
 2. **Generate entity for a single table:**
    ```bash
-   node dist/utils/entityGeneratorCLI.js --table <table_name> --output src/repository/entities
+   node dist/utils/entityGenerator.js --table <table_name> --output src/repository/entities
    ```
 
 3. **Generate entities for entire schema:**
    ```bash
-   node dist/utils/entityGeneratorCLI.js --schema public --output src/repository/entities
+   node dist/utils/entityGenerator.js --schema public --output src/repository/entities
    ```
 
 ### Example Usage
@@ -46,7 +46,7 @@ POSTGRES_PASSWORD=your_password
 Generate an entity for the `ai_agent_session` table:
 
 ```bash
-node dist/utils/entityGeneratorCLI.js --table ai_agent_session --output src/repository/entities
+node dist/utils/entityGenerator.js --table ai_agent_session --output src/repository/entities
 ```
 
 This creates a file `src/repository/entities/ai-agent-session.ts` with:

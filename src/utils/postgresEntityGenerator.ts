@@ -157,13 +157,29 @@ export class PostgreSQLEntityGenerator {
         warnings.push(...patternAnalysis.complexities);
       }
 
-      // Step 7: Generate TypeScript entity code
+      // Step 7: Detect unique columns for repository generation
+      const uniqueColumns: string[] = [];
+      for (const column of tableInfo.columns) {
+        if (!column.isPrimary) { // Skip primary keys
+          const isUnique = await this.metadataExtractor.isColumnUnique(
+            tableName, 
+            column.name, 
+            config.schemaName || 'public'
+          );
+          if (isUnique) {
+            uniqueColumns.push(column.name);
+          }
+        }
+      }
+
+      // Step 8: Generate TypeScript entity code
       this.logger.info(`Generating TypeScript code for entity: ${tableName}`);
       
       const generationOptions: EntityGenerationOptions = {
         ...this.codeGenerator.getDefaultOptions(),
         ...config.generationOptions,
-        baseClass: config.baseClass
+        baseClass: config.baseClass,
+        uniqueColumns
       };
 
       const entityCode = this.codeGenerator.generateEntityClass(
@@ -457,7 +473,7 @@ export class PostgreSQLEntityGenerator {
 /**
  * CLI Interface for the Entity Generator
  */
-export class EntityGeneratorCLI {
+export class entityGenerator {
   private generator: PostgreSQLEntityGenerator;
 
   constructor(generator: PostgreSQLEntityGenerator) {

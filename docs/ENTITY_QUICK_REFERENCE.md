@@ -4,10 +4,10 @@
 
 ```bash
 # Single table
-node dist/utils/entityGeneratorCLI.js --table table_name --output src/repository/entities
+node dist/utils/entityGenerator.js --table table_name --output src/repository/entities
 
 # Entire schema  
-node dist/utils/entityGeneratorCLI.js --schema public --output src/repository/entities
+node dist/utils/entityGenerator.js --schema public --output src/repository/entities
 
 # Test generator
 npm run test-entity-generator:dev

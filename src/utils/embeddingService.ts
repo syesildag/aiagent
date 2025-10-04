@@ -190,6 +190,15 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
         throw new EmbeddingError('OpenAI', 'Invalid response format: missing embedding data');
       }
 
+      // If input was an array (batch request), return all embeddings
+      if (Array.isArray(request.input)) {
+        return {
+          embedding: data.data.map((item: any) => item.embedding),
+          model: data.model,
+          usage: data.usage,
+        } as any; // Special case for batch processing
+      }
+
       return {
         embedding: data.data[0].embedding,
         model: data.model,
@@ -222,7 +231,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
           dimensions: request.dimensions,
         });
 
-        // OpenAI returns multiple embeddings for batch requests
+        // Check if this is a batch response (multiple embeddings)
         if (Array.isArray(batchResult.embedding[0])) {
           // Multiple embeddings returned
           const embeddings = batchResult.embedding as unknown as number[][];
@@ -451,6 +460,11 @@ export class EmbeddingService {
     text: string, 
     options?: { model?: string; provider?: string }
   ): Promise<number[]> {
+    // Validate input
+    if (!text || text.trim().length === 0) {
+      throw new EmbeddingValidationError('Text input cannot be empty or contain only whitespace');
+    }
+    
     const cacheKey = this.getCacheKey(text, options?.model, options?.provider);
     
     // Check cache first

@@ -17,6 +17,7 @@ export interface EntityGenerationOptions {
   includeToString: boolean;
   includeValidation: boolean;
   baseClass?: string;
+  uniqueColumns?: string[];
 }
 
 /**
@@ -77,7 +78,8 @@ export class TypeScriptCodeGenerator {
     outputPath?: string
   ): string {
     const className = this.toPascalCase(tableInfo.tableName);
-    const fields = this.generateFieldsFromColumns(tableInfo.columns);
+    const uniqueColumnNames = options.uniqueColumns || [];
+    const fields = this.generateFieldsFromColumns(tableInfo.columns, uniqueColumnNames);
     
     const parts: string[] = [];
 
@@ -126,7 +128,7 @@ export class TypeScriptCodeGenerator {
     parts.push('');
 
     // Repository class
-    const repositoryLines = this.generateRepository(className, tableInfo.tableName);
+    const repositoryLines = this.generateRepository(className, tableInfo, options);
     parts.push(...repositoryLines);
 
     return parts.join('\n');
@@ -209,7 +211,7 @@ import { repository } from "${relativePath}repository";`;
     }
   }
 
-  private generateFieldsFromColumns(columns: ColumnInfo[]): FieldInfo[] {
+  private generateFieldsFromColumns(columns: ColumnInfo[], uniqueColumnNames: string[] = []): FieldInfo[] {
     return columns.map(col => ({
       name: this.toCamelCase(col.name),
       type: this.mapDatabaseTypeToTypeScript(col),
@@ -217,7 +219,7 @@ import { repository } from "${relativePath}repository";`;
       columnName: col.name,
       isPrimaryKey: col.isPrimary,
       isNotNull: !col.isNullable,
-      isUnique: false // We'll handle this separately if needed
+      isUnique: uniqueColumnNames.includes(col.name)
     }));
   }
 
@@ -289,19 +291,44 @@ import { repository } from "${relativePath}repository";`;
     return lines;
   }
 
-  private generateRepository(className: string, tableName: string): string[] {
+  private generateRepository(className: string, tableInfo: TableInfo, options: EntityGenerationOptions): string[] {
     const lines: string[] = [];
     
     lines.push(`export class ${className}Repository extends AbstractRepository<${className}> {`);
     lines.push('');
     lines.push('   constructor() {');
-    lines.push(`      super('${tableName}', ${className});`);
+    lines.push(`      super('${tableInfo.tableName}', ${className});`);
     lines.push('   }');
     lines.push('');
-    lines.push('   @Find()');
-    lines.push(`   public async findByUserLogin(userLogin: string): Promise<${className} | null> {`);
-    lines.push('      return null;');
-    lines.push('   }');
+    
+    // Generate @Find methods for unique columns (passed from entity generator)
+    const uniqueColumnNames = options.uniqueColumns || [];
+    if (uniqueColumnNames.length > 0) {
+      lines.push('   // Auto-generated finder methods for unique columns');
+      for (const columnName of uniqueColumnNames) {
+        const column = tableInfo.columns.find(col => col.name === columnName);
+        if (column) {
+          const methodName = `findBy${this.toPascalCase(column.name)}`;
+          const paramName = this.toCamelCase(column.name);
+          const tsType = this.mapDatabaseTypeToTypeScript(column);
+          
+          lines.push('   @Find()');
+          lines.push(`   public async ${methodName}(${paramName}: ${tsType}): Promise<${className} | null> {`);
+          lines.push('      return null;');
+          lines.push('   }');
+          lines.push('');
+        }
+      }
+    } else {
+      lines.push('   // Add custom finder methods here as needed');
+      lines.push('   // Example:');
+      lines.push('   // @Find()');
+      lines.push('   // public async findByFieldName(fieldName: string): Promise<' + className + ' | null> {');
+      lines.push('   //    return null;');
+      lines.push('   // }');
+      lines.push('');
+    }
+    
     lines.push('}');
     lines.push('');
     lines.push(`const ${this.toCamelCase(className)}Repository = new ${className}Repository();`);
@@ -400,4 +427,6 @@ import { repository } from "${relativePath}repository";`;
       .replace(/([a-z])([A-Z])/g, '$1-$2')
       .toLowerCase();
   }
+
+
 }

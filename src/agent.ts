@@ -2,7 +2,7 @@ import { Options } from 'ollama';
 import { GeneralAgent } from './agents/generalAgent';
 import { createLLMProvider, getLLMModel } from './mcp/llmFactory';
 import { MCPServerManager } from './mcp/mcpManager';
-import { AiAgentSession } from './repository/entities/ai-agent-session';
+import { AiAgentSession } from './entities/ai-agent-session';
 import { config } from './utils/config';
 import Logger from './utils/logger';
 

@@ -1,7 +1,7 @@
 import { Pool } from 'pg';
 import { ConsoleLogger } from './logger.js';
 import { config } from './config.js';
-import { PostgreSQLEntityGenerator, EntityGeneratorCLI } from './postgresEntityGenerator.js';
+import { PostgreSQLEntityGenerator, entityGenerator } from './postgresEntityGenerator.js';
 
 /**
  * CLI Entry Point for PostgreSQL Entity Generator
@@ -32,7 +32,7 @@ async function main() {
 
     // Initialize generator
     const generator = new PostgreSQLEntityGenerator(pool, logger);
-    const cli = new EntityGeneratorCLI(generator);
+    const cli = new entityGenerator(generator);
 
     // Parse command line arguments
     const args = process.argv.slice(2);
@@ -89,8 +89,8 @@ Examples:
 }
 
 // Run the CLI if this file is executed directly
-const isMainModule = process.argv[1]?.endsWith('entityGeneratorCLI.ts') || 
-                    process.argv[1]?.endsWith('entityGeneratorCLI.js');
+const isMainModule = process.argv[1]?.endsWith('entityGenerator.ts') || 
+                    process.argv[1]?.endsWith('entityGenerator.js');
 if (isMainModule) {
   main().catch(console.error);
 }

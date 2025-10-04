@@ -17,6 +17,8 @@
       "buildDev": "npm run build && npm run dev",
       "buildCliProd": "npm run build && npm run cli:prod",
       "buildCliDev": "npm run build && npm run cli:dev",
+      "entityGen": "node dist/utils/entityGenerator.js",
+      "buildEntityGen": "npm run build && npm run entityGen",
       "test": "jest",
       "dev:watch": "ts-node-dev --respawn --transpile-only src/index.ts",
       "lint": "eslint . --ext .ts",
