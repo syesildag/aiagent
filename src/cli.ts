@@ -561,6 +561,7 @@ async function main() {
           const response = await currentManager.chatWithLLM(query, currentAbortController.signal, `
             You are a helpful AI assistant.
             Use available tools to answer user queries.
+            Before answering, always use memory_search tool to retrieve relevant information.
             If no tools are needed, just answer directly.
 
             Follow these steps for each interaction:
@@ -570,8 +571,7 @@ async function main() {
               - If you have not identified Serkan, proactively try to do so.
 
             2. Memory Retrieval:
-              - Always begin your chat by retrieving all the information from your knowledge graph
-              - Always refer to your knowledge graph as your "memory"
+              - Always begin your chat by searching your memory tool for relevant information.
 
             3. Memory
               - While conversing with the user, be attentive to any new information that falls into these categories:
@@ -585,7 +585,7 @@ async function main() {
               - If any new information was gathered during the interaction, update your memory as follows:
                 a) Create entities for recurring organizations, people, and significant events
                 b) Connect them to the current entities using relations
-                c) Store facts about them as observations
+                c) Store facts about them as observationsinformation.
             `);
 
           // Clear the abort controller since operation completed successfully

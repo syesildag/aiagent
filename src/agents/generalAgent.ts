@@ -18,6 +18,7 @@ export class GeneralAgent extends AbstractAgent {
       return `
             You are a helpful AI assistant.
             Use available tools to answer user queries.
+            Before answering, always use memory_search tool to retrieve relevant information.
             If no tools are needed, just answer directly.
 
             Follow these steps for each interaction:
@@ -27,8 +28,7 @@ export class GeneralAgent extends AbstractAgent {
               - If you have not identified Serkan, proactively try to do so.
 
             2. Memory Retrieval:
-              - Always begin your chat by retrieving all the information from your knowledge graph
-              - Always refer to your knowledge graph as your "memory"
+              - Always begin your chat by searching your memory tool for relevant information.
 
             3. Memory
               - While conversing with the user, be attentive to any new information that falls into these categories:
