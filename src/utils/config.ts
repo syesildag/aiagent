@@ -38,9 +38,6 @@ const envSchema = z.object({
   // External APIs
   OPENWEATHERMAP_API_KEY: z.string().min(1).optional(),
   
-  // Redis Configuration
-  REDIS_URL: z.string().url().default('redis://localhost:6379'),
-  
   // MCP Configuration
   MCP_SERVERS_PATH: z.string().min(1).default('./mcp-servers.json'),
   MAX_LLM_ITERATIONS: z.string().transform(Number).pipe(z.number().min(1).max(10)).default('2'),

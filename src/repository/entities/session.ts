@@ -8,16 +8,16 @@ export class Session extends Entity {
 
    private id?: number;
    private name: string;
-   private username: string;
-   private timestamp?: Date;
+   private userLogin: string;
+   private createdAt?: Date;
    private ping?: Date;
 
-   constructor({ id, name, username, timestamp, ping }: { id?: number, name: string, username: string, timestamp?: Date, ping?: Date }) {
+   constructor({ id, name, userLogin, createdAt, ping }: { id?: number, name: string, userLogin: string, createdAt?: Date, ping?: Date }) {
       super();
       this.id = id;
       this.name = name;
-      this.username = username;
-      this.timestamp = timestamp;
+      this.userLogin = userLogin;
+      this.createdAt = createdAt;
       this.ping = ping;
    }
 
@@ -31,14 +31,14 @@ export class Session extends Entity {
       return this.name;
    }
 
-   @Column({ columnName: 'username', notNull: true })
-   public getUsername(): string {
-      return this.username;
+   @Column({ columnName: 'user_login', notNull: true })
+   public getUserLogin(): string {
+      return this.userLogin;
    }
 
-   @Column({ columnName: 'timestamp' })
-   public getTimestamp(): Date | undefined {
-      return this.timestamp;
+   @Column({ columnName: 'created_at' })
+   public getCreatedAt(): Date | undefined {
+      return this.createdAt;
    }
 
    @Column({ columnName: 'ping' })
@@ -54,11 +54,11 @@ export class Session extends Entity {
 export class SessionRepository extends AbstractRepository<Session> {
 
    constructor() {
-      super('session', Session);
+      super('ai_agent_session', Session);
    }
 
    @Find()
-   public async findByUsername(_username: string): Promise<Session | null> {
+   public async findByUserLogin(userLogin: string): Promise<Session | null> {
       return null;
    }}
 

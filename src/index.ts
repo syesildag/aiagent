@@ -104,13 +104,13 @@ app.use(sessionMiddleware);
 app.post("/login", asyncHandler(async (req: Request, res: Response) => {
    // parse login and password from headers
    const b64auth = (req.headers.authorization ?? '').split(' ')[1] ?? '';
-   const [username, password] = Buffer.from(b64auth, 'base64').toString().split(':');
-   if (!username || !password) {
+   const [userLogin, password] = Buffer.from(b64auth, 'base64').toString().split(':');
+   if (!userLogin || !password) {
       Logger.warn('Missing username or password in authorization header');
       sendAuthenticationRequired(res);
       return;
    }
-   const sqlQuery = ` SELECT id FROM "user" WHERE login = $1 AND password = $2`;
+   const sqlQuery = ` SELECT id FROM ai_agent_user WHERE login = $1 AND password = $2`;
    const hmacKey = process.env.HMAC_SECRET_KEY;
    if (!hmacKey) {
       Logger.error('HMAC_SECRET_KEY environment variable is not set');
@@ -118,16 +118,16 @@ app.post("/login", asyncHandler(async (req: Request, res: Response) => {
       return;
    }
    const passwordHash = hashPassword(password, hmacKey);
-   const results = await queryDatabase(sqlQuery, [username, passwordHash]);
+   const results = await queryDatabase(sqlQuery, [userLogin, passwordHash]);
    if (results.length === 0) {
-      Logger.warn(`Authentication failed for user: ${username}`);
+      Logger.warn(`Authentication failed for user: ${userLogin}`);
       sendAuthenticationRequired(res); // custom message
       return;
    }
 
    //save session to database
    const session = randomAlphaNumeric(3);
-   await new Session({ name: session, username }).save();
+   await new Session({ name: session, userLogin }).save();
 
    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ session }));
 }));

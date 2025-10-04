@@ -12,7 +12,7 @@ async function addUser(username: string, password: string) {
   const passwordHash = hashPassword(password, hmacKey);
   try {
     await queryDatabase(
-      `INSERT INTO "user" (login, password) VALUES ($1, $2)`,
+      `INSERT INTO ai_agent_user (login, password) VALUES ($1, $2)`,
       [username, passwordHash]
     );
     Logger.info(`User '${username}' added successfully.`);
