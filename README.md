@@ -352,4 +352,50 @@ curl --insecure https://localhost:8443/login
 
 This is a common workaround for local development on macOS/Docker Desktop.
 
+## Documentation
+
+### Entity Creation
+- **[Entity Creation Guide](docs/ENTITY_CREATION_GUIDE.md)**: Comprehensive guide for creating TypeScript entities from PostgreSQL tables
+- **[Entity Quick Reference](docs/ENTITY_QUICK_REFERENCE.md)**: Quick reference for entity patterns and commands
+
+### Entity Generator
+The project includes an automated PostgreSQL entity generator that creates TypeScript entity classes from database tables:
+
+```bash
+# Build the project first
+npm run build
+
+# Generate entity for a single table
+node dist/utils/entityGeneratorCLI.js --table table_name --output src/repository/entities
+
+# Generate entities for entire schema
+node dist/utils/entityGeneratorCLI.js --schema public --output src/repository/entities
+
+# Test the generator
+npm run test-entity-generator:dev
+```
+
+**Features:**
+- ✅ Automatic metadata extraction from PostgreSQL
+- ✅ Smart type mapping (PostgreSQL → TypeScript)
+- ✅ Annotation detection (@Id, @Column, relationships)
+- ✅ Repository class generation with find methods
+- ✅ Full compliance with project patterns
+
+**Generated entities include:**
+- Entity class extending `Entity` base class
+- Repository class extending `AbstractRepository<T>`
+- Proper imports and annotations
+- Constructor with object destructuring
+- Getter methods with decorators
+- Repository registration
+
+### Development Guidelines
+See **[AGENTS.md](AGENTS.md)** for detailed development guidelines including:
+- Build & test commands
+- Code style guidelines
+- Project structure
+- Testing best practices
+- Input validation patterns
+
 ---
