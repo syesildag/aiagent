@@ -1,12 +1,12 @@
 import { Options } from "ollama";
 import { Agent, AgentName } from "../agent";
 import { MCPServerManager } from "../mcp/mcpManager";
-import { Session } from "../repository/entities/session";
+import { AiAgentSession } from "../repository/entities/ai-agent-session";
 import Logger from "../utils/logger";
 
 export default abstract class AbstractAgent implements Agent {
 
-   private session?: Session;
+   private session?: AiAgentSession;
    private mcpManager?: MCPServerManager | null;
 
    constructor() {
@@ -23,11 +23,11 @@ export default abstract class AbstractAgent implements Agent {
 
    abstract getName(): AgentName;
 
-   setSession(session: Session) {
+   setSession(session: AiAgentSession) {
       this.session = session;
    }
 
-   getSession(): Session | undefined {
+   getSession(): AiAgentSession | undefined {
       return this.session;
    }
 

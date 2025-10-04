@@ -73,7 +73,8 @@ export class TypeScriptCodeGenerator {
   generateEntityClass(
     tableInfo: TableInfo,
     relationships: RelationshipInfo[],
-    options: EntityGenerationOptions = this.getDefaultOptions()
+    options: EntityGenerationOptions = this.getDefaultOptions(),
+    outputPath?: string
   ): string {
     const className = this.toPascalCase(tableInfo.tableName);
     const fields = this.generateFieldsFromColumns(tableInfo.columns);
@@ -81,7 +82,7 @@ export class TypeScriptCodeGenerator {
     const parts: string[] = [];
 
     // Imports
-    parts.push(this.generateImports());
+    parts.push(this.generateImports(outputPath));
 
     // Class declaration
     parts.push(`export class ${className} extends Entity {`);
@@ -133,12 +134,79 @@ export class TypeScriptCodeGenerator {
 
 
 
-  private generateImports(): string {
-    return `import { AbstractRepository, Entity } from "../abstractRepository";
-import { Column } from "../annotations/Column";
-import { Find } from "../annotations/find";
-import { Id } from "../annotations/Id";
-import { repository } from "../repository";`;
+  private generateImports(outputPath?: string): string {
+    // Calculate relative paths based on output directory
+    const relativePath = this.calculateRelativeImportPath(outputPath);
+    
+    return `import { AbstractRepository, Entity } from "${relativePath}abstractRepository";
+import { Column } from "${relativePath}annotations/Column";
+import { Find } from "${relativePath}annotations/find";
+import { Id } from "${relativePath}annotations/Id";
+import { repository } from "${relativePath}repository";`;
+  }
+
+  /**
+   * Calculate the correct relative import path based on output directory
+   */
+  private calculateRelativeImportPath(outputPath?: string): string {
+    if (!outputPath) {
+      // Default path for src/repository/entities/
+      return "../";
+    }
+
+    // Normalize the output path and remove leading/trailing slashes
+    let normalizedOutput = outputPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    
+    // If it's an absolute path, extract only the relative part from current working directory
+    // Look for common project markers like "aiagent" or get the relative part after the last known directory
+    if (normalizedOutput.includes('/')) {
+      // Extract relative path from project root
+      const projectMarkers = ['aiagent', 'Workspace/aiagent'];
+      for (const marker of projectMarkers) {
+        const markerIndex = normalizedOutput.indexOf(marker);
+        if (markerIndex !== -1) {
+          // Get everything after the project marker + "/"
+          const afterMarker = normalizedOutput.substring(markerIndex + marker.length + 1);
+          if (afterMarker) {
+            normalizedOutput = afterMarker;
+            break;
+          }
+        }
+      }
+    }
+    
+    // Determine the path from output directory to src/repository/
+    // Common patterns:
+    // src/repository/entities -> ../
+    // src/entities -> ../repository/
+    // generated -> ../src/repository/
+    // entities -> ../src/repository/
+    // nested/path/deep -> ../../../src/repository/
+    
+    if (normalizedOutput.includes('src/repository/entities')) {
+      return "../";
+    } else if (normalizedOutput.includes('src/entities')) {
+      return "../repository/";
+    } else if (normalizedOutput.includes('src/repository')) {
+      // If directly in src/repository, imports would be ./
+      return "./";
+    } else if (normalizedOutput.includes('src/')) {
+      // If inside src but not in repository, go up to src then into repository
+      const srcIndex = normalizedOutput.lastIndexOf('src/');
+      const pathAfterSrc = normalizedOutput.substring(srcIndex + 4);
+      const depth = pathAfterSrc.split('/').filter(p => p.length > 0).length;
+      const upLevels = '../'.repeat(depth);
+      return `${upLevels}repository/`;
+    } else {
+      // Outside src directory, need to go to src/repository/
+      // Count the directory depth to determine how many ../ are needed
+      const pathParts = normalizedOutput.split('/').filter(p => p.length > 0 && p !== '.');
+      const depth = pathParts.length;
+      
+      // Go up the number of levels equal to the depth, then into src/repository
+      const upLevels = '../'.repeat(depth);
+      return `${upLevels}src/repository/`;
+    }
   }
 
   private generateFieldsFromColumns(columns: ColumnInfo[]): FieldInfo[] {
@@ -157,13 +225,19 @@ import { repository } from "../repository";`;
     const lines: string[] = [];
     
     // Build constructor parameter with object destructuring like session.ts
-    const params: string[] = [];
+    const destructureParams: string[] = [];
+    const typeParams: string[] = [];
+    
     for (const field of fields) {
+      // For destructuring: just the field name (no optional marker)
+      destructureParams.push(field.name);
+      
+      // For type definition: include optional marker
       const optionalSuffix = field.isOptional ? '?' : '';
-      params.push(`${field.name}${optionalSuffix}: ${field.type}`);
+      typeParams.push(`${field.name}${optionalSuffix}: ${field.type}`);
     }
     
-    const paramString = `{ ${params.join(', ')} }: { ${params.join(', ')} }`;
+    const paramString = `{ ${destructureParams.join(', ')} }: { ${typeParams.join(', ')} }`;
     lines.push(`constructor(${paramString}) {`);
     lines.push('   super();');
     

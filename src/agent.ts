@@ -2,14 +2,14 @@ import { Options } from 'ollama';
 import { GeneralAgent } from './agents/generalAgent';
 import { createLLMProvider, getLLMModel } from './mcp/llmFactory';
 import { MCPServerManager } from './mcp/mcpManager';
-import { Session } from './repository/entities/session';
+import { AiAgentSession } from './repository/entities/ai-agent-session';
 import { config } from './utils/config';
 import Logger from './utils/logger';
 
 export type AgentName = 'general' | 'weather';
 
 export interface Agent {
-   setSession(session: Session): void;
+   setSession(session: AiAgentSession): void;
    shouldValidate(): boolean;
    chat(prompt: string, abortSignal?: AbortSignal): Promise<string>;
    validate(data?: any): Promise<boolean>;

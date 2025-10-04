@@ -169,7 +169,8 @@ export class PostgreSQLEntityGenerator {
       const entityCode = this.codeGenerator.generateEntityClass(
         tableInfo,
         relationships,
-        generationOptions
+        generationOptions,
+        config.outputDirectory
       );
 
       // Step 8: Add file header if specified

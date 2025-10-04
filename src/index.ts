@@ -9,7 +9,7 @@ import https from 'https';
 import { Duplex } from "stream";
 import { z } from 'zod';
 import { getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
-import { Session } from "./repository/entities/session";
+import { AiAgentSession } from "./repository/entities/ai-agent-session";
 import { repository } from "./repository/repository";
 import { hashPassword } from './utils/hashPassword';
 import Logger from "./utils/logger";
@@ -86,7 +86,7 @@ async function sessionMiddleware(req: Request, res: Response, next: NextFunction
    if (req.headers['content-type'] === 'application/json') {
       const session = req.body.session;
       if (session) {
-         const sessionEntity = await repository.get(Session)?.getByUniqueValues(session);
+         const sessionEntity = await repository.get(AiAgentSession)?.getByUniqueValues(session);
          if (!sessionEntity) {
             sendAuthenticationRequired(res);
             return;
@@ -127,7 +127,7 @@ app.post("/login", asyncHandler(async (req: Request, res: Response) => {
 
    //save session to database
    const session = randomAlphaNumeric(3);
-   await new Session({ name: session, userLogin }).save();
+   await new AiAgentSession({ name: session, userLogin }).save();
 
    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ session }));
 }));
@@ -140,7 +140,7 @@ app.post("/logout", asyncHandler(async (req: Request, res: Response) => {
       return;
    }
    // Delete session from database
-   await (res.locals.session as Session).delete();
+   await (res.locals.session as AiAgentSession).delete();
    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }));
 }));
 

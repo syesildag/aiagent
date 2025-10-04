@@ -20,11 +20,7 @@
       "test": "jest",
       "dev:watch": "ts-node-dev --respawn --transpile-only src/index.ts",
       "lint": "eslint . --ext .ts",
-      "lint:fix": "eslint . --ext .ts --fix",
-      "generate-entity": "node dist/utils/entityGeneratorCLI.js",
-      "generate-entity:dev": "npm run build && npm run generate-entity",
-      "test-entity-generator": "node dist/utils/entityGeneratorTest.js",
-      "test-entity-generator:dev": "npm run build && npm run test-entity-generator"
+      "lint:fix": "eslint . --ext .ts --fix"
    },
    "author": "Serkan YESILDAG",
    "license": "MIT",
