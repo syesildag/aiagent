@@ -18,6 +18,8 @@ import { z } from "zod";
 import { queryDatabase, closeDatabase } from "../../utils/pgClient.js";
 import { getEmbeddings } from "../../utils/embeddingService.js";
 import Logger from "../../utils/logger.js";
+import { AiAgentMemories } from "../../entities/ai-agent-memories.js";
+import aiagentmemoriesRepository from "../../entities/ai-agent-memories.js";
 
 /**
  * Zod schemas for memory validation
@@ -165,7 +167,30 @@ server.registerResource(
   async (uri, { type }) => {
     try {
       const memoryType = Array.isArray(type) ? type[0] : type;
-      const result = await queryDatabase("SELECT * FROM ai_agent_memories WHERE type = $1 ORDER BY created_at DESC", [memoryType]);
+      // Using repository pattern with ordering support
+      const memories = await aiagentmemoriesRepository.findByTypeOrderByCreatedAtDesc(memoryType);
+      
+      if (!memories) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: "application/json",
+            text: JSON.stringify([], null, 2)
+          }]
+        };
+      }
+
+      // Convert entities to plain objects for JSON serialization
+      const result = memories.map(memory => ({
+        id: memory.getId(),
+        type: memory.getType(),
+        content: memory.getContent(),
+        source: memory.getSource(),
+        tags: memory.getTags(),
+        confidence: memory.getConfidence(),
+        created_at: memory.getCreatedAt(),
+        updated_at: memory.getUpdatedAt()
+      }));
 
       return {
         contents: [{
@@ -196,6 +221,12 @@ server.registerTool(
       // Validate input
       const validatedData = MemorySchema.parse({ type, content, source, tags, confidence });
 
+      // Ensure content is proper JSON object for database storage
+      let contentForStorage = validatedData.content;
+      if (typeof contentForStorage === 'string') {
+        contentForStorage = { text: contentForStorage };
+      }
+
       // Generate embedding for semantic search
       const textForEmbedding = prepareContentForEmbedding(validatedData.content);
       const embedding = await getEmbeddings(textForEmbedding);
@@ -204,21 +235,20 @@ server.registerTool(
         throw new Error("Failed to generate embedding for content");
       }
 
-      // Insert memory into database
-      const result = await queryDatabase(`
-        INSERT INTO ai_agent_memories (type, content, source, embedding, tags, confidence)
-        VALUES ($1, $2::jsonb, $3, $4::vector, $5, $6)
-        RETURNING *
-      `, [
-        validatedData.type,
-        JSON.stringify(validatedData.content),
-        validatedData.source,
-        `[${embedding.join(',')}]`,
-        validatedData.tags,
-        validatedData.confidence
-      ]);
-
-      const createdMemory = result[0];
+      // Create memory using repository pattern
+      const memory = new AiAgentMemories({
+        type: validatedData.type,
+        content: contentForStorage,
+        source: validatedData.source,
+        embedding: `[${embedding.join(',')}]`,
+        tags: validatedData.tags,
+        confidence: validatedData.confidence,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      await memory.save();
+      const createdMemory = { id: memory.getId(), type: memory.getType() };
       Logger.info(`Memory created successfully with ID: ${createdMemory.id}`);
 
       return {
@@ -258,7 +288,8 @@ server.registerTool(
         throw new Error("Failed to generate embedding for search query");
       }
 
-      // Build SQL query with optional filters
+      // Complex vector similarity search requires direct SQL for now
+      // Repository pattern doesn't support vector operations yet
       let sqlQuery = `
         SELECT *, 
         1 - (embedding <=> $1::vector) as similarity
@@ -349,40 +380,79 @@ server.registerTool(
   },
   async ({ type, tags, limit = 50 }) => {
     try {
+      let memories: AiAgentMemories[] | null = null;
 
-      // Build SQL query with optional filters
-      let sqlQuery = `
-        SELECT id, type, content, source, tags, confidence, created_at
-        FROM ai_agent_memories
-        WHERE 1=1
-      `;
+      if (type && !tags) {
+        // Simple type filter - use repository pattern
+        memories = await aiagentmemoriesRepository.findByTypeOrderByCreatedAtDesc(type);
+        if (memories && limit < memories.length) {
+          memories = memories.slice(0, limit);
+        }
+      } else if (!type && !tags) {
+        // No filters - use repository pattern with options
+        memories = await aiagentmemoriesRepository.findAll({ 
+          orderBy: [{ field: 'createdAt', direction: 'DESC' }],
+          limit: limit 
+        });
+      } else {
+        // Complex filtering with tags - still use direct SQL for array operations
+        let sqlQuery = `
+          SELECT id, type, content, source, tags, confidence, created_at
+            FROM ai_agent_memories
+           WHERE TRUE
+        `;
 
-      const queryParams: any[] = [];
-      let paramCount = 0;
+        const queryParams: any[] = [];
+        let paramCount = 0;
 
-      if (type) {
-        paramCount++;
-        sqlQuery += ` AND type = $${paramCount}`;
-        queryParams.push(type);
+        if (type) {
+          paramCount++;
+          sqlQuery += ` AND type = $${paramCount}`;
+          queryParams.push(type);
+        }
+
+        if (tags && tags.length > 0) {
+          paramCount++;
+          sqlQuery += ` AND tags && $${paramCount}::text[]`;
+          queryParams.push(tags);
+        }
+
+        sqlQuery += `
+          ORDER BY created_at DESC
+          LIMIT $${paramCount + 1}
+        `;
+        queryParams.push(limit);
+
+        const result = await queryDatabase(sqlQuery, queryParams);
+        
+        Logger.info(`Listed ${result.length} memories with complex filters`);
+
+        if (result.length === 0) {
+          return {
+            content: [{
+              type: "text",
+              text: "No memories found with the specified filters"
+            }]
+          };
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Found ${result.length} memories:`
+            },
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }
+          ]
+        };
       }
 
-      if (tags && tags.length > 0) {
-        paramCount++;
-        sqlQuery += ` AND tags && $${paramCount}::text[]`;
-        queryParams.push(tags);
-      }
+      Logger.info(`Listed ${memories?.length || 0} memories using repository pattern`);
 
-      sqlQuery += `
-        ORDER BY created_at DESC
-        LIMIT $${paramCount + 1}
-      `;
-      queryParams.push(limit);
-
-      const result = await queryDatabase(sqlQuery, queryParams);
-
-      Logger.info(`Listed ${result.length} memories with filters`);
-
-      if (result.length === 0) {
+      if (!memories || memories.length === 0) {
         return {
           content: [{
             type: "text",
@@ -390,6 +460,17 @@ server.registerTool(
           }]
         };
       }
+
+      // Convert entities to plain objects for JSON serialization
+      const result = memories.map(memory => ({
+        id: memory.getId(),
+        type: memory.getType(),
+        content: memory.getContent(),
+        source: memory.getSource(),
+        tags: memory.getTags(),
+        confidence: memory.getConfidence(),
+        created_at: memory.getCreatedAt()
+      }));
 
       return {
         content: [
@@ -430,10 +511,10 @@ server.registerTool(
   },
   async ({ id }) => {
     try {
-      // First check if memory exists
-      const checkResult = await queryDatabase("SELECT id, type FROM ai_agent_memories WHERE id = $1", [id]);
+      // Find memory using repository pattern
+      const memory = await aiagentmemoriesRepository.getById(id);
 
-      if (checkResult.length === 0) {
+      if (!memory) {
         return {
           content: [{
             type: "text",
@@ -443,26 +524,17 @@ server.registerTool(
         };
       }
 
-      // Delete the memory
-      const result = await queryDatabase("DELETE FROM ai_agent_memories WHERE id = $1 RETURNING id, type", [id]);
-
-      if (result.length > 0) {
-        Logger.info(`Memory deleted: ID ${id}, type: ${result[0].type}`);
-        return {
-          content: [{
-            type: "text",
-            text: `Successfully deleted memory with ID ${id} (type: ${result[0].type})`
-          }]
-        };
-      } else {
-        return {
-          content: [{
-            type: "text",
-            text: `Failed to delete memory with ID ${id}`
-          }],
-          isError: true
-        };
-      }
+      // Delete the memory using repository pattern
+      const memoryType = memory.getType();
+      await memory.delete();
+      
+      Logger.info(`Memory deleted: ID ${id}, type: ${memoryType}`);
+      return {
+        content: [{
+          type: "text",
+          text: `Successfully deleted memory with ID ${id} (type: ${memoryType})`
+        }]
+      };
     } catch (error) {
       Logger.error("Failed to delete memory:", error);
       return {

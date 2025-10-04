@@ -255,7 +255,7 @@ import { repository } from "${relativePath}repository";`;
 
   private generateAnnotatedGetter(field: FieldInfo): string[] {
     const lines: string[] = [];
-    const capitalizedName = this.toPascalCase(field.name);
+    const capitalizedName = this.capitalizeCamelCase(field.name);
     const returnType = field.isOptional ? `${field.type} | undefined` : field.type;
     
     if (field.isPrimaryKey) {
@@ -282,7 +282,7 @@ import { repository } from "${relativePath}repository";`;
 
   private generateSetter(field: FieldInfo): string[] {
     const lines: string[] = [];
-    const capitalizedName = this.toPascalCase(field.name);
+    const capitalizedName = this.capitalizeCamelCase(field.name);
     
     lines.push(`public set${capitalizedName}(${field.name}${field.isOptional ? '?' : ''}: ${field.type}) {`);
     lines.push(`   this.${field.name} = ${field.name};`);
@@ -420,6 +420,14 @@ import { repository } from "${relativePath}repository";`;
   toCamelCase(str: string): string {
     const pascal = this.toPascalCase(str);
     return pascal.charAt(0).toLowerCase() + pascal.slice(1);
+  }
+
+  /**
+   * Capitalizes the first letter of a camelCase string
+   * e.g., "createdAt" -> "CreatedAt", "userId" -> "UserId"
+   */
+  capitalizeCamelCase(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
   }
 
   toKebabCase(str: string): string {

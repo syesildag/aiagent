@@ -73,12 +73,12 @@ export class AiAgentMemories extends Entity {
    }
 
    @Column({ columnName: 'created_at', notNull: true })
-   public getCreatedat(): Date | undefined {
+   public getCreatedAt(): Date | undefined {
       return this.createdAt;
    }
 
    @Column({ columnName: 'updated_at' })
-   public getUpdatedat(): Date | undefined {
+   public getUpdatedAt(): Date | undefined {
       return this.updatedAt;
    }
 
@@ -90,11 +90,11 @@ export class AiAgentMemories extends Entity {
       this.confidence = confidence;
    }
 
-   public setCreatedat(createdAt?: Date) {
+   public setCreatedAt(createdAt?: Date) {
       this.createdAt = createdAt;
    }
 
-   public setUpdatedat(updatedAt?: Date) {
+   public setUpdatedAt(updatedAt?: Date) {
       this.updatedAt = updatedAt;
    }
 
@@ -106,12 +106,43 @@ export class AiAgentMemoriesRepository extends AbstractRepository<AiAgentMemorie
       super('ai_agent_memories', AiAgentMemories);
    }
 
-   // Add custom finder methods here as needed
-   // Example:
-   // @Find()
-   // public async findByFieldName(fieldName: string): Promise<AiAgentMemories | null> {
-   //    return null;
-   // }
+   // Enhanced finder methods with ordering support
+   @Find()
+   public async findByTypeOrderByCreatedAtDesc(type: string): Promise<AiAgentMemories[] | null> {
+      return null; // Implementation handled by @Find decorator
+   }
+
+   @Find()
+   public async findByTypeOrderByCreatedAtAsc(type: string): Promise<AiAgentMemories[] | null> {
+      return null; // Implementation handled by @Find decorator
+   }
+
+   @Find()
+   public async findByType(type: string): Promise<AiAgentMemories[] | null> {
+      return null; // Implementation handled by @Find decorator
+   }
+
+   @Find()
+   public async findAllOrderByCreatedAtDesc(): Promise<AiAgentMemories[]> {
+      return []; // Implementation handled by @Find decorator
+   }
+
+   @Find()
+   public async findAllOrderByCreatedAtAsc(): Promise<AiAgentMemories[]> {
+      return []; // Implementation handled by @Find decorator
+   }
+
+   // Method to find memories by tags with ordering
+   @Find()
+   public async findByTagsOrderByCreatedAtDesc(tags: string[]): Promise<AiAgentMemories[] | null> {
+      return null; // Note: This would need custom implementation for array containment
+   }
+
+   // Method for finding by multiple criteria with ordering
+   @Find()
+   public async findByTypeAndConfidenceOrderByCreatedAtDesc(type: string, confidence: number): Promise<AiAgentMemories[] | null> {
+      return null; // Implementation handled by @Find decorator
+   }
 
 }
 

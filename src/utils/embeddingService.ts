@@ -400,36 +400,128 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
 export class LocalEmbeddingProvider implements EmbeddingProvider {
   readonly name = 'Local';
   readonly supportsBatch = true;
-  readonly maxBatchSize = 100;
-  readonly maxTokensPerRequest = 512; // Conservative for local models
+  readonly maxBatchSize = 32; // Smaller batch size for local processing
+  readonly maxTokensPerRequest = 512;
 
   private defaultModel: string;
+  private pipeline: any = null;
+  private modelCache: Map<string, any> = new Map();
 
   constructor(config: EmbeddingConfig['local']) {
     this.defaultModel = config?.defaultModel || 'Xenova/all-MiniLM-L6-v2';
   }
 
   async isAvailable(): Promise<boolean> {
-    // For now, return false as this is not implemented yet
-    // In the future, check if transformers.js is available and models can be loaded
-    return false;
+    try {
+      const { pipeline } = await import('@xenova/transformers');
+      return true;
+    } catch (error) {
+      Logger.warn(`Transformers.js not available for local embeddings: ${error}`);
+      return false;
+    }
   }
 
   async getAvailableModels(): Promise<string[]> {
-    // Future: Return list of supported local models
     return [
-      'Xenova/all-MiniLM-L6-v2',
-      'Xenova/all-mpnet-base-v2',
-      'Xenova/e5-small-v2',
+      'Xenova/all-MiniLM-L6-v2',        // 384 dimensions
+      'Xenova/all-mpnet-base-v2',       // 768 dimensions
+      'Xenova/e5-small-v2',             // 384 dimensions
+      'Xenova/e5-base-v2',              // 768 dimensions
+      'Xenova/sentence-transformers/paraphrase-MiniLM-L6-v2', // 384 dimensions
     ];
   }
 
+  private async getPipeline(model?: string): Promise<any> {
+    const modelName = model || this.defaultModel;
+    
+    if (this.modelCache.has(modelName)) {
+      return this.modelCache.get(modelName);
+    }
+
+    try {
+      const { pipeline } = await import('@xenova/transformers');
+      Logger.info(`Loading local embedding model: ${modelName}`);
+      
+      const pipe = await pipeline('feature-extraction', modelName, {
+        quantized: false,
+        local_files_only: false,
+        cache_dir: './.transformers-cache'
+      });
+      
+      this.modelCache.set(modelName, pipe);
+      Logger.info(`Local embedding model loaded successfully: ${modelName}`);
+      return pipe;
+    } catch (error) {
+      throw new EmbeddingError('Local', `Failed to load model ${modelName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async mean_pooling(model_output: any, attention_mask: any): Promise<number[]> {
+    // Perform mean pooling on the token embeddings
+    const input_mask_expanded = attention_mask.unsqueeze(-1).expand(model_output.size()).to(model_output.dtype);
+    const sum_embeddings = model_output.mul(input_mask_expanded).sum(1);
+    const sum_mask = input_mask_expanded.sum(1);
+    return sum_embeddings.div(sum_mask.clamp(1e-9));
+  }
+
   async generateEmbedding(request: EmbeddingRequest): Promise<EmbeddingVector> {
-    throw new EmbeddingError('Local', 'Local embedding provider not implemented yet');
+    if (Array.isArray(request.input)) {
+      throw new EmbeddingValidationError('Local provider does not support array input in single request');
+    }
+
+    const pipeline = await this.getPipeline(request.model);
+    const text = request.input;
+
+    try {
+      Logger.debug(`Generating local embedding for text: ${text.substring(0, 100)}...`);
+      
+      // Generate embedding using the pipeline
+      const output = await pipeline(text, { pooling: 'mean', normalize: true });
+      
+      // Extract the embedding vector
+      let embedding: number[];
+      if (output && output.data) {
+        embedding = Array.from(output.data);
+      } else if (Array.isArray(output)) {
+        embedding = output;
+      } else {
+        throw new Error('Unexpected output format from embedding model');
+      }
+
+      Logger.debug(`Generated local embedding with ${embedding.length} dimensions`);
+
+      return {
+        embedding,
+        model: request.model || this.defaultModel,
+        usage: {
+          prompt_tokens: Math.ceil(text.length / 4), // Rough estimation
+          total_tokens: Math.ceil(text.length / 4)
+        }
+      };
+    } catch (error) {
+      throw new EmbeddingError('Local', `Failed to generate embedding: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   async generateBatchEmbeddings(request: EmbeddingBatchRequest): Promise<EmbeddingVector[]> {
-    throw new EmbeddingError('Local', 'Local embedding provider not implemented yet');
+    const { inputs, batchSize = this.maxBatchSize } = request;
+    const results: EmbeddingVector[] = [];
+
+    // Process in batches to manage memory
+    for (let i = 0; i < inputs.length; i += batchSize) {
+      const batch = inputs.slice(i, i + batchSize);
+      const batchPromises = batch.map(text => 
+        this.generateEmbedding({ 
+          input: text, 
+          model: request.model 
+        })
+      );
+      
+      const batchResults = await Promise.all(batchPromises);
+      results.push(...batchResults);
+    }
+
+    return results;
   }
 }
 
@@ -657,10 +749,10 @@ export class EmbeddingService {
       Logger.error(`Failed to initialize Ollama provider: ${error}`);
     }
 
-    // Initialize Local provider (placeholder for future)
+    // Initialize Local provider with transformers.js
     try {
       this.providers.set('local', new LocalEmbeddingProvider(config.local));
-      Logger.info('Local embedding provider initialized (not yet functional)');
+      Logger.info('Local embedding provider initialized with transformers.js');
     } catch (error) {
       Logger.error(`Failed to initialize Local provider: ${error}`);
     }
@@ -668,8 +760,8 @@ export class EmbeddingService {
 
   private determinePrimaryProvider(config: EmbeddingConfig): string {
     if (config.provider === 'auto') {
-      // Auto-select based on available providers
-      const preferredOrder = ['openai', 'ollama', 'local'];
+      // Auto-select based on available providers, prioritizing local
+      const preferredOrder = ['local', 'openai', 'ollama'];
       for (const provider of preferredOrder) {
         if (this.providers.has(provider)) {
           return provider;
@@ -700,7 +792,7 @@ export class EmbeddingService {
  */
 export function createEmbeddingService(overrides?: Partial<EmbeddingConfig>): EmbeddingService {
   const embeddingConfig: EmbeddingConfig = {
-    provider: 'auto',
+    provider: 'local', // Prioritize local embeddings
     openai: config.OPENAI_API_KEY ? {
       apiKey: config.OPENAI_API_KEY,
       baseUrl: `${config.OPENAI_BASE_URL}/v1`,
@@ -711,9 +803,9 @@ export function createEmbeddingService(overrides?: Partial<EmbeddingConfig>): Em
       defaultModel: 'nomic-embed-text',
     },
     local: {
-      defaultModel: 'Xenova/all-MiniLM-L6-v2',
+      defaultModel: 'Xenova/all-MiniLM-L6-v2', // 384 dimensions - matches database
     },
-    fallbackProviders: ['ollama'],
+    fallbackProviders: ['ollama', 'openai'], // Fallback if local fails
     cache: {
       enabled: true,
       ttl: 3600000, // 1 hour

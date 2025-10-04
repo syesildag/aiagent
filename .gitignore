@@ -135,3 +135,5 @@ dist
 .env.copy
 memory.json
 .env.k8s
+# Ignore all of .transformers-cache
+.transformers-cache/

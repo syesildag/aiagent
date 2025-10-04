@@ -12,9 +12,10 @@ export function Column({ columnName, unique, notNull }: {
    unique?: boolean;
    notNull?: boolean;
 }) {
-   return function (target: any, propertyKey?: string, descriptor?: TypedPropertyDescriptor<any>) {
-      if (propertyKey?.startsWith(GET_PREFIX) && (propertyKey.length > GET_PREFIX.length)) {
-         const fieldName = camelCase(propertyKey.substring(GET_PREFIX.length));
+   return function (target: any, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<any> | any) {
+      const methodName = typeof propertyKey === 'string' ? propertyKey : propertyKey?.toString() || '';
+      if (methodName?.startsWith(GET_PREFIX) && (methodName.length > GET_PREFIX.length)) {
+         const fieldName = camelCase(methodName.substring(GET_PREFIX.length));
 
          const finalColumnName = columnName ?? fieldName;
 
@@ -38,5 +39,6 @@ export function Column({ columnName, unique, notNull }: {
          columnFields[finalColumnName] = fieldName;
          ReflectMetadata.setMetadata(__columnFields__, columnFields, target);
       }
+      return descriptor;
    };
 }

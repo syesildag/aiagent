@@ -10,6 +10,7 @@ import { Duplex } from "stream";
 import { z } from 'zod';
 import { getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
 import { AiAgentSession } from "./entities/ai-agent-session";
+import aiagentuserRepository from "./entities/ai-agent-user";
 import { repository } from "./repository/repository";
 import { hashPassword } from './utils/hashPassword';
 import Logger from "./utils/logger";
@@ -110,7 +111,6 @@ app.post("/login", asyncHandler(async (req: Request, res: Response) => {
       sendAuthenticationRequired(res);
       return;
    }
-   const sqlQuery = ` SELECT id FROM ai_agent_user WHERE login = $1 AND password = $2`;
    const hmacKey = process.env.HMAC_SECRET_KEY;
    if (!hmacKey) {
       Logger.error('HMAC_SECRET_KEY environment variable is not set');
@@ -118,8 +118,11 @@ app.post("/login", asyncHandler(async (req: Request, res: Response) => {
       return;
    }
    const passwordHash = hashPassword(password, hmacKey);
-   const results = await queryDatabase(sqlQuery, [userLogin, passwordHash]);
-   if (results.length === 0) {
+   
+   // Use repository pattern to find user by login
+   const user = await aiagentuserRepository.findByLogin(userLogin);
+   
+   if (!user || user.getPassword() !== passwordHash) {
       Logger.warn(`Authentication failed for user: ${userLogin}`);
       sendAuthenticationRequired(res); // custom message
       return;

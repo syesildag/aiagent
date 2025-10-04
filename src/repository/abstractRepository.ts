@@ -166,9 +166,13 @@ export abstract class AbstractRepository<C extends Entity> {
       return result && result.length > 0 ? result[0] : null;
    }
 
-   public async getByFieldValues(fieldValues: Record<string, any>): Promise<C[] | null> {
+   public async getByFieldValues(fieldValues: Record<string, any>, options?: {
+      orderBy?: { field: string; direction?: 'ASC' | 'DESC' }[];
+      limit?: number;
+      offset?: number;
+   }): Promise<C[] | null> {
       const columnValues = Object.fromEntries(Object.entries(fieldValues).map(([fieldName, value]) => [this.getColumnName(fieldName), value]));
-      return this.getByColumnValues(columnValues);
+      return this.getByColumnValues(columnValues, false, options);
    }
 
    public async save(entity: C): Promise<C> {
@@ -179,19 +183,35 @@ export abstract class AbstractRepository<C extends Entity> {
       const values = columns.map(column => (entity as any)[this.getFieldName(column)]);
       const placeholders = columns.map((_, index) => `$${index + 1}`).join(', ');
 
-      const updateAssignments = columns.map(column => `${column} = EXCLUDED.${column}`).join(', ');
+      // Check if this is a new entity (no ID) or existing entity (has ID)
+      const idFieldName = this.getFieldName(this.idColumnName);
+      const entityId = (entity as any)[idFieldName];
+      const isNewEntity = entityId === undefined || entityId === null;
 
-      const sqlQuery = `
-         INSERT INTO ${this.table} (${columns.join(', ')})
-         VALUES (${placeholders})
-         ON CONFLICT (${this.getUniqueColumns().join(', ')})
-         DO UPDATE SET ${updateAssignments}
-         RETURNING *
-      `;
+      let sqlQuery: string;
+
+      if (isNewEntity) {
+         // For new entities, use simple INSERT
+         sqlQuery = `
+            INSERT INTO ${this.table} (${columns.join(', ')})
+            VALUES (${placeholders})
+            RETURNING *
+         `;
+      } else {
+         // For existing entities, use UPSERT with primary key
+         const updateAssignments = columns.map(column => `${column} = EXCLUDED.${column}`).join(', ');
+         sqlQuery = `
+            INSERT INTO ${this.table} (${columns.join(', ')})
+            VALUES (${placeholders})
+            ON CONFLICT (${this.idColumnName})
+            DO UPDATE SET ${updateAssignments}
+            RETURNING *
+         `;
+      }
 
       const rows = await queryDatabase(sqlQuery, values);
       if (rows.length === 0)
-         throw new Error('Failed to upsert entity');
+         throw new Error('Failed to save entity');
 
       const savedEntity = await this.createEntity(rows[0]);
       if (!savedEntity) {
@@ -235,13 +255,43 @@ export abstract class AbstractRepository<C extends Entity> {
       }
    }
 
-   public async getByColumnValues(columnValues: Record<string, any>, unique?: boolean): Promise<C[] | null> {
-      const sqlQuery = `
+   public async getByColumnValues(columnValues: Record<string, any>, unique?: boolean, options?: {
+      orderBy?: { field: string; direction?: 'ASC' | 'DESC' }[];
+      limit?: number;
+      offset?: number;
+   }): Promise<C[] | null> {
+      let sqlQuery = `
             SELECT *
               FROM ${this.table}
              WHERE ${Object.keys(columnValues).map((columnName, index) => `${columnName} = $${index + 1}`).join(' AND ')}
          `;
-      const rows = await queryDatabase(sqlQuery, Object.values(columnValues));
+      
+      const queryParams = [...Object.values(columnValues)];
+      let paramIndex = queryParams.length;
+      
+      // Add ORDER BY clause if specified
+      if (options?.orderBy && options.orderBy.length > 0) {
+         const orderClauses = options.orderBy.map(order => {
+            const columnName = this.getColumnName(order.field) || order.field;
+            const direction = order.direction || 'ASC';
+            return `${columnName} ${direction}`;
+         });
+         sqlQuery += ` ORDER BY ${orderClauses.join(', ')}`;
+      }
+      
+      // Add LIMIT clause if specified
+      if (options?.limit) {
+         sqlQuery += ` LIMIT $${++paramIndex}`;
+         queryParams.push(options.limit);
+      }
+      
+      // Add OFFSET clause if specified
+      if (options?.offset) {
+         sqlQuery += ` OFFSET $${++paramIndex}`;
+         queryParams.push(options.offset);
+      }
+      
+      const rows = await queryDatabase(sqlQuery, queryParams);
       if (rows.length === 0)
          return null;
 
@@ -264,12 +314,42 @@ export abstract class AbstractRepository<C extends Entity> {
       return await this.createEntity(rows[0]);
    }
 
-   public async findAll(): Promise<C[]> {
-      const sqlQuery = `
+   public async findAll(options?: {
+      orderBy?: { field: string; direction?: 'ASC' | 'DESC' }[];
+      limit?: number;
+      offset?: number;
+   }): Promise<C[]> {
+      let sqlQuery = `
             SELECT *
               FROM ${this.table}
          `;
-      const rows = await queryDatabase(sqlQuery);
+      
+      const queryParams: any[] = [];
+      let paramIndex = 0;
+      
+      // Add ORDER BY clause if specified
+      if (options?.orderBy && options.orderBy.length > 0) {
+         const orderClauses = options.orderBy.map(order => {
+            const columnName = this.getColumnName(order.field) || order.field;
+            const direction = order.direction || 'ASC';
+            return `${columnName} ${direction}`;
+         });
+         sqlQuery += ` ORDER BY ${orderClauses.join(', ')}`;
+      }
+      
+      // Add LIMIT clause if specified
+      if (options?.limit) {
+         sqlQuery += ` LIMIT $${++paramIndex}`;
+         queryParams.push(options.limit);
+      }
+      
+      // Add OFFSET clause if specified
+      if (options?.offset) {
+         sqlQuery += ` OFFSET $${++paramIndex}`;
+         queryParams.push(options.offset);
+      }
+      
+      const rows = await queryDatabase(sqlQuery, queryParams);
       const entities = await Promise.all(rows.map((row: any) => this.createEntity(row)));
       return entities.filter(e => e !== null) as C[];
    }
