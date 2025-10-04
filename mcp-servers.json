@@ -14,7 +14,7 @@
       "name": "notes",
       "command": "node",
       "args": [
-        "dist/scripts/mcp/notes.js"
+        "dist/mcp/server/notes.js"
       ],
       "enabled": true
     }
