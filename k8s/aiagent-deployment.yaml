@@ -19,24 +19,11 @@ spec:
             - sh
             - -c
             - "until nc -z postgres-service 5432; do sleep 2; done;"
-        - name: wait-for-redis
-          image: busybox
-          command:
-            - sh
-            - -c
-            - "until nc -z redis-service 6379; do sleep 2; done;"
       containers:
         - name: aiagent
           image: localhost:6000/aiagent:latest
           ports:
             - containerPort: 3000
           env:
-            - name: REDIS_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: redis-secret
-                  key: redis-password
-            - name: REDIS_URL
-              value: "redis://:$(REDIS_PASSWORD)@redis-service:6379"
             - name: DB_HOST
               value: "postgres-service"
