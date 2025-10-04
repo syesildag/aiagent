@@ -575,7 +575,7 @@ async function main() {
 
             3. Memory
               - While conversing with the user, be attentive to any new information that falls into these categories:
-                a) Basic Identity (age, gender, location, job title, education level, etc.)
+                a) Basic Identity (age, gender, location, language, job title, education level, etc.)
                 b) Behaviors (interests, habits, etc.)
                 c) Preferences (communication style, preferred salutlanguage, etc.)
                 d) Goals (goals, targets, aspirations, etc.)
