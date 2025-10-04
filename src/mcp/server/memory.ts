@@ -1,0 +1,513 @@
+#!/usr/bin/env node
+
+/**
+ * MCP Memory Server - A modern implementation using the high-level McpServer API
+ * 
+ * This server demonstrates MCP best practices:
+ * - Using McpServer instead of low-level Server for better developer experience
+ * - Zod schema validation for type safety and runtime validation
+ * - Proper resource templates with URI patterns
+ * - PostgreSQL persistence with proper connection handling
+ * - Semantic search using embeddings
+ * - Modern TypeScript patterns
+ */
+
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+import { queryDatabase, closeDatabase } from "../../utils/pgClient.js";
+import { getEmbeddings } from "../../utils/embeddingService.js";
+import Logger from "../../utils/logger.js";
+
+/**
+ * Zod schemas for memory validation
+ */
+const MemorySchema = z.object({
+  type: z.string().min(1, "Memory type cannot be empty"),
+  content: z.record(z.any()).or(z.string()).describe("Memory content (object or string)"),
+  source: z.string().min(1, "Source cannot be empty"),
+  tags: z.array(z.string()).optional().default([]),
+  confidence: z.number().min(0).max(1).describe("Confidence score between 0 and 1")
+});
+
+// Input schemas for tools (using object shape, not Zod objects directly)
+const CreateMemoryInputSchema = {
+  type: z.string().min(1, "Memory type cannot be empty"),
+  content: z.record(z.any()).or(z.string()).describe("Memory content (object or string)"),
+  source: z.string().min(1, "Source cannot be empty"),
+  tags: z.array(z.string()).optional().describe("Optional tags for the memory"),
+  confidence: z.number().min(0).max(1).describe("Confidence score between 0 and 1")
+};
+
+const SearchMemoryInputSchema = {
+  query: z.string().min(1, "Search query cannot be empty"),
+  type: z.string().optional().describe("Filter by memory type"),
+  tags: z.array(z.string()).optional().describe("Filter by tags"),
+  limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return")
+};
+
+const ListMemoryInputSchema = {
+  type: z.string().optional().describe("Filter by memory type"),
+  tags: z.array(z.string()).optional().describe("Filter by tags"),
+  limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return")
+};
+
+type Memory = z.infer<typeof MemorySchema>;
+
+/**
+ * Create a modern MCP server using the high-level McpServer API
+ */
+const server = new McpServer({
+  name: "memory-server",
+  version: "1.0.0"
+});
+
+/**
+ * Helper function to prepare content for embedding generation
+ */
+function prepareContentForEmbedding(content: any): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+  return JSON.stringify(content);
+}
+
+/**
+ * Register memory resources - lists memory types and tags
+ */
+server.registerResource(
+  "memory-types",
+  "memory://types",
+  {
+    title: "Memory Types",
+    description: "List all available memory types in the system",
+    mimeType: "application/json"
+  },
+  async () => {
+    try {
+      const result = await queryDatabase("SELECT DISTINCT type FROM ai_agent_memories ORDER BY type");
+      const types = result.map((row: any) => row.type);
+
+      return {
+        contents: [{
+          uri: "memory://types",
+          mimeType: "application/json",
+          text: JSON.stringify(types, null, 2)
+        }]
+      };
+    } catch (error) {
+      Logger.error("Failed to fetch memory types:", error);
+      throw error;
+    }
+  }
+);
+
+server.registerResource(
+  "memory-tags",
+  "memory://tags",
+  {
+    title: "Memory Tags",
+    description: "List all available tags used in memories",
+    mimeType: "application/json"
+  },
+  async () => {
+    try {
+      const result = await queryDatabase("SELECT DISTINCT unnest(tags) as tag FROM ai_agent_memories ORDER BY tag");
+      const tags = result.map((row: any) => row.tag);
+
+      return {
+        contents: [{
+          uri: "memory://tags",
+          mimeType: "application/json",
+          text: JSON.stringify(tags, null, 2)
+        }]
+      };
+    } catch (error) {
+      Logger.error("Failed to fetch memory tags:", error);
+      throw error;
+    }
+  }
+);
+
+/**
+ * Register dynamic memory resource for individual memories
+ */
+server.registerResource(
+  "memory",
+  new ResourceTemplate("memory:///{type}", {
+    list: async () => {
+      try {
+        const result = await queryDatabase(`
+          SELECT DISTINCT type, COUNT(*) as count 
+          FROM ai_agent_memories 
+          GROUP BY type 
+          ORDER BY type
+        `);
+
+        return {
+          resources: result.map((row: any) => ({
+            uri: `memory:///${row.type}`,
+            name: `${row.type} memories`,
+            description: `${row.count} memories of type: ${row.type}`,
+            mimeType: "application/json"
+          }))
+        };
+      } catch (error) {
+        Logger.error("Failed to list memory resources:", error);
+        return { resources: [] };
+      }
+    }
+  }),
+  {
+    title: "Memory by Type",
+    description: "Memories filtered by type"
+  },
+  async (uri, { type }) => {
+    try {
+      const memoryType = Array.isArray(type) ? type[0] : type;
+      const result = await queryDatabase("SELECT * FROM ai_agent_memories WHERE type = $1 ORDER BY created_at DESC", [memoryType]);
+
+      return {
+        contents: [{
+          uri: uri.href,
+          mimeType: "application/json",
+          text: JSON.stringify(result, null, 2)
+        }]
+      };
+    } catch (error) {
+      Logger.error(`Failed to fetch memories for type ${type}:`, error);
+      throw error;
+    }
+  }
+);
+
+/**
+ * Tool to create a new memory with semantic embeddings
+ */
+server.registerTool(
+  "memory_create",
+  {
+    title: "Create Memory",
+    description: "Create a new memory entry with semantic embedding",
+    inputSchema: CreateMemoryInputSchema
+  },
+  async ({ type, content, source, tags = [], confidence }) => {
+    try {
+      // Validate input
+      const validatedData = MemorySchema.parse({ type, content, source, tags, confidence });
+
+      // Generate embedding for semantic search
+      const textForEmbedding = prepareContentForEmbedding(validatedData.content);
+      const embedding = await getEmbeddings(textForEmbedding);
+
+      if (!embedding || embedding.length === 0) {
+        throw new Error("Failed to generate embedding for content");
+      }
+
+      // Insert memory into database
+      const result = await queryDatabase(`
+        INSERT INTO ai_agent_memories (type, content, source, embedding, tags, confidence)
+        VALUES ($1, $2::jsonb, $3, $4::vector, $5, $6)
+        RETURNING *
+      `, [
+        validatedData.type,
+        JSON.stringify(validatedData.content),
+        validatedData.source,
+        `[${embedding.join(',')}]`,
+        validatedData.tags,
+        validatedData.confidence
+      ]);
+
+      const createdMemory = result[0];
+      Logger.info(`Memory created successfully with ID: ${createdMemory.id}`);
+
+      return {
+        content: [{
+          type: "text",
+          text: `Successfully created memory with ID ${createdMemory.id} of type "${validatedData.type}"`
+        }]
+      };
+    } catch (error) {
+      Logger.error("Failed to create memory:", error);
+      return {
+        content: [{
+          type: "text",
+          text: `Failed to create memory: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+/**
+ * Tool to search memories using semantic similarity
+ */
+server.registerTool(
+  "memory_search",
+  {
+    title: "Search Memories",
+    description: "Search memories using semantic similarity with optional filters",
+    inputSchema: SearchMemoryInputSchema
+  },
+  async ({ query, type, tags, limit = 10 }) => {
+    try {
+      // Generate embedding for search query
+      const queryEmbedding = await getEmbeddings(query);
+      if (!queryEmbedding || queryEmbedding.length === 0) {
+        throw new Error("Failed to generate embedding for search query");
+      }
+
+      // Build SQL query with optional filters
+      let sqlQuery = `
+        SELECT *, 
+        1 - (embedding <=> $1::vector) as similarity
+        FROM ai_agent_memories
+        WHERE 1=1
+      `;
+
+      const queryParams: any[] = [`[${queryEmbedding.join(',')}]`];
+      let paramCount = 1;
+
+      if (type) {
+        paramCount++;
+        sqlQuery += ` AND type = $${paramCount}`;
+        queryParams.push(type);
+      }
+
+      if (tags && tags.length > 0) {
+        paramCount++;
+        sqlQuery += ` AND tags && $${paramCount}::text[]`;
+        queryParams.push(tags);
+      }
+
+      sqlQuery += `
+        ORDER BY similarity DESC
+        LIMIT $${paramCount + 1}
+      `;
+      queryParams.push(limit);
+
+      const result = await queryDatabase(sqlQuery, queryParams);
+
+      Logger.info(`Found ${result.length} memories for query: "${query}"`);
+
+      if (result.length === 0) {
+        return {
+          content: [{
+            type: "text",
+            text: `No memories found for query: "${query}"`
+          }]
+        };
+      }
+
+      // Format results with similarity scores
+      const formattedResults = result.map((row: any) => ({
+        id: row.id,
+        type: row.type,
+        content: row.content,
+        source: row.source,
+        tags: row.tags,
+        confidence: row.confidence,
+        similarity: Math.round(row.similarity * 100) / 100,
+        created_at: row.created_at
+      }));
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Found ${result.length} memories (showing top ${limit}):`
+          },
+          {
+            type: "text",
+            text: JSON.stringify(formattedResults, null, 2)
+          }
+        ]
+      };
+    } catch (error) {
+      Logger.error("Failed to search memories:", error);
+      return {
+        content: [{
+          type: "text",
+          text: `Failed to search memories: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+/**
+ * Tool to list all memories with optional filters
+ */
+server.registerTool(
+  "memory_list",
+  {
+    title: "List Memories",
+    description: "List all memories with optional type and tag filters",
+    inputSchema: ListMemoryInputSchema
+  },
+  async ({ type, tags, limit = 50 }) => {
+    try {
+
+      // Build SQL query with optional filters
+      let sqlQuery = `
+        SELECT id, type, content, source, tags, confidence, created_at
+        FROM ai_agent_memories
+        WHERE 1=1
+      `;
+
+      const queryParams: any[] = [];
+      let paramCount = 0;
+
+      if (type) {
+        paramCount++;
+        sqlQuery += ` AND type = $${paramCount}`;
+        queryParams.push(type);
+      }
+
+      if (tags && tags.length > 0) {
+        paramCount++;
+        sqlQuery += ` AND tags && $${paramCount}::text[]`;
+        queryParams.push(tags);
+      }
+
+      sqlQuery += `
+        ORDER BY created_at DESC
+        LIMIT $${paramCount + 1}
+      `;
+      queryParams.push(limit);
+
+      const result = await queryDatabase(sqlQuery, queryParams);
+
+      Logger.info(`Listed ${result.length} memories with filters`);
+
+      if (result.length === 0) {
+        return {
+          content: [{
+            type: "text",
+            text: "No memories found with the specified filters"
+          }]
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Found ${result.length} memories:`
+          },
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2)
+          }
+        ]
+      };
+    } catch (error) {
+      Logger.error("Failed to list memories:", error);
+      return {
+        content: [{
+          type: "text",
+          text: `Failed to list memories: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+/**
+ * Tool to delete a memory by ID
+ */
+server.registerTool(
+  "memory_delete",
+  {
+    title: "Delete Memory",
+    description: "Delete a memory by its ID",
+    inputSchema: {
+      id: z.number().int().positive().describe("Memory ID to delete")
+    }
+  },
+  async ({ id }) => {
+    try {
+      // First check if memory exists
+      const checkResult = await queryDatabase("SELECT id, type FROM ai_agent_memories WHERE id = $1", [id]);
+
+      if (checkResult.length === 0) {
+        return {
+          content: [{
+            type: "text",
+            text: `Memory with ID ${id} not found`
+          }],
+          isError: true
+        };
+      }
+
+      // Delete the memory
+      const result = await queryDatabase("DELETE FROM ai_agent_memories WHERE id = $1 RETURNING id, type", [id]);
+
+      if (result.length > 0) {
+        Logger.info(`Memory deleted: ID ${id}, type: ${result[0].type}`);
+        return {
+          content: [{
+            type: "text",
+            text: `Successfully deleted memory with ID ${id} (type: ${result[0].type})`
+          }]
+        };
+      } else {
+        return {
+          content: [{
+            type: "text",
+            text: `Failed to delete memory with ID ${id}`
+          }],
+          isError: true
+        };
+      }
+    } catch (error) {
+      Logger.error("Failed to delete memory:", error);
+      return {
+        content: [{
+          type: "text",
+          text: `Failed to delete memory: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+/**
+ * Start the server and initialize database
+ */
+async function main(): Promise<void> {
+  try {
+    // Start MCP server
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+
+    Logger.info("Memory MCP Server started successfully");
+  } catch (error) {
+    Logger.error("Failed to start Memory server:", error);
+    process.exit(1);
+  }
+}
+
+// Handle graceful shutdown
+async function shutdown(): Promise<void> {
+  try {
+    Logger.info("Shutting down Memory MCP Server...");
+    await closeDatabase();
+    process.exit(0);
+  } catch (error) {
+    Logger.error("Error during shutdown:", error);
+    process.exit(1);
+  }
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
+main().catch((error) => {
+  Logger.error("Unhandled server error:", error);
+  process.exit(1);
+});

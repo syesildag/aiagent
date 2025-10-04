@@ -44,6 +44,13 @@ const envSchema = z.object({
   
   // Conversation History Configuration
   CONVERSATION_HISTORY_WINDOW_SIZE: z.string().transform(Number).pipe(z.number().min(1)).default('10'),
+  
+  // Embedding Service Configuration
+  EMBEDDING_PROVIDER: z.enum(['openai', 'ollama', 'local', 'auto']).default('auto'),
+  EMBEDDING_MODEL_OPENAI: z.string().default('text-embedding-3-small'),
+  EMBEDDING_MODEL_OLLAMA: z.string().default('nomic-embed-text'),
+  EMBEDDING_CACHE_ENABLED: z.string().transform((val) => val === 'true').default('true'),
+  EMBEDDING_CACHE_TTL: z.string().transform(Number).pipe(z.number().positive()).default('3600000'), // 1 hour
 });
 type Environment = z.infer<typeof envSchema>;
 
@@ -70,6 +77,11 @@ function validateEnvironment(): Environment {
       MCP_SERVERS_PATH: './mcp-servers.json',
       MAX_LLM_ITERATIONS: 2,
       CONVERSATION_HISTORY_WINDOW_SIZE: 10,
+      EMBEDDING_PROVIDER: 'auto',
+      EMBEDDING_MODEL_OPENAI: 'text-embedding-3-small',
+      EMBEDDING_MODEL_OLLAMA: 'nomic-embed-text',
+      EMBEDDING_CACHE_ENABLED: true,
+      EMBEDDING_CACHE_TTL: 3600000,
     } as Environment;
   }
 
