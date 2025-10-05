@@ -9,7 +9,6 @@
 
 import { AbstractRepository, Entity } from "../repository/abstractRepository";
 import { Column } from "../repository/annotations/Column";
-import { Default } from "../repository/annotations/Default";
 import { Find } from "../repository/annotations/find";
 import { Id } from "../repository/annotations/Id";
 import { repository } from "../repository/repository";
@@ -45,8 +44,7 @@ export class AiAgentSession extends Entity {
       return this.userLogin;
    }
 
-   @Column({ columnName: 'created_at', notNull: true })
-   @Default()
+   @Column({ columnName: 'created_at', notNull: true, hasDefault: true })
    public getCreatedAt(): Date | undefined {
       return this.createdAt;
    }

@@ -6,11 +6,13 @@ export const __fieldColumn__ = 'fieldColumns';
 export const __columnFields__ = 'columnFields';
 export const __uniqueColumns__ = 'uniqueColumns';
 export const __notNullColumns__ = 'notNullColumns';
+export const __defaultColumns__ = 'defaultColumns';
 
-export function Column({ columnName, unique, notNull }: {
+export function Column({ columnName, unique, notNull, hasDefault }: {
    columnName?: string;
    unique?: boolean;
    notNull?: boolean;
+   hasDefault?: boolean;
 }) {
    return function (target: any, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<any> | any) {
       const methodName = typeof propertyKey === 'string' ? propertyKey : propertyKey?.toString() || '';
@@ -29,6 +31,12 @@ export function Column({ columnName, unique, notNull }: {
             const notNullColumns = ReflectMetadata.getMetadata(__notNullColumns__, target) ?? new Set<string>();
             notNullColumns.add(finalColumnName);
             ReflectMetadata.setMetadata(__notNullColumns__, notNullColumns, target);
+         }
+
+         if(hasDefault) {
+            const defaultColumns = ReflectMetadata.getMetadata(__defaultColumns__, target) ?? new Set<string>();
+            defaultColumns.add(fieldName);
+            ReflectMetadata.setMetadata(__defaultColumns__, defaultColumns, target);
          }
 
          const fieldColumns = ReflectMetadata.getMetadata(__fieldColumn__, target) ?? {} as Record<string, string>;

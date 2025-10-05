@@ -143,7 +143,6 @@ export class TypeScriptCodeGenerator {
     
     return `import { AbstractRepository, Entity } from "${relativePath}abstractRepository";
 import { Column } from "${relativePath}annotations/Column";
-import { Default } from "${relativePath}annotations/Default";
 import { Find } from "${relativePath}annotations/find";
 import { Id } from "${relativePath}annotations/Id";
 import { repository } from "${relativePath}repository";`;
@@ -272,13 +271,11 @@ import { repository } from "${relativePath}repository";`;
       if (field.isUnique) {
         columnOptions.push('unique: true');
       }
+      if (field.hasDefault) {
+        columnOptions.push('hasDefault: true');
+      }
       
       lines.push(`@Column({ ${columnOptions.join(', ')} })`);
-      
-      // Add @Default decorator for columns with database defaults
-      if (field.hasDefault) {
-        lines.push(`@Default()`);
-      }
     }
     
     lines.push(`public get${capitalizedName}(): ${returnType} {`);
