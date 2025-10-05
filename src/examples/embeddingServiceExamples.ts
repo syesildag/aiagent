@@ -9,7 +9,7 @@ import {
     createEmbeddingService,
     getEmbeddings,
     getEmbeddingService
-} from '../src/utils/embeddingService';
+} from '../utils/embeddingService';
 
 // Example 1: Basic Usage (Drop-in replacement)
 async function basicUsage() {
