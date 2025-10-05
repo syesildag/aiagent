@@ -218,10 +218,16 @@ export abstract class AbstractRepository<C extends Entity> {
       } else {
          // For existing entities, use UPSERT with primary key
          const updateAssignments = columns.map(column => `${column} = EXCLUDED.${column}`).join(', ');
+         
+         // Use unique columns for conflict resolution if they exist, otherwise use primary key
+         const conflictColumns = this.uniqueColumns.length > 0 
+            ? this.uniqueColumns.join(', ')
+            : this.idColumnName;
+            
          sqlQuery = `
             INSERT INTO ${this.table} (${columns.join(', ')})
             VALUES (${placeholders})
-            ON CONFLICT (${this.idColumnName})
+            ON CONFLICT (${conflictColumns})
             DO UPDATE SET ${updateAssignments}
             RETURNING *
          `;
