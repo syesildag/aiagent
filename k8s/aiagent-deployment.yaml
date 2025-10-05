@@ -19,6 +19,13 @@ spec:
             - sh
             - -c
             - "until nc -z postgres-service 5432; do sleep 2; done;"
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "32Mi"
       containers:
         - name: aiagent
           image: localhost:6000/aiagent:latest
@@ -27,3 +34,10 @@ spec:
           env:
             - name: DB_HOST
               value: "postgres-service"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
