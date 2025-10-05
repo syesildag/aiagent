@@ -130,6 +130,7 @@ app.post("/login", asyncHandler(async (req: Request, res: Response) => {
 
    //save session to database
    const session = randomAlphaNumeric(3);
+   Logger.debug(`Creating session for user: ${userLogin}, session: ${session}`);
    await new AiAgentSession({ name: session, userLogin }).save();
 
    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ session }));

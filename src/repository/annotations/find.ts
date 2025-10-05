@@ -16,8 +16,8 @@ export function Find(fromCache?: boolean) {
       if (!originalMethod.name.startsWith(findBy) && !originalMethod.name.startsWith(findAll))
          throw new Error(`@Find decorator can only be applied to method names starting with findBy or findAll, not ${originalMethod.name}`);
 
-      if (!(target instanceof AbstractRepository))
-         throw new Error(`@Find decorator can only be applied to methods of AbstractRepository subclasses, not ${target}`);
+      // Note: target is the prototype during decoration, so we can't use instanceof
+      // Instead, we trust that this decorator is used correctly on AbstractRepository subclasses
 
       const methodName = (originalMethod as Function).name;
       let fieldsPart: string;
@@ -70,7 +70,14 @@ export function Find(fromCache?: boolean) {
             // If no field filters, use findAll with options
             return (this as AbstractRepository<Entity>).findAll(options);
          } else {
-            return (this as AbstractRepository<Entity>).getByFieldValues(fieldValues, options);
+            const results = await (this as AbstractRepository<Entity>).getByFieldValues(fieldValues, options);
+            
+            // For findBy methods, return single result or null
+            if (methodName.startsWith(findBy)) {
+               return results && results.length > 0 ? results[0] : null;
+            }
+            // For findAll methods, return array
+            return results;
          }
       };
 

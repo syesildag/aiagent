@@ -8,6 +8,7 @@ export interface FieldInfo {
   isPrimaryKey: boolean;
   isNotNull: boolean;
   isUnique: boolean;
+  hasDefault: boolean;
 }
 
 export interface EntityGenerationOptions {
@@ -142,6 +143,7 @@ export class TypeScriptCodeGenerator {
     
     return `import { AbstractRepository, Entity } from "${relativePath}abstractRepository";
 import { Column } from "${relativePath}annotations/Column";
+import { Default } from "${relativePath}annotations/Default";
 import { Find } from "${relativePath}annotations/find";
 import { Id } from "${relativePath}annotations/Id";
 import { repository } from "${relativePath}repository";`;
@@ -219,7 +221,8 @@ import { repository } from "${relativePath}repository";`;
       columnName: col.name,
       isPrimaryKey: col.isPrimary,
       isNotNull: !col.isNullable,
-      isUnique: uniqueColumnNames.includes(col.name)
+      isUnique: uniqueColumnNames.includes(col.name),
+      hasDefault: col.hasDefault
     }));
   }
 
@@ -271,6 +274,11 @@ import { repository } from "${relativePath}repository";`;
       }
       
       lines.push(`@Column({ ${columnOptions.join(', ')} })`);
+      
+      // Add @Default decorator for columns with database defaults
+      if (field.hasDefault) {
+        lines.push(`@Default()`);
+      }
     }
     
     lines.push(`public get${capitalizedName}(): ${returnType} {`);

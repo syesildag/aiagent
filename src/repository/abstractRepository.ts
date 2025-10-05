@@ -1,6 +1,7 @@
 import { queryDatabase } from "../utils/pgClient";
 import ReflectMetadata from "../utils/reflectMetadata";
 import { __columnFields__, __fieldColumn__, __notNullColumns__, __uniqueColumns__ } from "./annotations/Column";
+import { __defaultColumns__ } from "./annotations/Default";
 import { __id__ } from "./annotations/Id";
 import { __oneToManyRelations__, OneToManyMetadata } from "./annotations/OneToMany";
 import { __oneToOneRelations__, OneToOneMetadata } from "./annotations/OneToOne";
@@ -36,6 +37,7 @@ export abstract class AbstractRepository<C extends Entity> {
    private columnFieldNames: Record<string, string>;
    private uniqueColumnSet: Set<string>;
    private notNullColumnSet: Set<string>;
+   private defaultColumnSet: Set<string>;
    private uniqueColumns: Array<string>;
    private notNullColumns: Array<string>;
    private oneToOneRelations: Map<string, OneToOneMetadata>;
@@ -47,6 +49,7 @@ export abstract class AbstractRepository<C extends Entity> {
       this.columnFieldNames = ReflectMetadata.getMetadata(__columnFields__, clazz.prototype) ?? {};
       this.uniqueColumnSet = ReflectMetadata.getMetadata(__uniqueColumns__, clazz.prototype) ?? new Set<string>();
       this.notNullColumnSet = ReflectMetadata.getMetadata(__notNullColumns__, clazz.prototype) ?? new Set<string>();
+      this.defaultColumnSet = ReflectMetadata.getMetadata(__defaultColumns__, clazz.prototype) ?? new Set<string>();
       this.uniqueColumns = Array.from(this.uniqueColumnSet);
       this.notNullColumns = Array.from(this.notNullColumnSet);
       this.oneToOneRelations = ReflectMetadata.getMetadata(__oneToOneRelations__, clazz.prototype) || new Map<string, OneToOneMetadata>();
@@ -179,7 +182,22 @@ export abstract class AbstractRepository<C extends Entity> {
       // Handle cascade save operations first
       await this.handleCascadeSave(entity);
 
-      const columns = Object.keys(this.columnFieldNames).filter(column => this.notNullColumnSet.has(column) || (entity as any)[this.getFieldName(column)] !== undefined);
+      const columns = Object.keys(this.columnFieldNames).filter(column => {
+         const fieldName = this.getFieldName(column);
+         const fieldValue = (entity as any)[fieldName];
+         
+         // Always include fields that have values
+         if (fieldValue !== undefined) return true;
+         
+         // For fields with undefined values:
+         // - Include notNull columns that don't have database defaults
+         // - Exclude columns that have database defaults (let DB handle them)
+         if (this.notNullColumnSet.has(column)) {
+            return !this.defaultColumnSet.has(fieldName);
+         }
+         
+         return false;
+      });
       const values = columns.map(column => (entity as any)[this.getFieldName(column)]);
       const placeholders = columns.map((_, index) => `$${index + 1}`).join(', ');
 
