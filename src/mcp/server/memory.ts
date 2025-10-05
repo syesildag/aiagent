@@ -291,10 +291,9 @@ server.registerTool(
       // Complex vector similarity search requires direct SQL for now
       // Repository pattern doesn't support vector operations yet
       let sqlQuery = `
-        SELECT *, 
-        1 - (embedding <=> $1::vector) as similarity
-        FROM ai_agent_memories
-        WHERE 1=1
+        SELECT *, embedding <=> $1::vector as similarity
+          FROM ai_agent_memories
+         WHERE 1=1
       `;
 
       const queryParams: any[] = [`[${queryEmbedding.join(',')}]`];
@@ -313,7 +312,7 @@ server.registerTool(
       }
 
       sqlQuery += `
-        ORDER BY similarity DESC
+        ORDER BY similarity ASC
         LIMIT $${paramCount + 1}
       `;
       queryParams.push(limit);
