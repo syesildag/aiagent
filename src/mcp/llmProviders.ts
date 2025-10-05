@@ -690,7 +690,7 @@ export class GitHubCopilotProvider implements LLMProvider {
     const requestBody: any = {
       model: adjustedRequest.model,
       messages: adjustedRequest.messages,
-      stream: adjustedRequest.stream || false
+      stream: adjustedRequest.stream ?? false
     };
 
     // Only include tools if they exist and are not empty
@@ -706,14 +706,12 @@ export class GitHubCopilotProvider implements LLMProvider {
       }));
     }
 
-    const chatPromise = fetch(`${this.baseUrl}/chat/completions`, {
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: await this.createHeaders(),
       body: JSON.stringify(requestBody),
       signal: abortSignal
     });
-
-    const response = await chatPromise;
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -735,7 +733,7 @@ export class GitHubCopilotProvider implements LLMProvider {
             const retryBody: any = {
               model: retryRequest.model,
               messages: retryRequest.messages,
-              stream: retryRequest.stream || false
+              stream: retryRequest.stream ?? false
             };
             
             if (retryRequest.tools && retryRequest.tools.length > 0) {
@@ -821,7 +819,7 @@ export class GitHubCopilotProvider implements LLMProvider {
         const retryBody: any = {
           model: retryRequest.model,
           messages: retryRequest.messages,
-          stream: retryRequest.stream || false
+          stream: retryRequest.stream ?? false
         };
         
         if (retryRequest.tools && retryRequest.tools.length > 0) {
@@ -957,7 +955,7 @@ export class OpenAIProvider implements LLMProvider {
       model: adjustedRequest.model,
       messages: adjustedRequest.messages,
       tools: adjustedRequest.tools,
-      stream: adjustedRequest.stream || false
+      stream: adjustedRequest.stream ?? false
     };
 
     Logger.debug(`Request body: ${JSON.stringify(requestBody, null, 2)}`);

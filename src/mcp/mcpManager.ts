@@ -704,22 +704,7 @@ When using tools, always provide clear context about what you're doing and inter
           stream: false
         };
 
-        const chatPromise = this.llmProvider.chat(chatRequest, abortSignal);
-
-        let response;
-        if (abortSignal) {
-          // Create a promise that rejects when the abort signal is triggered
-          const abortPromise = new Promise<never>((_, reject) => {
-            abortSignal.addEventListener('abort', () => {
-              reject(new Error('Operation cancelled by user'));
-            });
-          });
-
-          response = await Promise.race([chatPromise, abortPromise]);
-        } else {
-          // No abort signal, just wait for the chat response
-          response = await chatPromise;
-        }
+        let response = await this.llmProvider.chat(chatRequest, abortSignal);
         
         // If no tool calls, we're done
         if (!response?.message?.tool_calls || response.message.tool_calls.length === 0) {
@@ -786,23 +771,11 @@ When using tools, always provide clear context about what you're doing and inter
         throw new Error('Operation cancelled by user');
       }
 
-      const finalChatPromise = this.llmProvider.chat({
+      const finalResponse = await this.llmProvider.chat({
         model: this.model,
         messages: messages,
         stream: false
       }, abortSignal);
-
-      let finalResponse;
-      if (abortSignal) {
-        const finalAbortPromise = new Promise<never>((_, reject) => {
-          abortSignal.addEventListener('abort', () => {
-            reject(new Error('Operation cancelled by user'));
-          });
-        });
-        finalResponse = await Promise.race([finalChatPromise, finalAbortPromise]);
-      } else {
-        finalResponse = await finalChatPromise;
-      }
 
       const finalContent = finalResponse?.message?.content || 'No response content received after maximum iterations';
       

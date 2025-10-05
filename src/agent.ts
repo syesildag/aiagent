@@ -10,9 +10,7 @@ export type AgentName = 'general' | 'weather';
 
 export interface Agent {
    setSession(session: AiAgentSession): void;
-   shouldValidate(): boolean;
    chat(prompt: string, abortSignal?: AbortSignal): Promise<string>;
-   validate(data?: any): Promise<boolean>;
    getSystemPrompt(): string | undefined;
    getName(): AgentName;
    getOptions(): Partial<Options> | undefined;

@@ -16,6 +16,8 @@ import { hashPassword } from './utils/hashPassword';
 import Logger from "./utils/logger";
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
+import { pipeline } from "node:stream/promises";
+
 // Async handler utility for error handling
 function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) {
    return (req: Request, res: Response, next: NextFunction) => {
@@ -32,12 +34,6 @@ const options: https.ServerOptions = {
 const Query = z.object({
    session: z.string().optional().describe('The session id'),
    prompt: z.string().describe('user prompt')
-});
-
-const Validate = z.object({
-   session: z.string().optional().describe('The session id'),
-   data: z.any().describe('The data to validate'),
-   validate: z.string().optional().describe('validate name')
 });
 
 const app = express();
@@ -148,27 +144,12 @@ app.post("/logout", asyncHandler(async (req: Request, res: Response) => {
    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }));
 }));
 
-app.post("/validate/:agent", asyncHandler(async (req: Request, res: Response) => {
-   const agent = await getAgentFromName(req.params.agent);
-   agent.setSession(res.locals.session);
-   const { data } = Validate.parse(req.body);
-   const validated = await agent.validate(data);
-   const content = JSON.stringify({ validated });
-   Logger.debug(content);
-   res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
-}));
 app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
    const { prompt } = Query.parse(req.body);
    const agent = await getAgentFromName(req.params.agent);
    agent.setSession(res.locals.session);
    const answer = await agent.chat(prompt);
-   const validate = agent.shouldValidate();
-   const response: any = { answer };
-   if (validate)
-      response.validate = true;
-   const content = JSON.stringify(response);
-   Logger.debug(content);
-   res.writeHead(200, { 'Content-Type': 'application/json' }).end(content);
+   await pipeline(answer, res);
 }));
 
 // Health endpoint
