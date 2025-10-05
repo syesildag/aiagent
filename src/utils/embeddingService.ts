@@ -19,6 +19,7 @@ import { config } from './config';
 import Logger from './logger';
 import { AppError, ExternalServiceError, ValidationError } from './errors';
 import { OllamaProvider } from '../mcp/llmProviders';
+import { LRUCache } from 'lru-cache';
 
 // Core interfaces and types
 export interface EmbeddingVector {
@@ -99,6 +100,7 @@ export interface EmbeddingConfig {
   cache?: {
     enabled: boolean;
     ttl: number;
+    maxSize?: number; // Maximum number of entries in cache
   };
 }
 
@@ -525,6 +527,8 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   }
 }
 
+
+
 /**
  * Main Embedding Service with Provider Management and Fallback Logic
  */
@@ -532,13 +536,22 @@ export class EmbeddingService {
   private providers: Map<string, EmbeddingProvider> = new Map();
   private primaryProvider: string;
   private fallbackProviders: string[];
-  private cache: Map<string, EmbeddingVector> = new Map();
+  private cache: LRUCache<string, EmbeddingVector>;
   private cacheEnabled: boolean;
   private cacheTtl: number;
 
   constructor(config: EmbeddingConfig) {
     this.cacheEnabled = config.cache?.enabled ?? false;
     this.cacheTtl = config.cache?.ttl ?? 3600000; // 1 hour default
+    
+    // Initialize LRU cache with size and TTL limits
+    const maxCacheSize = config.cache?.maxSize ?? 1000;
+    this.cache = new LRUCache<string, EmbeddingVector>({
+      max: maxCacheSize,
+      ttl: this.cacheTtl,
+      updateAgeOnGet: true, // Reset TTL on access
+      updateAgeOnHas: false,
+    });
 
     this.initializeProviders(config);
     this.primaryProvider = this.determinePrimaryProvider(config);
@@ -562,7 +575,7 @@ export class EmbeddingService {
     // Check cache first
     if (this.cacheEnabled) {
       const cached = this.cache.get(cacheKey);
-      if (cached && this.isCacheValid(cached)) {
+      if (cached) {
         Logger.debug(`Cache hit for embedding: ${text.substring(0, 50)}...`);
         return cached.embedding;
       }
@@ -593,9 +606,9 @@ export class EmbeddingService {
           model: options?.model,
         });
 
-        // Cache the result
+        // Cache the result (lru-cache handles TTL automatically)
         if (this.cacheEnabled) {
-          this.cache.set(cacheKey, { ...result, timestamp: Date.now() } as any);
+          this.cache.set(cacheKey, result);
         }
 
         Logger.debug(`Successfully generated embedding using ${providerName}`);
@@ -730,6 +743,56 @@ export class EmbeddingService {
     Logger.info('Embedding cache cleared');
   }
 
+  /**
+   * Get comprehensive cache statistics
+   */
+  getCacheStats(): { 
+    size: number; 
+    maxSize: number; 
+    enabled: boolean;
+    calculatedSize: number;
+    ttl: number;
+  } {
+    return {
+      size: this.cache.size,
+      maxSize: this.cache.max,
+      enabled: this.cacheEnabled,
+      calculatedSize: this.cache.calculatedSize,
+      ttl: this.cacheTtl,
+    };
+  }
+
+  /**
+   * Manually trigger cache cleanup to remove expired entries
+   */
+  cleanupCache(): void {
+    if (this.cacheEnabled) {
+      const beforeSize = this.cache.size;
+      // LRU cache automatically handles cleanup, but we can force it
+      this.cache.purgeStale();
+      const afterSize = this.cache.size;
+      Logger.debug(`Cache cleanup: removed ${beforeSize - afterSize} expired entries`);
+    }
+  }
+
+  /**
+   * Check if a specific text embedding is cached
+   */
+  isCached(text: string, options?: { model?: string; provider?: string }): boolean {
+    if (!this.cacheEnabled) return false;
+    const cacheKey = this.getCacheKey(text, options?.model, options?.provider);
+    return this.cache.has(cacheKey);
+  }
+
+  /**
+   * Get remaining TTL for a cached embedding (in milliseconds)
+   */
+  getCacheTTL(text: string, options?: { model?: string; provider?: string }): number | undefined {
+    if (!this.cacheEnabled) return undefined;
+    const cacheKey = this.getCacheKey(text, options?.model, options?.provider);
+    return this.cache.getRemainingTTL(cacheKey);
+  }
+
   private initializeProviders(config: EmbeddingConfig): void {
     // Initialize OpenAI provider if configured
     if (config.openai?.apiKey) {
@@ -780,11 +843,6 @@ export class EmbeddingService {
   private getCacheKey(text: string, model?: string, provider?: string): string {
     return `${provider || this.primaryProvider}:${model || 'default'}:${text}`;
   }
-
-  private isCacheValid(cached: any): boolean {
-    if (!cached.timestamp) return false;
-    return Date.now() - cached.timestamp < this.cacheTtl;
-  }
 }
 
 /**
@@ -809,6 +867,7 @@ export function createEmbeddingService(overrides?: Partial<EmbeddingConfig>): Em
     cache: {
       enabled: true,
       ttl: 3600000, // 1 hour
+      maxSize: 1000, // Limit to 1000 cached embeddings
     },
     ...overrides,
   };
