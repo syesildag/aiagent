@@ -50,7 +50,16 @@ export default abstract class AbstractAgent implements Agent {
       return undefined; // Default implementation - use all servers
    }
 
-   async chat(prompt: string, abortSignal?: AbortSignal): Promise<string> {
+   addAssistantMessageToHistory(finalContent: string | undefined) {
+
+      if (!this.mcpManager) {
+         return;
+      }
+
+     return this.mcpManager.addAssistantMessageToHistory(finalContent);
+   }
+
+   async chat(prompt: string, abortSignal?: AbortSignal, stream?: boolean): Promise<ReadableStream<string> | string> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');
       }
@@ -59,8 +68,7 @@ export default abstract class AbstractAgent implements Agent {
       try {
          const systemPrompt = this.getSystemPrompt();
          const serverNames = this.getAllowedServerNames();
-         const response = await this.mcpManager.chatWithLLM(prompt, abortSignal, systemPrompt, serverNames);
-         return response;
+         return await this.mcpManager.chatWithLLM(prompt, abortSignal, systemPrompt, serverNames, stream);
       } catch (error) {
          Logger.error(`MCP chat failed: ${error instanceof Error ? error.message : String(error)}`);
          throw error;

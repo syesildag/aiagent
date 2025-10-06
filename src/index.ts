@@ -8,7 +8,7 @@ import helmet from 'helmet';
 import https from 'https';
 import { Duplex } from "stream";
 import { z } from 'zod';
-import { getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
+import { Agent, getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
 import { AiAgentSession } from "./entities/ai-agent-session";
 import aiagentuserRepository from "./entities/ai-agent-user";
 import { repository } from "./repository/repository";
@@ -16,7 +16,7 @@ import { hashPassword } from './utils/hashPassword';
 import Logger from "./utils/logger";
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
-import { pipeline } from "node:stream/promises";
+import { handleStreamingResponse } from './utils/streamUtils';
 
 // Async handler utility for error handling
 function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) {
@@ -148,8 +148,22 @@ app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
    const { prompt } = Query.parse(req.body);
    const agent = await getAgentFromName(req.params.agent);
    agent.setSession(res.locals.session);
-   const answer = await agent.chat(prompt);
-   await pipeline(answer, res);
+   const answer = await agent.chat(prompt, undefined, true);
+   
+   if (answer instanceof ReadableStream) {
+      // Set appropriate headers for streaming
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Transfer-Encoding', 'chunked');
+
+      await handleStreamingResponse(answer, res, agent.addAssistantMessageToHistory.bind(agent));
+   } else {
+      // Handle non-streaming string responses
+      Logger.debug(`Non-streaming response. Length: ${answer.length} chars`);
+      agent.addAssistantMessageToHistory(answer);
+      
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.send(answer);
+   }
 }));
 
 // Health endpoint

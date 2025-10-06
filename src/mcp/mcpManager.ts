@@ -633,12 +633,25 @@ export class MCPServerManager {
     }
   }
 
+  addAssistantMessageToHistory(finalContent: string | undefined) {
+
+    if (!finalContent) {
+      return;
+    }
+
+    return this.conversationHistory.addMessage({
+      role: 'assistant',
+      content: finalContent
+    });
+  }
+
   async chatWithLLM(
     message: string, 
     abortSignal?: AbortSignal, 
     customSystemPrompt?: string,
-    serverNames?: string[]
-  ): Promise<string> {
+    serverNames?: string[],
+    stream?: boolean
+  ): Promise<ReadableStream<string> | string> {
     try {
       // Ensure MCP servers are initialized on first use
       await this.ensureInitialized();
@@ -701,7 +714,7 @@ When using tools, always provide clear context about what you're doing and inter
           model: this.model,
           messages: messages,
           tools: tools,
-          stream: false
+          stream
         };
 
         let response = await this.llmProvider.chat(chatRequest, abortSignal);
@@ -709,13 +722,12 @@ When using tools, always provide clear context about what you're doing and inter
         // If no tool calls, we're done
         if (!response?.message?.tool_calls || response.message.tool_calls.length === 0) {
           const finalContent = response?.message?.content || 'No response content received';
-          
-          // Add assistant's response to conversation history
-          await this.conversationHistory.addMessage({
-            role: 'assistant',
-            content: finalContent
-          });
-          
+
+            // await this.conversationHistory.addMessage({
+            //   role: 'assistant',
+            //   content: finalContent as string
+            // });
+
           return finalContent;
         }
 
@@ -746,7 +758,7 @@ When using tools, always provide clear context about what you're doing and inter
         // Add the assistant's response with tool calls to the conversation
         messages.push({
           role: 'assistant',
-          content: response.message.content || '',
+          content: response.message.content as string|| '',
           tool_calls: response.message.tool_calls
         });
 
@@ -774,16 +786,16 @@ When using tools, always provide clear context about what you're doing and inter
       const finalResponse = await this.llmProvider.chat({
         model: this.model,
         messages: messages,
-        stream: false
+        stream
       }, abortSignal);
 
       const finalContent = finalResponse?.message?.content || 'No response content received after maximum iterations';
       
-      // Add assistant's response to conversation history
-      await this.conversationHistory.addMessage({
-        role: 'assistant',
-        content: finalContent
-      });
+      // // Add assistant's response to conversation history
+      // await this.conversationHistory.addMessage({
+      //   role: 'assistant',
+      //   content: finalContent
+      // });
       
       return finalContent;
     } catch (error) {

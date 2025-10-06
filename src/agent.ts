@@ -10,12 +10,13 @@ export type AgentName = 'general' | 'weather';
 
 export interface Agent {
    setSession(session: AiAgentSession): void;
-   chat(prompt: string, abortSignal?: AbortSignal): Promise<string>;
+   chat(prompt: string, abortSignal?: AbortSignal, stream?: boolean): Promise<ReadableStream<string> | string>;
    getSystemPrompt(): string | undefined;
    getName(): AgentName;
    getOptions(): Partial<Options> | undefined;
    setMCPManager(manager: MCPServerManager): void;
    getAllowedServerNames(): string[] | undefined;
+   addAssistantMessageToHistory(content: string | undefined): void;
 }
 
 const Agents: Record<string, Agent> = {};

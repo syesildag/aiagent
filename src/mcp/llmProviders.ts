@@ -35,10 +35,16 @@ export interface LLMChatRequest {
   stream?: boolean;
 }
 
+/**
+ * If LLMChatRequest.stream is true, message.content is a ReadableStream (web standard), otherwise string.
+ */
 export interface LLMChatResponse {
   message: {
     role: string;
-    content: string;
+    /**
+     * If stream is true in the request, this is a ReadableStream<string> (web standard), otherwise string.
+     */
+    content: string | ReadableStream<any>;
     tool_calls?: ToolCall[];
   };
   done?: boolean;
@@ -526,12 +532,22 @@ export class OllamaProvider implements LLMProvider {
       }))
     }));
 
-    const chatPromise = this.ollama.chat({
-      model: adjustedRequest.model,
-      messages: ollamaMessages,
-      tools: adjustedRequest.tools,
-      stream: false
-    });
+    let chatPromise;
+    if (request.stream === true) {
+      chatPromise = this.ollama.chat({
+        model: adjustedRequest.model,
+        messages: ollamaMessages,
+        tools: adjustedRequest.tools,
+        stream: true
+      });
+    } else {
+      chatPromise = this.ollama.chat({
+        model: adjustedRequest.model,
+        messages: ollamaMessages,
+        tools: adjustedRequest.tools,
+        stream: false
+      });
+    }
 
     // Create a promise that rejects when the abort signal is triggered
     const abortPromise = new Promise<never>((_, reject) => {
@@ -543,27 +559,42 @@ export class OllamaProvider implements LLMProvider {
     });
 
     const response = await Promise.race([chatPromise, abortPromise]);
-    
-    // Convert Ollama response back to LLMChatResponse format
-    const convertedToolCalls = response.message.tool_calls?.map((tc: any, index: number) => ({
-      id: `call_${index}`,
-      type: 'function' as const,
-      function: {
-        name: tc.function.name,
-        arguments: typeof tc.function.arguments === 'string' 
-          ? tc.function.arguments 
-          : JSON.stringify(tc.function.arguments)
-      }
-    }));
 
-    return {
-      message: {
-        role: response.message.role,
-        content: response.message.content,
-        tool_calls: convertedToolCalls
-      },
-      done: response.done
-    };
+    // Handle streaming and non-streaming responses
+    if (request.stream === true) {
+      // Streaming: return a ReadableStream or AsyncIterator as content
+      // (You may want to adapt this to your actual streaming handling)
+      return {
+        message: {
+          role: 'assistant',
+          content: response as any, // Pass the stream/iterator as content
+        },
+        done: false
+      };
+    } else {
+      // Non-streaming: response is a ChatResponse object
+      // Convert Ollama response back to LLMChatResponse format
+      const chatResponse = response as any;
+      const convertedToolCalls = chatResponse.message.tool_calls?.map((tc: any, index: number) => ({
+        id: `call_${index}`,
+        type: 'function' as const,
+        function: {
+          name: tc.function.name,
+          arguments: typeof tc.function.arguments === 'string'
+            ? tc.function.arguments
+            : JSON.stringify(tc.function.arguments)
+        }
+      }));
+
+      return {
+        message: {
+          role: chatResponse.message.role,
+          content: chatResponse.message.content,
+          tool_calls: convertedToolCalls
+        },
+        done: chatResponse.done
+      };
+    }
   }
 }
 
@@ -803,6 +834,66 @@ export class GitHubCopilotProvider implements LLMProvider {
       throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`);
     }
 
+    if (adjustedRequest.stream === true) {
+      // Streaming mode: return ReadableStream as content
+      if (!response.body) {
+        throw new Error('No response body for streaming');
+      }
+
+      // Create a ReadableStream that processes Server-Sent Events
+      const stream = new ReadableStream({
+        start(controller) {
+          const reader = response.body!.getReader();
+          const decoder = new TextDecoder();
+
+          function pump(): Promise<void> {
+            return reader.read().then(({ done, value }) => {
+              if (done) {
+                controller.close();
+                return;
+              }
+
+              // Decode the chunk
+              const chunk = decoder.decode(value, { stream: true });
+              const lines = chunk.split('\n');
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6);
+                  if (data === '[DONE]') {
+                    controller.close();
+                    return;
+                  }
+
+                  try {
+                    const parsed = JSON.parse(data);
+                    const content = parsed.choices?.[0]?.delta?.content;
+                    if (content) {
+                      controller.enqueue(content);
+                    }
+                  } catch (error) {
+                    // Skip invalid JSON lines
+                  }
+                }
+              }
+
+              return pump();
+            });
+          }
+
+          return pump();
+        }
+      });
+
+      return {
+        message: {
+          role: 'assistant',
+          content: stream,
+        },
+        done: false
+      };
+    }
+
     const data = await response.json();
     
     // Check for API error in successful response (Azure Models API behavior)
@@ -974,24 +1065,85 @@ export class OpenAIProvider implements LLMProvider {
     
     if (!response.ok) {
       const errorText = await response.text();
-      Logger.error(`GitHub Copilot API error response: ${errorText}`);
-      throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`);
+      Logger.error(`OpenAI API error response: ${errorText}`);
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
-    const choice = data.choices?.[0];
-    
-    if (!choice) {
-      throw new Error('No response from OpenAI');
-    }
+    if (adjustedRequest.stream === true) {
+      // Streaming mode: return ReadableStream as content
+      if (!response.body) {
+        throw new Error('No response body for streaming');
+      }
 
-    return {
-      message: {
-        role: choice.message.role,
-        content: choice.message.content || '',
-        tool_calls: choice.message.tool_calls
-      },
-      done: true
-    };
+      // Create a ReadableStream that processes Server-Sent Events
+      const stream = new ReadableStream({
+        start(controller) {
+          const reader = response.body!.getReader();
+          const decoder = new TextDecoder();
+
+          function pump(): Promise<void> {
+            return reader.read().then(({ done, value }) => {
+              if (done) {
+                controller.close();
+                return;
+              }
+
+              // Decode the chunk
+              const chunk = decoder.decode(value, { stream: true });
+              const lines = chunk.split('\n');
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6);
+                  if (data === '[DONE]') {
+                    controller.close();
+                    return;
+                  }
+
+                  try {
+                    const parsed = JSON.parse(data);
+                    const content = parsed.choices?.[0]?.delta?.content;
+                    if (content) {
+                      controller.enqueue(content);
+                    }
+                  } catch (error) {
+                    // Skip invalid JSON lines
+                  }
+                }
+              }
+
+              return pump();
+            });
+          }
+
+          return pump();
+        }
+      });
+
+      return {
+        message: {
+          role: 'assistant',
+          content: stream,
+        },
+        done: false
+      };
+    } else {
+      // Non-streaming mode: return string content
+      const data = await response.json();
+      const choice = data.choices?.[0];
+      
+      if (!choice) {
+        throw new Error('No response from OpenAI');
+      }
+
+      return {
+        message: {
+          role: choice.message.role,
+          content: choice.message.content || '',
+          tool_calls: choice.message.tool_calls
+        },
+        done: true
+      };
+    }
   }
 }
