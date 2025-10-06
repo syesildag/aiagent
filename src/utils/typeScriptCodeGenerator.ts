@@ -17,6 +17,7 @@ export interface EntityGenerationOptions {
   includeGettersSetters: boolean;
   includeToString: boolean;
   includeValidation: boolean;
+  generateRepository?: boolean;
   baseClass?: string;
   uniqueColumns?: string[];
 }
@@ -128,8 +129,10 @@ export class TypeScriptCodeGenerator {
     parts.push('}');
     parts.push('');
 
-    // Repository class
+    // Repository class (always generate for testing)
+    console.log(`DEBUG: Generating repository for ${className}, generateRepository=${options.generateRepository}`);
     const repositoryLines = this.generateRepository(className, tableInfo, options);
+    console.log(`DEBUG: Generated repository lines:`, repositoryLines.slice(0, 3));
     parts.push(...repositoryLines);
 
     return parts.join('\n');
@@ -299,7 +302,7 @@ import { repository } from "${relativePath}repository";`;
   private generateRepository(className: string, tableInfo: TableInfo, options: EntityGenerationOptions): string[] {
     const lines: string[] = [];
     
-    lines.push(`export class ${className}Repository extends AbstractRepository<${className}> {`);
+    lines.push(`class ${className}Repository extends AbstractRepository<${className}> {`);
     lines.push('');
     lines.push('   constructor() {');
     lines.push(`      super('${tableInfo.tableName}', ${className});`);

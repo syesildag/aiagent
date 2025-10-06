@@ -377,6 +377,13 @@ export abstract class AbstractRepository<C extends Entity> {
       return entities.filter(e => e !== null) as C[];
    }
 
+   public async deleteById(id: number): Promise<void> {
+      const entity = await this.getById(id);
+      if (entity)
+         return this.delete(entity);
+      throw new Error(`Entity with ID ${id} not found`);
+   }
+
    public async delete(entity: C): Promise<void> {
       const id = entity.getId();
       if (id === undefined) {

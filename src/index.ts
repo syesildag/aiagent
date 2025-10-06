@@ -6,17 +6,22 @@ import { rateLimit } from 'express-rate-limit';
 import fs from 'fs';
 import helmet from 'helmet';
 import https from 'https';
+import path from "path";
 import { Duplex } from "stream";
 import { z } from 'zod';
-import { Agent, getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
+import { getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
 import { AiAgentSession } from "./entities/ai-agent-session";
 import aiagentuserRepository from "./entities/ai-agent-user";
 import { repository } from "./repository/repository";
+import { Constructor } from "./utils/annotations";
+import { getAbsoluteFileNamesFromDir } from "./utils/fileNames";
 import { hashPassword } from './utils/hashPassword';
 import Logger from "./utils/logger";
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
 import { handleStreamingResponse } from './utils/streamUtils';
+import JobFactory from "./utils/jobFactory";
+import schedule from "node-schedule";
 
 // Async handler utility for error handling
 function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) {
@@ -234,6 +239,8 @@ function sendAuthenticationRequired(res: Response) {
 
 async function gracefulShutdown(event: NodeJS.Signals) {
 
+   let scheduler = schedule.gracefulShutdown();
+
    Logger.info(`${event} signal received.`);
 
    Logger.info('Shutting down gracefully...');
@@ -265,3 +272,41 @@ async function gracefulShutdown(event: NodeJS.Signals) {
       process.exit(1);
    }, +process.env.SERVER_TERMINATE_TIMEOUT!);
 }
+
+async function scheduleJobs() {
+   const JOBS = await getAbsoluteFileNamesFromDir(path.join(__dirname, 'jobs'));
+   const jobPromises = JOBS
+      .filter(file => file.endsWith('.js'))
+      .map(async (file) => {
+         try {
+            const module = await import(file);
+            Logger.debug(`Loaded job module from ${file}: hasDefault=${!!module.default}, type=${typeof module.default}`);
+            
+            // Handle both ES modules and CommonJS modules
+            let JobClass: Constructor<JobFactory>;
+            
+            if (module.default && typeof module.default === 'function') {
+               // ES module with default export as constructor
+               JobClass = module.default as Constructor<JobFactory>;
+            } else if (module.default && module.default.default && typeof module.default.default === 'function') {
+               // CommonJS module wrapped by dynamic import
+               JobClass = module.default.default as Constructor<JobFactory>;
+            } else if (typeof module === 'function') {
+               // Direct function export
+               JobClass = module as Constructor<JobFactory>;
+            } else {
+               Logger.error(`No valid constructor found in job file: ${file}. hasDefault=${!!module.default}, defaultType=${typeof module.default}, hasNestedDefault=${!!(module.default && module.default.default)}, nestedDefaultType=${module.default && typeof module.default.default}`);
+               return;
+            }
+            const jobFactory: JobFactory = new JobClass();
+            const job = jobFactory.create();
+            Logger.info(`Successfully scheduled job from ${file}, jobId=${job?.name}`);
+         } catch (error) {
+            Logger.error(`Failed to load job from ${file}:`, error);
+         }
+      });
+   
+   await Promise.all(jobPromises);
+}
+
+scheduleJobs();

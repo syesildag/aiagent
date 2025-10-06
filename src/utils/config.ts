@@ -19,6 +19,7 @@ const envSchema = z.object({
   
   // Security
   HMAC_SECRET_KEY: z.string().min(32), // Minimum 32 characters for security
+  SESSION_TIMEOUT_SECONDS: z.string().transform(Number).pipe(z.number().positive()).default('3600'), // 1 hour default
   
   // LLM Configuration
   LLM_PROVIDER: z.enum(['ollama', 'openai', 'github']).default('ollama'),
@@ -68,6 +69,7 @@ function validateEnvironment(): Environment {
       DB_PASSWORD: 'test',
       DB_PORT: 5432,
       HMAC_SECRET_KEY: 'test_hmac_key_at_least_32_characters_long_for_security',
+      SESSION_TIMEOUT_SECONDS: 86400,
       LLM_PROVIDER: 'ollama',
       LLM_MODEL: 'test',
       OLLAMA_HOST: 'http://localhost:11434',

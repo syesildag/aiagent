@@ -179,6 +179,7 @@ export class PostgreSQLEntityGenerator {
         ...this.codeGenerator.getDefaultOptions(),
         ...config.generationOptions,
         baseClass: config.baseClass,
+        generateRepository: config.generateRepository,
         uniqueColumns
       };
 
@@ -414,7 +415,7 @@ export class PostgreSQLEntityGenerator {
       schemaName: 'public',
       baseClass: 'Entity',
       includeRelationships: true,
-      generateRepository: false,
+      generateRepository: true,
       overwriteExisting: false,
       generationOptions: {
         includeImports: true,
