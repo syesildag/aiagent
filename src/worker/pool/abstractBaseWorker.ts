@@ -1,12 +1,19 @@
 import { MessagePort } from 'worker_threads';
 
 export default abstract class AbstractBaseWorker<T, R> {
+   protected parentPort: MessagePort | null;
 
    constructor(parentPort: null | MessagePort) {
-      if (parentPort)
-         parentPort.on('message', (task: T) => {
-            parentPort!.postMessage(this.run(task));
+      this.parentPort = parentPort;
+      if (this.parentPort) {
+         // Keep the event loop alive by referencing the port.
+         // This prevents the worker from exiting after a task.
+         this.parentPort.ref();
+
+         this.parentPort.on('message', (task: T) => {
+            this.parentPort!.postMessage(this.run(task));
          });
+      }
    }
 
    abstract getFilename(): string;

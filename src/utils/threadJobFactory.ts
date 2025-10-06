@@ -4,6 +4,13 @@ import WorkerPoolManager from "../worker/pool/workerPoolManager";
 import JobFactory from "./jobFactory";
 
 export default abstract class ThreadJobFactory extends JobFactory {
+   private manager: WorkerPoolManager<Date, void>;
+
+   constructor() {
+      super();
+      this.manager = new WorkerPoolManager<Date, void>(this.getWorker(), { name: this.getName() }, 1);
+   }
+
    protected abstract getSpec(): Spec;
    protected abstract getWorker(): AbstractBaseWorker<Date, void>;
    protected getName() {
@@ -11,11 +18,16 @@ export default abstract class ThreadJobFactory extends JobFactory {
    }
    protected getJobCallback(): JobCallback {
       return (fireDate: Date) => {
-         let manager = new WorkerPoolManager<Date, void>(this.getWorker(), { name: this.getName() }, 1);
-         manager.run([fireDate], err => {
+         this.manager.run([fireDate], err => {
             if (err)
                console.error(this.getName() + ": " + err);
          });
       };
+   }
+
+   close() {
+      if (this.manager) {
+         this.manager.close();
+      }
    }
 }

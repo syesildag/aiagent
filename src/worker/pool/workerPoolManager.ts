@@ -5,10 +5,14 @@ import WorkerPool from './workerPool';
 export type CallbackIndex<Result, This = any> = (this: This, err: null | Error, result: null | Result, index?: number) => void;
 
 export default class WorkerPoolManager<T, R, This = any> {
+   private pool: WorkerPool<T, R, This>;
+
    constructor(
       private instance: AbstractBaseWorker<T, R>,
       private options?: Omit<WorkerOptions, "eval">,
       private numThreads?: number) {
+      // Create the worker pool once in the constructor and reuse it
+      this.pool = new WorkerPool<T, R, This>(this.instance.getFilename(), this.options, this.numThreads);
    }
 
    run(tasks: T[], callback: CallbackIndex<R, This>): Promise<void> {
@@ -17,19 +21,31 @@ export default class WorkerPoolManager<T, R, This = any> {
          return Promise.resolve();
 
       return new Promise((resolve, reject) => {
-         const pool = new WorkerPool<T, R, This>(this.instance.getFilename(), this.options, this.numThreads);
-         pool.setMaxListeners(tasks.length);
-         pool.onError(error => reject(error));
+         // Reuse the existing pool instead of creating a new one each time
+         this.pool.setMaxListeners(Math.max(this.pool.getMaxListeners(), tasks.length));
+         
+         const errorHandler = (error: Error) => {
+            this.pool.removeListener('error', errorHandler);
+            reject(error);
+         };
+         this.pool.onError(errorHandler);
+         
          let finished = 0;
          for (let i = 0; i < tasks.length; i++) {
-            pool.runTask(tasks[i], (err, result) => {
+            this.pool.runTask(tasks[i], (err, result) => {
                callback.call(this as unknown as This, err, result, i);
                if (++finished === tasks.length) {
-                  pool.close();
+                  // Don't close the pool - keep it alive for reuse
+                  this.pool.removeListener('error', errorHandler);
                   resolve();
                }
             });
          }
       });
+   }
+
+   close() {
+      // Allow manual cleanup of the pool if needed
+      this.pool.close();
    }
 }

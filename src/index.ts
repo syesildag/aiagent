@@ -23,6 +23,9 @@ import { handleStreamingResponse } from './utils/streamUtils';
 import JobFactory from "./utils/jobFactory";
 import schedule from "node-schedule";
 
+// This array will hold references to the job factories, preventing them from being garbage collected.
+const activeJobs: JobFactory[] = [];
+
 // Async handler utility for error handling
 function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) {
    return (req: Request, res: Response, next: NextFunction) => {
@@ -245,7 +248,20 @@ async function gracefulShutdown(event: NodeJS.Signals) {
 
    Logger.info('Shutting down gracefully...');
 
-   // Shutdown MCP servers first
+   // Shutdown job worker pools first
+   try {
+      Logger.info('Shutting down job worker pools...');
+      activeJobs.forEach(jobFactory => {
+         if (jobFactory && typeof (jobFactory as any).close === 'function') {
+            (jobFactory as any).close();
+         }
+      });
+      Logger.info('Job worker pools shut down successfully');
+   } catch (error) {
+      Logger.error(`Error shutting down job worker pools: ${error}`);
+   }
+
+   // Shutdown MCP servers
    try {
       await shutdownAgentSystem();
       Logger.info('Agent system and MCP servers shut down successfully');
@@ -300,6 +316,10 @@ async function scheduleJobs() {
             }
             const jobFactory: JobFactory = new JobClass();
             const job = jobFactory.create();
+            
+            // Store reference to prevent garbage collection of the job factory and its worker pool
+            activeJobs.push(jobFactory);
+            
             Logger.info(`Successfully scheduled job from ${file}, jobId=${job?.name}`);
          } catch (error) {
             Logger.error(`Failed to load job from ${file}:`, error);

@@ -57,7 +57,25 @@ export default class WorkerPool<Task, Result, This = any> extends EventEmitter {
    }
 
    addNewWorker() {
-      const worker = new Worker(this.filename, this.options);
+      const workerId = `worker-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      console.log(`[WorkerPool] Creating new worker: ${workerId} from ${this.filename}`);
+      
+      const worker = new Worker(this.filename, {
+         ...this.options,
+         stdout: true,
+         stderr: true,
+      });
+
+      (worker as any).workerId = workerId;
+
+      // Pipe worker's stdout and stderr to the main process
+      worker.stdout.on('data', (data) => {
+         process.stdout.write(`[Worker ${workerId}] ${data}`);
+      });
+      worker.stderr.on('data', (data) => {
+         process.stderr.write(`[Worker ${workerId} Error] ${data}`);
+      });
+
       worker.on('message', (result: Result) => {
          // In case of success: Call the callback that was passed to `runTask`,
          // remove the `TaskInfo` associated with the Worker, and mark it as free
@@ -68,6 +86,7 @@ export default class WorkerPool<Task, Result, This = any> extends EventEmitter {
          this.emit(kWorkerFreedEvent);
       });
       worker.on('error', (err: Error) => {
+         console.log(`[WorkerPool] Worker ${(worker as any).workerId} encountered error: ${err.message}`);
          // In case of an uncaught exception: Call the callback that was passed to
          // `runTask` with the error.
          if ((worker as any)[kTaskInfo])
@@ -76,6 +95,7 @@ export default class WorkerPool<Task, Result, This = any> extends EventEmitter {
             this.emit(kError, err);
       });
       worker.on('exit', (exitCode: number) => {
+         console.log(`[WorkerPool] Worker ${(worker as any).workerId} exited with code ${exitCode}. Closed: ${this.closed}`);
          // Remove the worker from the list and start a new Worker to replace the
          // current one.
          if (!this.closed) {
