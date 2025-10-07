@@ -1,8 +1,8 @@
-import { Pool, PoolClient } from 'pg';
+import { randomBytes } from 'crypto';
+import { Pool } from 'pg';
+import { isMainThread } from 'worker_threads';
 import { config } from './config';
 import Logger from './logger';
-import { isMainThread } from 'worker_threads';
-import { randomBytes } from 'crypto';
 
 // Global pool instance - shared across threads via module system
 let pool: Pool | null = null;
@@ -43,16 +43,12 @@ function getPool(): Pool {
          process.on('SIGINT', gracefulShutdown);
          process.on('SIGTERM', gracefulShutdown);
       }
-   } else {
-      Logger.debug(`[Pool ${poolId}] Reusing existing connection pool in ${isMainThread ? 'main thread' : 'worker thread'}`);
    }
    return pool;
 }
 
 export async function queryDatabase(query: string, values: any[] = []) {
    const activePool = getPool();
-   // Log the pool ID to confirm which instance is being used.
-   Logger.debug(`[Pool ${poolId}] Executing query from ${isMainThread ? 'main thread' : 'worker thread'}`);
    const client = await activePool.connect();
    try {
       const res = await client.query(query, values);
