@@ -17,12 +17,25 @@ jest.mock('./config', () => ({
     DB_NAME: 'test',
     DB_PASSWORD: 'test',
     DB_PORT: 5432,
+    DB_POOL_MAX: 20,
+    DB_POOL_IDLE_TIMEOUT_MS: 30000,
+    DB_POOL_CONNECTION_TIMEOUT_MS: 2000,
   }
 }));
 
-jest.mock('./logger', () => ({
-  error: jest.fn()
-}));
+jest.mock('./logger', () => {
+  const mockLogger = {
+    info: jest.fn(),
+    debug: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    trace: jest.fn()
+  };
+  return {
+    default: mockLogger,
+    __esModule: true
+  };
+});
 
 jest.mock('pg', () => ({
   Pool: jest.fn(() => mockPoolInstance)

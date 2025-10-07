@@ -14,7 +14,7 @@ export default async function deleteExpiredSessions() {
     
     Logger.debug(`Executing select query: ${selectQuery}`);
     const expiredSessions = await queryDatabase(selectQuery);
-    Logger.debug(`Found ${expiredSessions.length} expired sessions`);
+    Logger.debug(`Expired sessions: ${JSON.stringify(expiredSessions)}`);
     
     if (expiredSessions.length === 0)
       return;
@@ -27,9 +27,7 @@ export default async function deleteExpiredSessions() {
     `;
     
     Logger.debug(`Executing delete query: ${deleteQuery}`);
-    const deletedSessions = await queryDatabase(deleteQuery);
-    Logger.debug(`Delete query result: ${JSON.stringify(deletedSessions)}`);
-    
+    await queryDatabase(deleteQuery);
     
   } catch (err) {
     Logger.error(`Failed to delete expired sessions: ${err}`);
