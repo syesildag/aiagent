@@ -287,8 +287,16 @@ async function gracefulShutdown(event: NodeJS.Signals) {
    }, +process.env.SERVER_TERMINATE_TIMEOUT!);
 }
 
-async function scheduleJobs() {
-   const JOBS = await getAbsoluteFileNamesFromDir(path.join(__dirname, 'jobs'));
+/**
+ * Generic function to schedule jobs from a directory
+ * @param jobsPath - The path to the jobs directory (relative to __dirname)
+ * @param activeJobsArray - Array to store references to prevent garbage collection
+ */
+async function scheduleJobsFromPath<T extends JobFactory>(
+   jobsPath: string,
+   activeJobsArray: T[]
+): Promise<void> {
+   const JOBS = await getAbsoluteFileNamesFromDir(path.join(__dirname, jobsPath));
    const jobPromises = JOBS
       .filter(file => file.endsWith('.js'))
       .map(async (file) => {
@@ -297,26 +305,26 @@ async function scheduleJobs() {
             Logger.debug(`Loaded job module from ${file}: hasDefault=${!!module.default}, type=${typeof module.default}`);
 
             // Handle both ES modules and CommonJS modules
-            let JobClass: Constructor<JobFactory>;
+            let JobClass: Constructor<T>;
 
             if (module.default && typeof module.default === 'function') {
                // ES module with default export as constructor
-               JobClass = module.default as Constructor<JobFactory>;
+               JobClass = module.default as Constructor<T>;
             } else if (module.default && module.default.default && typeof module.default.default === 'function') {
                // CommonJS module wrapped by dynamic import
-               JobClass = module.default.default as Constructor<JobFactory>;
+               JobClass = module.default.default as Constructor<T>;
             } else if (typeof module === 'function') {
                // Direct function export
-               JobClass = module as Constructor<JobFactory>;
+               JobClass = module as Constructor<T>;
             } else {
                Logger.error(`No valid constructor found in job file: ${file}. hasDefault=${!!module.default}, defaultType=${typeof module.default}, hasNestedDefault=${!!(module.default && module.default.default)}, nestedDefaultType=${module.default && typeof module.default.default}`);
                return;
             }
-            const jobFactory: JobFactory = new JobClass();
+            const jobFactory: T = new JobClass();
             const job = jobFactory.create();
 
             // Store reference to prevent garbage collection of the job factory and its worker pool
-            activeJobs.push(jobFactory);
+            activeJobsArray.push(jobFactory);
 
             Logger.info(`Successfully scheduled job from ${file}, jobId=${job?.name}`);
          } catch (error) {
@@ -325,6 +333,13 @@ async function scheduleJobs() {
       });
 
    await Promise.all(jobPromises);
+}
+
+/**
+ * Convenience function to schedule jobs using the default configuration
+ */
+async function scheduleJobs(): Promise<void> {
+   return scheduleJobsFromPath('jobs', activeJobs);
 }
 
 scheduleJobs();
