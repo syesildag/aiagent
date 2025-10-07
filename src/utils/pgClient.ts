@@ -54,7 +54,6 @@ export async function queryDatabase(query: string, values: any[] = []) {
    // Log the pool ID to confirm which instance is being used.
    Logger.debug(`[Pool ${poolId}] Executing query from ${isMainThread ? 'main thread' : 'worker thread'}`);
    const client = await activePool.connect();
-   Logger.debug(`[Pool ${poolId}] connected from ${isMainThread ? 'main thread' : 'worker thread'}`);
    try {
       const res = await client.query(query, values);
       return res.rows;
