@@ -11,8 +11,7 @@ export default async function deleteExpiredSessions() {
       SELECT id, name, ping FROM ai_agent_session
        WHERE COALESCE(ping, created_at) < NOW() - INTERVAL '${timeoutSeconds} seconds'
     `;
-    
-    Logger.debug(`Executing select query: ${selectQuery}`);
+  
     const expiredSessions = await queryDatabase(selectQuery);
     Logger.debug(`Expired sessions: ${JSON.stringify(expiredSessions)}`);
     

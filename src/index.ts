@@ -6,22 +6,20 @@ import { rateLimit } from 'express-rate-limit';
 import fs from 'fs';
 import helmet from 'helmet';
 import https from 'https';
-import path from "path";
+import schedule from "node-schedule";
 import { Duplex } from "stream";
 import { z } from 'zod';
 import { getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
 import { AiAgentSession } from "./entities/ai-agent-session";
 import aiagentuserRepository from "./entities/ai-agent-user";
 import { repository } from "./repository/repository";
-import { Constructor } from "./utils/annotations";
-import { getAbsoluteFileNamesFromDir } from "./utils/fileNames";
 import { hashPassword } from './utils/hashPassword';
+import { initFromPath } from "./utils/initFromPath";
+import JobFactory from "./utils/jobFactory";
 import Logger from "./utils/logger";
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
 import { handleStreamingResponse } from './utils/streamUtils';
-import JobFactory from "./utils/jobFactory";
-import schedule from "node-schedule";
 
 // This array will hold references to the job factories, preventing them from being garbage collected.
 const activeJobs: JobFactory[] = [];
@@ -288,58 +286,14 @@ async function gracefulShutdown(event: NodeJS.Signals) {
 }
 
 /**
- * Generic function to schedule jobs from a directory
- * @param jobsPath - The path to the jobs directory (relative to __dirname)
- * @param activeJobsArray - Array to store references to prevent garbage collection
- */
-async function scheduleJobsFromPath<T extends JobFactory>(
-   jobsPath: string,
-   activeJobsArray: T[]
-): Promise<void> {
-   const JOBS = await getAbsoluteFileNamesFromDir(path.join(__dirname, jobsPath));
-   const jobPromises = JOBS
-      .filter(file => file.endsWith('.js'))
-      .map(async (file) => {
-         try {
-            const module = await import(file);
-            Logger.debug(`Loaded job module from ${file}: hasDefault=${!!module.default}, type=${typeof module.default}`);
-
-            // Handle both ES modules and CommonJS modules
-            let JobClass: Constructor<T>;
-
-            if (module.default && typeof module.default === 'function') {
-               // ES module with default export as constructor
-               JobClass = module.default as Constructor<T>;
-            } else if (module.default && module.default.default && typeof module.default.default === 'function') {
-               // CommonJS module wrapped by dynamic import
-               JobClass = module.default.default as Constructor<T>;
-            } else if (typeof module === 'function') {
-               // Direct function export
-               JobClass = module as Constructor<T>;
-            } else {
-               Logger.error(`No valid constructor found in job file: ${file}. hasDefault=${!!module.default}, defaultType=${typeof module.default}, hasNestedDefault=${!!(module.default && module.default.default)}, nestedDefaultType=${module.default && typeof module.default.default}`);
-               return;
-            }
-            const jobFactory: T = new JobClass();
-            const job = jobFactory.create();
-
-            // Store reference to prevent garbage collection of the job factory and its worker pool
-            activeJobsArray.push(jobFactory);
-
-            Logger.info(`Successfully scheduled job from ${file}, jobId=${job?.name}`);
-         } catch (error) {
-            Logger.error(`Failed to load job from ${file}:`, error);
-         }
-      });
-
-   await Promise.all(jobPromises);
-}
-
-/**
  * Convenience function to schedule jobs using the default configuration
  */
-async function scheduleJobs(): Promise<void> {
-   return scheduleJobsFromPath('jobs', activeJobs);
+async function scheduleJobs() {
+   return initFromPath<JobFactory>(__dirname, 'jobs', (jobFactory: JobFactory) => {
+      const job = jobFactory.create();
+      // Store reference to prevent garbage collection of the job factory and its worker pool
+      activeJobs.push(jobFactory);
+   });
 }
 
 scheduleJobs();
