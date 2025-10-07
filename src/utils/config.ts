@@ -17,6 +17,11 @@ const envSchema = z.object({
   DB_PASSWORD: z.string().optional(),
   DB_PORT: z.string().transform(Number).pipe(z.number().min(1).max(65535)),
   
+  // Database Pool Configuration
+  DB_POOL_MAX: z.string().transform(Number).pipe(z.number().min(1).max(100)).default('20'),
+  DB_POOL_IDLE_TIMEOUT_MS: z.string().transform(Number).pipe(z.number().min(1000)).default('30000'),
+  DB_POOL_CONNECTION_TIMEOUT_MS: z.string().transform(Number).pipe(z.number().min(500)).default('2000'),
+  
   // Security
   HMAC_SECRET_KEY: z.string().min(32), // Minimum 32 characters for security
   SESSION_TIMEOUT_SECONDS: z.string().transform(Number).pipe(z.number().positive()).default('3600'), // 1 hour default
@@ -68,6 +73,9 @@ function validateEnvironment(): Environment {
       DB_NAME: 'test',
       DB_PASSWORD: 'test',
       DB_PORT: 5432,
+      DB_POOL_MAX: 20,
+      DB_POOL_IDLE_TIMEOUT_MS: 30000,
+      DB_POOL_CONNECTION_TIMEOUT_MS: 2000,
       HMAC_SECRET_KEY: 'test_hmac_key_at_least_32_characters_long_for_security',
       SESSION_TIMEOUT_SECONDS: 86400,
       LLM_PROVIDER: 'ollama',

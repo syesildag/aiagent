@@ -21,10 +21,10 @@ function getPool(): Pool {
          database: config.DB_NAME,
          password: config.DB_PASSWORD,
          port: config.DB_PORT,
-         // Increase pool size for multi-threaded usage
-         max: 20,
-         idleTimeoutMillis: 30000,
-         connectionTimeoutMillis: 2000,
+         // Pool configuration from environment variables
+         max: config.DB_POOL_MAX,
+         idleTimeoutMillis: config.DB_POOL_IDLE_TIMEOUT_MS,
+         connectionTimeoutMillis: config.DB_POOL_CONNECTION_TIMEOUT_MS,
       });
 
       pool.on('error', (err) => {
@@ -35,7 +35,6 @@ function getPool(): Pool {
       if (!isMainThread) {
          // In worker threads, add the pool to global scope to prevent GC
          (global as any).__dbPool = pool;
-         Logger.debug(`[Pool ${poolId}] Added to global scope in worker thread to prevent GC`);
       }
 
       // Only set up cleanup in main thread
