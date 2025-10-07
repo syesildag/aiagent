@@ -23,18 +23,13 @@ export default async function deleteExpiredSessions() {
     // This avoids potential SQL injection and malformed queries
     const deleteQuery = `
       DELETE FROM ai_agent_session 
-      WHERE COALESCE(ping, created_at) < NOW() - INTERVAL '${timeoutSeconds} seconds'
+       WHERE id IN (${expiredSessions.map(s => s.id).join(', ')})
     `;
     
     Logger.debug(`Executing delete query: ${deleteQuery}`);
     const deletedSessions = await queryDatabase(deleteQuery);
     Logger.debug(`Delete query result: ${JSON.stringify(deletedSessions)}`);
     
-    // Log the deleted sessions
-    Logger.info(`Deleted ${expiredSessions.length} expired session(s)`);
-    expiredSessions.forEach(session => {
-      Logger.debug(`Deleted expired session: ${session.name} (last ping: ${session.ping ? new Date(session.ping).toISOString() : 'never'})`);
-    });
     
   } catch (err) {
     Logger.error(`Failed to delete expired sessions: ${err}`);
