@@ -289,7 +289,7 @@ async function gracefulShutdown(event: NodeJS.Signals) {
  * Convenience function to schedule jobs using the default configuration
  */
 async function scheduleJobs() {
-   return initFromPath<JobFactory>(__dirname, 'jobs', (jobFactory: JobFactory) => {
+   return await initFromPath<JobFactory>(__dirname, 'jobs', (jobFactory: JobFactory) => {
       const job = jobFactory.create();
       // Store reference to prevent garbage collection of the job factory and its worker pool
       activeJobs.push(jobFactory);
