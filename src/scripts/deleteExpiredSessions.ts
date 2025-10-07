@@ -16,6 +16,9 @@ export default async function deleteExpiredSessions() {
     const expiredSessions = await queryDatabase(selectQuery);
     Logger.debug(`Found ${expiredSessions.length} expired sessions`);
     
+    if (expiredSessions.length === 0)
+      return;
+    
     // Use a safer approach - delete sessions based on the timeout condition directly
     // This avoids potential SQL injection and malformed queries
     const deleteQuery = `
