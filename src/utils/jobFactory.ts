@@ -11,7 +11,7 @@ export default abstract class JobFactory {
       return this.enabled;
    }
 
-   setEnable(enabled: boolean) {
+   protected setEnable(enabled: boolean) {
       this.enabled = enabled;
    }
 
@@ -20,4 +20,8 @@ export default abstract class JobFactory {
          return null;
       return scheduleJob(this.getSpec(), this.getJobCallback());
    }
+
+   public close() {
+   }
+
 }

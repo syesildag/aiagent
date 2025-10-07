@@ -122,10 +122,10 @@ app.post("/login", asyncHandler(async (req: Request, res: Response) => {
       return;
    }
    const passwordHash = hashPassword(password, hmacKey);
-   
+
    // Use repository pattern to find user by login
    const user = await aiagentuserRepository.findByLogin(userLogin);
-   
+
    if (!user || user.getPassword() !== passwordHash) {
       Logger.warn(`Authentication failed for user: ${userLogin}`);
       sendAuthenticationRequired(res); // custom message
@@ -157,7 +157,7 @@ app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
    const agent = await getAgentFromName(req.params.agent);
    agent.setSession(res.locals.session);
    const answer = await agent.chat(prompt, undefined, true);
-   
+
    if (answer instanceof ReadableStream) {
       // Set appropriate headers for streaming
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -168,7 +168,7 @@ app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
       // Handle non-streaming string responses
       Logger.debug(`Non-streaming response. Length: ${answer.length} chars`);
       agent.addAssistantMessageToHistory(answer);
-      
+
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.send(answer);
    }
@@ -198,7 +198,7 @@ const PORT: number = +process.env.PORT!;
 const HOST: string = process.env.HOST!;
 const server = https.createServer(options, app).listen(PORT, HOST, async () => {
    Logger.info(`[server]: Server is running at http://${HOST}:${PORT}`);
-   
+
    try {
       await initializeAgents();
       Logger.info(`[server]: Agent system initialized successfully`);
@@ -251,11 +251,9 @@ async function gracefulShutdown(event: NodeJS.Signals) {
    // Shutdown job worker pools first
    try {
       Logger.info('Shutting down job worker pools...');
-      activeJobs.forEach(jobFactory => {
-         if (jobFactory && typeof (jobFactory as any).close === 'function') {
-            (jobFactory as any).close();
-         }
-      });
+      for (const activeJob of activeJobs) {
+         activeJob.close();
+      }
       Logger.info('Job worker pools shut down successfully');
    } catch (error) {
       Logger.error(`Error shutting down job worker pools: ${error}`);
@@ -297,10 +295,10 @@ async function scheduleJobs() {
          try {
             const module = await import(file);
             Logger.debug(`Loaded job module from ${file}: hasDefault=${!!module.default}, type=${typeof module.default}`);
-            
+
             // Handle both ES modules and CommonJS modules
             let JobClass: Constructor<JobFactory>;
-            
+
             if (module.default && typeof module.default === 'function') {
                // ES module with default export as constructor
                JobClass = module.default as Constructor<JobFactory>;
@@ -316,16 +314,16 @@ async function scheduleJobs() {
             }
             const jobFactory: JobFactory = new JobClass();
             const job = jobFactory.create();
-            
+
             // Store reference to prevent garbage collection of the job factory and its worker pool
             activeJobs.push(jobFactory);
-            
+
             Logger.info(`Successfully scheduled job from ${file}, jobId=${job?.name}`);
          } catch (error) {
             Logger.error(`Failed to load job from ${file}:`, error);
          }
       });
-   
+
    await Promise.all(jobPromises);
 }
 
