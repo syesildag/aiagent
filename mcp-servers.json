@@ -25,6 +25,14 @@
         "dist/mcp/server/memory.js"
       ],
       "enabled": true
+    },
+    {
+      "name": "documentation",
+      "command": "node",
+      "args": [
+        "dist/mcp/server/documentation.js"
+      ],
+      "enabled": true
     }
   ]
 }

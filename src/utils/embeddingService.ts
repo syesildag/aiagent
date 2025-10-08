@@ -79,9 +79,12 @@ export class EmbeddingValidationError extends ValidationError {
   }
 }
 
+// Provider type definition
+export type EmbeddingProviderType = 'openai' | 'ollama' | 'local' | 'auto';
+
 // Provider-specific configuration
 export interface EmbeddingConfig {
-  provider: 'openai' | 'ollama' | 'local' | 'auto';
+  provider: EmbeddingProviderType;
   openai?: {
     apiKey: string;
     baseUrl?: string;
@@ -96,7 +99,7 @@ export interface EmbeddingConfig {
     modelPath?: string;
     defaultModel?: string;
   };
-  fallbackProviders?: ('openai' | 'ollama' | 'local')[];
+  fallbackProviders?: Exclude<EmbeddingProviderType, 'auto'>[];
   cache?: {
     enabled: boolean;
     ttl: number;
@@ -563,7 +566,7 @@ export class EmbeddingService {
    */
   async generateEmbedding(
     text: string, 
-    options?: { model?: string; provider?: string }
+    options?: { model?: string; provider?: Exclude<EmbeddingProviderType, 'auto'> }
   ): Promise<number[]> {
     // Validate input
     if (!text || text.trim().length === 0) {
@@ -634,7 +637,7 @@ export class EmbeddingService {
    */
   async generateBatchEmbeddings(
     texts: string[],
-    options?: { model?: string; provider?: string; batchSize?: number }
+    options?: { model?: string; provider?: Exclude<EmbeddingProviderType, 'auto'>; batchSize?: number }
   ): Promise<number[][]> {
     if (!texts.length) {
       return [];
@@ -778,7 +781,7 @@ export class EmbeddingService {
   /**
    * Check if a specific text embedding is cached
    */
-  isCached(text: string, options?: { model?: string; provider?: string }): boolean {
+  isCached(text: string, options?: { model?: string; provider?: Exclude<EmbeddingProviderType, 'auto'> }): boolean {
     if (!this.cacheEnabled) return false;
     const cacheKey = this.getCacheKey(text, options?.model, options?.provider);
     return this.cache.has(cacheKey);
@@ -787,7 +790,7 @@ export class EmbeddingService {
   /**
    * Get remaining TTL for a cached embedding (in milliseconds)
    */
-  getCacheTTL(text: string, options?: { model?: string; provider?: string }): number | undefined {
+  getCacheTTL(text: string, options?: { model?: string; provider?: Exclude<EmbeddingProviderType, 'auto'> }): number | undefined {
     if (!this.cacheEnabled) return undefined;
     const cacheKey = this.getCacheKey(text, options?.model, options?.provider);
     return this.cache.getRemainingTTL(cacheKey);
@@ -890,7 +893,7 @@ export function getEmbeddingService(overrides?: Partial<EmbeddingConfig>): Embed
 /**
  * Convenience function for backward compatibility with existing getEmbeddings
  */
-export async function getEmbeddings(text: string, options?: { provider?: string; model?: string }): Promise<number[]> {
+export async function getEmbeddings(text: string, options?: { provider?: Exclude<EmbeddingProviderType, 'auto'>; model?: string }): Promise<number[]> {
   const service = getEmbeddingService();
   return await service.generateEmbedding(text, options);
 }
