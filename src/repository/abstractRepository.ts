@@ -338,6 +338,7 @@ export abstract class AbstractRepository<C extends Entity> {
    }
 
    public async findAll(options?: {
+      where?: Record<string, any>;
       orderBy?: { field: string; direction?: 'ASC' | 'DESC' }[];
       limit?: number;
       offset?: number;
@@ -349,6 +350,16 @@ export abstract class AbstractRepository<C extends Entity> {
       
       const queryParams: any[] = [];
       let paramIndex = 0;
+      
+      // Add WHERE clause if filtering is specified
+      if (options?.where && Object.keys(options.where).length > 0) {
+         const whereConditions = Object.entries(options.where).map(([fieldName, value]) => {
+            const columnName = this.getColumnName(fieldName) || fieldName;
+            return `${columnName} = $${++paramIndex}`;
+         });
+         sqlQuery += ` WHERE ${whereConditions.join(' AND ')}`;
+         queryParams.push(...Object.values(options.where));
+      }
       
       // Add ORDER BY clause if specified
       if (options?.orderBy && options.orderBy.length > 0) {
