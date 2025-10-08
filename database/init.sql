@@ -38,3 +38,26 @@ CREATE TABLE IF NOT EXISTS public.ai_agent_session (
         ON UPDATE NO ACTION
         ON DELETE NO ACTION
 );
+
+CREATE TABLE IF NOT EXISTS public.ai_agent_document_type (
+    id SERIAL PRIMARY KEY,
+    type CHARACTER VARYING NOT NULL,
+    CONSTRAINT ai_agent_document_type_unique UNIQUE (type)
+);
+
+CREATE TABLE IF NOT EXISTS public.ai_agent_document (
+    id SERIAL PRIMARY KEY,
+    name CHARACTER VARYING NOT NULL,
+    content CHARACTER VARYING NOT NULL,
+    type_id INTEGER NOT NULL,
+    embedding vector(384) NOT NULL,
+    created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT document_name_unique UNIQUE (name),
+    CONSTRAINT document_content_unique UNIQUE (content),
+    CONSTRAINT document_type_id_fkey FOREIGN KEY (type_id)
+        REFERENCES public.ai_agent_document_type (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+);
+
+INSERT INTO public.ai_agent_document_type (type) VALUES ('documentation') ON CONFLICT DO NOTHING;

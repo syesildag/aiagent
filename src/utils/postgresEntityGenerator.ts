@@ -64,6 +64,110 @@ export class PostgreSQLEntityGenerator {
   }
 
   /**
+   * Update the Table type definition to include the new table name
+   */
+  private updateTableTypeDefinition(tableName: string, outputDirectory: string): void {
+    try {
+      // Find the table.ts file - it should be in the repository directory
+      const tableFilePath = path.join(outputDirectory, '../repository/table.ts');
+      const absoluteTablePath = path.resolve(tableFilePath);
+      
+      this.logger.info(`Updating Table type definition at: ${absoluteTablePath}`);
+      
+      if (!fs.existsSync(absoluteTablePath)) {
+        this.logger.warn(`Table.ts file not found at ${absoluteTablePath}, skipping update`);
+        return;
+      }
+      
+      // Read current content
+      const currentContent = fs.readFileSync(absoluteTablePath, 'utf8');
+      
+      // Extract existing table names from the union type
+      const tableTypeRegex = /export type Table = ([^;]+);/;
+      const match = currentContent.match(tableTypeRegex);
+      
+      if (!match) {
+        this.logger.warn('Could not find Table type definition in table.ts, skipping update');
+        return;
+      }
+      
+      const currentUnion = match[1].trim();
+      
+      // Check if table name already exists
+      const quotedTableName = `'${tableName}'`;
+      if (currentUnion.includes(quotedTableName)) {
+        this.logger.info(`Table '${tableName}' already exists in Table type definition`);
+        return;
+      }
+      
+      // Add the new table name to the union
+      const newUnion = currentUnion.endsWith(' |') 
+        ? `${currentUnion} ${quotedTableName}`
+        : `${currentUnion} | ${quotedTableName}`;
+      
+      const newContent = currentContent.replace(
+        tableTypeRegex,
+        `export type Table = ${newUnion};`
+      );
+      
+      // Write the updated content
+      fs.writeFileSync(absoluteTablePath, newContent, 'utf8');
+      this.logger.info(`Successfully updated Table type definition to include '${tableName}'`);
+      
+    } catch (error) {
+      this.logger.error(`Failed to update Table type definition: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Generate missing dependency entities for relationships
+   */
+  private async generateMissingDependencies(relationships: RelationshipInfo[], config: EntityGenerationConfig): Promise<void> {
+    for (const relationship of relationships) {
+      const targetTableName = this.toSnakeCase(relationship.targetEntity);
+      const targetFileName = `${this.toKebabCase(relationship.targetEntity)}.ts`;
+      const targetFilePath = path.join(config.outputDirectory, targetFileName);
+
+      // Check if the target entity file already exists
+      if (!fs.existsSync(targetFilePath)) {
+        this.logger.info(`Generating missing dependency entity: ${targetTableName}`);
+        
+        try {
+          // Check if the target table exists in the database
+          const tableExists = await this.metadataExtractor.tableExists(
+            targetTableName, 
+            config.schemaName || 'public'
+          );
+
+          if (tableExists) {
+            // Generate the missing entity with the same config but without relationships to avoid circular dependencies
+            const depConfig: EntityGenerationConfig = {
+              ...config,
+              includeRelationships: false, // Temporarily disable relationships to avoid circular generation
+            };
+
+            const result = await this.generateEntity(targetTableName, depConfig);
+            
+            if (result.success) {
+              this.logger.info(`Successfully generated dependency entity: ${targetTableName}`);
+            } else {
+              this.logger.warn(`Failed to generate dependency entity: ${targetTableName} - ${result.errors.join(', ')}`);
+            }
+          } else {
+            this.logger.warn(`Target table '${targetTableName}' not found in database for relationship to ${relationship.targetEntity}`);
+          }
+        } catch (error) {
+          this.logger.error(`Error generating dependency entity ${targetTableName}:`, error);
+        }
+      } else {
+        this.logger.debug(`Dependency entity already exists: ${targetFilePath}`);
+      }
+    }
+  }
+
+
+
+  /**
    * Generate a single entity class from a table name
    */
   async generateEntity(
@@ -124,6 +228,9 @@ export class PostgreSQLEntityGenerator {
           tableName, 
           config.schemaName || 'public'
         );
+
+        // Step 3.5: Generate missing dependency entities
+        await this.generateMissingDependencies(relationships, config);
       }
 
       // Step 4: Detect annotations
@@ -223,6 +330,9 @@ export class PostgreSQLEntityGenerator {
         // Write the file
         fs.writeFileSync(fullPath, finalCode, 'utf8');
         this.logger.info(`Entity file generated: ${fullPath}`);
+        
+        // Update Table type definition
+        this.updateTableTypeDefinition(tableName, config.outputDirectory);
       }
 
       const executionTime = Date.now() - startTime;
@@ -457,6 +567,16 @@ export class PostgreSQLEntityGenerator {
       .split(/[-_\s]+/)
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join('');
+  }
+
+  /**
+   * Convert PascalCase to snake_case
+   */
+  private toSnakeCase(str: string): string {
+    return str
+      .replace(/([A-Z])/g, '_$1')
+      .toLowerCase()
+      .replace(/^_/, '');
   }
 
   /**

@@ -82,33 +82,58 @@ export class TypeScriptCodeGenerator {
     const className = this.toPascalCase(tableInfo.tableName);
     const uniqueColumnNames = options.uniqueColumns || [];
     const fields = this.generateFieldsFromColumns(tableInfo.columns, uniqueColumnNames);
+    const relationshipFields = this.generateRelationshipFields(relationships);
     
     const parts: string[] = [];
 
     // Imports
     parts.push(this.generateImports(outputPath));
+    
+    // Add imports for related entities
+    const entityImports = this.generateEntityImports(relationships, outputPath);
+    if (entityImports) {
+      parts.push(entityImports);
+    }
 
     // Class declaration
     parts.push(`export class ${className} extends Entity {`);
     parts.push('');
 
-    // Private fields
+    // Private fields (columns)
     for (const field of fields) {
       const optionalSuffix = field.isOptional ? '?' : '';
       parts.push(`   private ${field.name}${optionalSuffix}: ${field.type};`);
     }
+    
+    // Private fields (relationships)
+    for (const relField of relationshipFields) {
+      const optionalSuffix = relField.isOptional ? '?' : '';
+      parts.push(`   private ${relField.name}${optionalSuffix}: ${relField.type};`);
+    }
     parts.push('');
 
     // Constructor
-    const constructorLines = this.generateConstructor(className, fields);
+    const allFields = [...fields, ...relationshipFields];
+    const constructorLines = this.generateConstructor(className, allFields);
     for (const line of constructorLines) {
       parts.push(line.length > 0 ? `   ${line}` : '');
     }
     parts.push('');
 
-    // Getter methods with annotations
+    // Getter methods with annotations (columns)
     for (const field of fields) {
       const getterLines = this.generateAnnotatedGetter(field);
+      for (const line of getterLines) {
+        parts.push(line.length > 0 ? `   ${line}` : '');
+      }
+      parts.push('');
+    }
+
+    // Getter methods with relationship annotations
+    for (let i = 0; i < relationshipFields.length; i++) {
+      const relField = relationshipFields[i];
+      const relationship = relationships[i];
+      const getterLines = this.generateRelationshipGetter(relField, relationship);
       for (const line of getterLines) {
         parts.push(line.length > 0 ? `   ${line}` : '');
       }
@@ -148,7 +173,26 @@ export class TypeScriptCodeGenerator {
 import { Column } from "${relativePath}annotations/Column";
 import { Find } from "${relativePath}annotations/find";
 import { Id } from "${relativePath}annotations/Id";
+import { OneToOne } from "${relativePath}annotations/OneToOne";
+import { OneToMany } from "${relativePath}annotations/OneToMany";
+import { ManyToOne } from "${relativePath}annotations/ManyToOne";
 import { repository } from "${relativePath}repository";`;
+  }
+
+  /**
+   * Generate imports for related entity classes
+   */
+  private generateEntityImports(relationships: RelationshipInfo[], outputPath?: string): string {
+    if (relationships.length === 0) return '';
+    
+    const entityNames = Array.from(new Set(relationships.map(rel => rel.targetEntity)));
+    const imports = entityNames.map(entityName => {
+      // Convert PascalCase to kebab-case for file names
+      const fileName = this.toKebabCase(entityName);
+      return `import { ${entityName} } from './${fileName}';`;
+    });
+    
+    return imports.join('\n');
   }
 
   /**
@@ -344,6 +388,59 @@ import { repository } from "${relativePath}repository";`;
     lines.push(`repository.set(${className}, ${this.toCamelCase(className)}Repository);`);
     lines.push('');
     lines.push(`export default ${this.toCamelCase(className)}Repository;`);
+    
+    return lines;
+  }
+
+  /**
+   * Generate relationship field information from relationships
+   */
+  private generateRelationshipFields(relationships: RelationshipInfo[]): FieldInfo[] {
+    return relationships.map(rel => ({
+      name: rel.propertyName,
+      type: (rel.type === 'OneToOne' || rel.type === 'ManyToOne') ? rel.targetEntity : `${rel.targetEntity}[]`,
+      isOptional: true, // Relationships are typically optional
+      columnName: rel.foreignKey.columnName,
+      isPrimaryKey: false,
+      isNotNull: false,
+      isUnique: rel.type === 'OneToOne',
+      hasDefault: false
+    }));
+  }
+
+  /**
+   * Generate getter method with relationship annotations
+   */
+  private generateRelationshipGetter(field: FieldInfo, relationship: RelationshipInfo): string[] {
+    const lines: string[] = [];
+    const capitalizedName = this.capitalizeCamelCase(field.name);
+    const returnType = `${field.type} | undefined`;
+    
+    // Generate relationship annotation
+    if (relationship.type === 'OneToOne') {
+      if (relationship.isOwning) {
+        // This entity owns the foreign key
+        lines.push(`@OneToOne({ target: () => ${relationship.targetEntity}, joinColumn: '${relationship.foreignKey.columnName}' })`);
+      } else {
+        // This entity is referenced by the foreign key
+        lines.push(`@OneToOne({ target: () => ${relationship.targetEntity}, mappedBy: '${relationship.foreignKey.columnName}' })`);
+      }
+    } else if (relationship.type === 'ManyToOne') {
+      // This entity has a foreign key pointing to another entity
+      lines.push(`@ManyToOne({ target: () => ${relationship.targetEntity}, joinColumn: '${relationship.foreignKey.columnName}' })`);
+    } else if (relationship.type === 'OneToMany') {
+      if (relationship.isOwning) {
+        // This should typically be ManyToOne, but handle edge case
+        lines.push(`@OneToMany({ target: () => ${relationship.targetEntity}, joinColumn: '${relationship.foreignKey.columnName}' })`);
+      } else {
+        // This entity is referenced by multiple entities
+        lines.push(`@OneToMany({ target: () => ${relationship.targetEntity}, mappedBy: '${relationship.foreignKey.columnName}' })`);
+      }
+    }
+    
+    lines.push(`public get${capitalizedName}(): ${returnType} {`);
+    lines.push(`   return this.${field.name};`);
+    lines.push('}');
     
     return lines;
   }

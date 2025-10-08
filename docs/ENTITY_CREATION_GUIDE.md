@@ -41,6 +41,36 @@ POSTGRES_PASSWORD=your_password
    node dist/utils/entityGenerator.js --schema public --output src/repository/entities
    ```
 
+### CLI Options
+
+The entity generator supports the following command-line options:
+
+| Option | Description |
+|--------|-------------|
+| `--table <name>` | Generate entity for specific table |
+| `--schema <name>` | Generate entities for all tables in schema (default: public) |
+| `--output, -o <path>` | Output directory for generated files (default: ./src/entities) |
+| `--base-class <name>` | Base class for entities (default: Entity) |
+| `--overwrite` | Overwrite existing files |
+| `--no-relationships` | Skip relationship generation |
+| `--help, -h` | Show help message |
+
+**Examples:**
+
+```bash
+# Generate entity for 'session' table
+node dist/utils/entityGenerator.js --table session
+
+# Generate all entities in public schema with overwrite
+node dist/utils/entityGenerator.js --schema public --output ./generated --overwrite
+
+# Generate entity with custom base class
+node dist/utils/entityGenerator.js --table users --base-class BaseModel
+
+# Generate without relationships
+node dist/utils/entityGenerator.js --table logs --no-relationships
+```
+
 ### Example Usage
 
 Generate an entity for the `ai_agent_session` table:

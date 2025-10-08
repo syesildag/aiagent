@@ -41,7 +41,7 @@ export interface IndexInfo {
 }
 
 export interface RelationshipInfo {
-  type: 'OneToOne' | 'OneToMany';
+  type: 'OneToOne' | 'OneToMany' | 'ManyToOne';
   propertyName: string;
   targetEntity: string;
   foreignKey: ForeignKeyInfo;
@@ -254,10 +254,11 @@ export class DbMetadataExtractor {
     for (const fk of outgoingFks) {
       // Check if the foreign key column is unique (indicates OneToOne)
       const isUnique = await this.isColumnUnique(tableName, fk.columnName, schemaName);
+      const relationType = isUnique ? 'OneToOne' : 'ManyToOne';
       
       relationships.push({
-        type: isUnique ? 'OneToOne' : 'OneToMany',
-        propertyName: this.generatePropertyName(fk.referencedTable, isUnique),
+        type: relationType,
+        propertyName: this.generatePropertyName(fk.referencedTable, true),  // Always singular for outgoing relationships (OneToOne/ManyToOne)
         targetEntity: this.toPascalCase(fk.referencedTable),
         foreignKey: fk,
         isOwning: true
@@ -481,7 +482,17 @@ export class DbMetadataExtractor {
    * Generate property name for relationships
    */
   private generatePropertyName(targetTable: string, isUnique: boolean): string {
-    const baseName = this.toCamelCase(targetTable);
+    // Create a better property name by removing redundant parts and making it singular for owned relationships
+    let baseName = targetTable;
+    
+    // Remove common prefixes like 'ai_agent_' to make names shorter
+    baseName = baseName.replace(/^ai_agent_/, '');
+    
+    // Convert to camelCase
+    baseName = this.toCamelCase(baseName);
+    
+    // For OneToOne and ManyToOne (owned relationships), use singular
+    // For OneToMany (collection relationships), use plural
     return isUnique ? baseName : `${baseName}s`;
   }
 
