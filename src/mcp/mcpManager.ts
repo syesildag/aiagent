@@ -333,6 +333,22 @@ export class MCPServerManager {
     this.llmProvider = llmProvider || new OllamaProvider();
     this.model = model;
     this.conversationHistory = ConversationHistoryFactory.getInstance();
+    
+    // Ensure cleanup on process exit
+    process.on('SIGINT', () => this.cleanup());
+    process.on('SIGTERM', () => this.cleanup());
+    process.on('exit', () => this.cleanup());
+  }
+
+  private cleanup(): void {
+    if (this.connections.size > 0) {
+      Logger.info('Cleaning up MCP server processes...');
+      for (const [name, connection] of this.connections) {
+        connection.stop();
+        Logger.debug(`Stopped MCP server: ${name}`);
+      }
+      this.connections.clear();
+    }
   }
 
   /**
@@ -362,8 +378,17 @@ export class MCPServerManager {
   }
 
   async startAllServers(): Promise<void> {
+    // Stop any existing servers first to prevent duplicates
+    await this.stopAllServers();
+    
     for (const server of this.servers) {
       try {
+        // Check if server is already running by attempting to connect
+        if (this.connections.has(server.name) && this.connections.get(server.name)?.isRunning()) {
+          Logger.info(`MCP server ${server.name} is already running, skipping start`);
+          continue;
+        }
+        
         const connection = new MCPServerConnection(server);
         await connection.start();
         this.connections.set(server.name, connection);

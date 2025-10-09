@@ -28,6 +28,11 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
       return Agents;
    }
 
+   // Shutdown existing MCP manager if it exists
+   if (globalMCPManager) {
+      await shutdownAgentSystem();
+   }
+
    // Initialize global MCP manager
    const llmProvider = await createLLMProvider();
    const model = getLLMModel();
