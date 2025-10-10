@@ -11,14 +11,6 @@
       "enabled": true
     },
     {
-      "name": "notes",
-      "command": "node",
-      "args": [
-        "dist/mcp/server/notes.js"
-      ],
-      "enabled": true
-    },
-    {
       "name": "memory",
       "command": "node",
       "args": [
