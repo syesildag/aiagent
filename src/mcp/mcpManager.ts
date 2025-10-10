@@ -671,9 +671,9 @@ export class MCPServerManager {
   }
 
   async chatWithLLM(
-    message: string, 
+    message: string,
+    customSystemPrompt: string,
     abortSignal?: AbortSignal, 
-    customSystemPrompt?: string,
     serverNames?: string[],
     stream?: boolean
   ): Promise<ReadableStream<string> | string> {
@@ -694,20 +694,6 @@ export class MCPServerManager {
         ? serverNames.filter(name => this.connections.has(name))
         : Array.from(this.connections.keys());
       
-      const defaultSystemPrompt = `You are an assistant with access to various MCP (Model Context Protocol) servers and their tools. 
-Available MCP servers: ${availableServers.join(', ')}
-
-You can use tools to:
-- Access file systems and repositories
-- Query databases
-- Search the web
-- Read and manipulate various resources
-- Execute server-specific operations
-
-When using tools, always provide clear context about what you're doing and interpret the results for the user.`;
-
-      const systemPrompt = customSystemPrompt ?? defaultSystemPrompt;
-      
       // Add user message to conversation history
       await this.conversationHistory.addMessage({
         role: 'user',
@@ -719,7 +705,7 @@ When using tools, always provide clear context about what you're doing and inter
       let messages: LLMMessage[] = [
         {
           role: 'system',
-          content: systemPrompt
+          content: customSystemPrompt
         },
         ...conversationMessages
       ];
@@ -746,16 +732,9 @@ When using tools, always provide clear context about what you're doing and inter
         
         // If no tool calls, we're done
         if (!response?.message?.tool_calls || response.message.tool_calls.length === 0) {
-          const finalContent = response?.message?.content || 'No response content received';
-
-            // await this.conversationHistory.addMessage({
-            //   role: 'assistant',
-            //   content: finalContent as string
-            // });
-
-          return finalContent;
+          return response?.message?.content || 'No response content received';
         }
-
+        
         // Handle tool calls
         const toolResults: string[] = [];
         

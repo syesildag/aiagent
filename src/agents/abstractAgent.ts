@@ -17,9 +17,7 @@ export default abstract class AbstractAgent implements Agent {
       this.mcpManager = manager;
    }
 
-   getSystemPrompt(): string | undefined {
-      return undefined;
-   }
+   abstract getSystemPrompt(): string;
 
    abstract getName(): AgentName;
 
@@ -68,7 +66,7 @@ export default abstract class AbstractAgent implements Agent {
       try {
          const systemPrompt = this.getSystemPrompt();
          const serverNames = this.getAllowedServerNames();
-         return await this.mcpManager.chatWithLLM(prompt, abortSignal, systemPrompt, serverNames, stream);
+         return await this.mcpManager.chatWithLLM(prompt, systemPrompt, abortSignal, serverNames, stream);
       } catch (error) {
          Logger.error(`MCP chat failed: ${error instanceof Error ? error.message : String(error)}`);
          throw error;

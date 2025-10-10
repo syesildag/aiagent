@@ -11,7 +11,7 @@ export type AgentName = 'general' | 'weather';
 export interface Agent {
    setSession(session: AiAgentSession): void;
    chat(prompt: string, abortSignal?: AbortSignal, stream?: boolean): Promise<ReadableStream<string> | string>;
-   getSystemPrompt(): string | undefined;
+   getSystemPrompt(): string;
    getName(): AgentName;
    getOptions(): Partial<Options> | undefined;
    setMCPManager(manager: MCPServerManager): void;
