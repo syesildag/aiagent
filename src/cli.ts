@@ -562,7 +562,8 @@ async function main() {
           const response = await currentManager.chatWithLLM({
             message: query,
             customSystemPrompt: GENERAL_ASSISTANT_SYSTEM_PROMPT,
-            abortSignal: currentAbortController.signal
+            abortSignal: currentAbortController.signal,
+            stream: true
           });
 
           // Clear the abort controller since operation completed successfully
