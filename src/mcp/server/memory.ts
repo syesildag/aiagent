@@ -299,11 +299,11 @@ server.registerTool(
       const queryParams: any[] = [`[${queryEmbedding.join(',')}]`];
       let paramCount = 1;
 
-      if (type) {
-        paramCount++;
-        sqlQuery += ` AND type = $${paramCount}`;
-        queryParams.push(type);
-      }
+      // if (type) {
+      //   paramCount++;
+      //   sqlQuery += ` AND type = $${paramCount}`;
+      //   queryParams.push(type);
+      // }
 
       if (tags && tags.length > 0) {
         paramCount++;
