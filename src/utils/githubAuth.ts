@@ -1,4 +1,4 @@
-import z from "zod"
+import { z } from "zod"
 import { Auth } from "./auth"
 import Logger from './logger';
 

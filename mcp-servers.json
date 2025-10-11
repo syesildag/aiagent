@@ -14,7 +14,7 @@
       "name": "memory",
       "command": "node",
       "args": [
-        "dist/mcp/server/memory.js"
+        "dist/src/mcp/server/memory.js"
       ],
       "enabled": true
     },
@@ -22,7 +22,15 @@
       "name": "documentation",
       "command": "node",
       "args": [
-        "dist/mcp/server/documentation.js"
+        "dist/src/mcp/server/documentation.js"
+      ],
+      "enabled": true
+    },
+    {
+      "name": "weather",
+      "command": "node",
+      "args": [
+        "dist/src/mcp/server/weather.js"
       ],
       "enabled": true
     }

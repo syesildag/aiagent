@@ -1,6 +1,6 @@
 import { ChildProcess, spawn } from 'child_process';
 import { EventEmitter } from 'events';
-import fs from 'fs/promises';
+import { promises as fs } from 'fs';
 import Logger from '../utils/logger';
 import { config } from '../utils/config';
 import { LLMMessage, LLMProvider, OllamaProvider, Tool } from './llmProviders';
@@ -905,3 +905,7 @@ export class MCPServerManager {
     return await this.conversationHistory.getConversation(conversationId);
   }
 }
+
+// Export singleton instance
+const mcpManager = new MCPServerManager();
+export default mcpManager;

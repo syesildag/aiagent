@@ -139,6 +139,107 @@ While running the agent, you can use these commands:
 - `clear` - Clear the screen
 - `exit` or `quit` - Exit the program
 
+## MCP Servers
+
+This project includes several built-in Model Context Protocol (MCP) servers that extend the AI agent's capabilities:
+
+### Available Servers
+
+#### 1. Documentation Server (`src/mcp/server/documentation.ts`)
+Provides access to stored documents with semantic search capabilities.
+
+**Features:**
+- Document search using embeddings
+- List documents with filtering
+- Retrieve document content
+- Document type management
+
+**Resources:**
+- `docs://types` - List all document types
+- `docs://stats` - Document statistics
+- `docs://type/{type}` - Documents by type
+- `docs://document/{id}` - Individual documents
+
+**Tools:**
+- `document_search` - Semantic search across documents
+- `document_list` - List documents with optional filters
+- `document_get` - Get document by ID
+- `document_read` - Read document content
+
+#### 2. Weather Server (`src/mcp/server/weather.ts`)
+Provides comprehensive weather information using OpenWeatherMap API.
+
+**Features:**
+- Current weather conditions
+- Multi-day weather forecasts
+- Weather alerts (with One Call API subscription)
+- Location geocoding
+- International city support
+
+**Prerequisites:**
+- OpenWeatherMap API key (free at https://openweathermap.org/api)
+- Add `OPENWEATHERMAP_API_KEY=your_key` to `.env`
+
+**Resources:**
+- `weather://dashboard` - Major cities weather dashboard
+- `weather://current/{location}` - Current weather for location
+- `weather://forecast/{location}/{days}` - Weather forecast
+
+**Tools:**
+- `current_weather` - Get current weather conditions
+- `weather_forecast` - Get multi-day forecast
+- `geocode_location` - Convert location names to coordinates
+- `weather_alerts` - Get weather alerts (requires subscription)
+
+**Usage Examples:**
+```bash
+# Current weather
+> What's the weather like in London?
+
+# Forecast
+> Can you show me the 5-day forecast for Tokyo?
+
+# Geocoding
+> What are the coordinates for Sydney, Australia?
+```
+
+### Configuration
+
+MCP servers are configured in `mcp-servers.json`:
+
+```json
+{
+  "servers": [
+    {
+      "name": "documentation",
+      "command": "node",
+      "args": ["dist/mcp/server/documentation.js"],
+      "enabled": true
+    },
+    {
+      "name": "weather",
+      "command": "node", 
+      "args": ["dist/mcp/server/weather.js"],
+      "enabled": true
+    }
+  ]
+}
+```
+
+### Creating Custom MCP Servers
+
+To create a new MCP server:
+
+1. Create a new file in `src/mcp/server/`
+2. Use the modern `McpServer` class from `@modelcontextprotocol/sdk`
+3. Follow the pattern from existing servers:
+   - Zod schema validation
+   - Comprehensive error handling
+   - Logger integration
+   - Graceful shutdown handling
+4. Add the server to `mcp-servers.json`
+5. Build with `npm run build`
+
 ### Login Command
 
 The `login` command provides an interactive way to configure LLM providers:
