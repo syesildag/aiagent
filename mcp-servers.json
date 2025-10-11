@@ -33,6 +33,14 @@
         "dist/src/mcp/server/weather.js"
       ],
       "enabled": true
+    },
+    {
+      "name": "time",
+      "command": "node",
+      "args": [
+        "dist/src/mcp/server/time.js"
+      ],
+      "enabled": true
     }
   ]
 }
