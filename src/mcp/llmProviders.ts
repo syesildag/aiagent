@@ -562,12 +562,43 @@ export class OllamaProvider implements LLMProvider {
 
     // Handle streaming and non-streaming responses
     if (request.stream === true) {
-      // Streaming: return a ReadableStream or AsyncIterator as content
-      // (You may want to adapt this to your actual streaming handling)
+      // Streaming: Create a ReadableStream that handles content streaming
+      const ollamaStream = response as AsyncIterable<any>;
+      let collectedToolCalls: any[] = [];
+      
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            for await (const chunk of ollamaStream) {
+              // Handle content streaming
+              if (chunk.message?.content) {
+                controller.enqueue(chunk.message.content);
+              }
+              
+              // Collect tool calls if they appear (shouldn't happen in streaming mode)
+              if (chunk.message?.tool_calls) {
+                collectedToolCalls.push(...chunk.message.tool_calls);
+                Logger.warn('Tool calls detected in streaming mode - this indicates a design issue');
+              }
+              
+              // Check if this is the final chunk
+              if (chunk.done) {
+                controller.close();
+                break;
+              }
+            }
+          } catch (error) {
+            controller.error(error);
+          }
+        }
+      });
+
       return {
         message: {
           role: 'assistant',
-          content: response as any, // Pass the stream/iterator as content
+          content: stream,
+          // Include tool calls if they were collected (fallback for unexpected behavior)
+          tool_calls: collectedToolCalls.length > 0 ? collectedToolCalls : undefined
         },
         done: false
       };
@@ -841,6 +872,8 @@ export class GitHubCopilotProvider implements LLMProvider {
       }
 
       // Create a ReadableStream that processes Server-Sent Events
+      let collectedToolCalls: any[] = [];
+      
       const stream = new ReadableStream({
         start(controller) {
           const reader = response.body!.getReader();
@@ -867,9 +900,17 @@ export class GitHubCopilotProvider implements LLMProvider {
 
                   try {
                     const parsed = JSON.parse(data);
-                    const content = parsed.choices?.[0]?.delta?.content;
-                    if (content) {
-                      controller.enqueue(content);
+                    const delta = parsed.choices?.[0]?.delta;
+                    
+                    // Handle content streaming
+                    if (delta?.content) {
+                      controller.enqueue(delta.content);
+                    }
+                    
+                    // Collect tool calls if they appear (shouldn't happen in streaming mode)
+                    if (delta?.tool_calls) {
+                      collectedToolCalls.push(...delta.tool_calls);
+                      Logger.warn('Tool calls detected in GitHub Copilot streaming mode - this indicates a design issue');
                     }
                   } catch (error) {
                     // Skip invalid JSON lines
@@ -889,6 +930,8 @@ export class GitHubCopilotProvider implements LLMProvider {
         message: {
           role: 'assistant',
           content: stream,
+          // Include tool calls if they were collected (fallback for unexpected behavior)
+          tool_calls: collectedToolCalls.length > 0 ? collectedToolCalls : undefined
         },
         done: false
       };
@@ -1076,6 +1119,8 @@ export class OpenAIProvider implements LLMProvider {
       }
 
       // Create a ReadableStream that processes Server-Sent Events
+      let collectedToolCalls: any[] = [];
+      
       const stream = new ReadableStream({
         start(controller) {
           const reader = response.body!.getReader();
@@ -1102,9 +1147,17 @@ export class OpenAIProvider implements LLMProvider {
 
                   try {
                     const parsed = JSON.parse(data);
-                    const content = parsed.choices?.[0]?.delta?.content;
-                    if (content) {
-                      controller.enqueue(content);
+                    const delta = parsed.choices?.[0]?.delta;
+                    
+                    // Handle content streaming
+                    if (delta?.content) {
+                      controller.enqueue(delta.content);
+                    }
+                    
+                    // Collect tool calls if they appear (shouldn't happen in streaming mode)
+                    if (delta?.tool_calls) {
+                      collectedToolCalls.push(...delta.tool_calls);
+                      Logger.warn('Tool calls detected in OpenAI streaming mode - this indicates a design issue');
                     }
                   } catch (error) {
                     // Skip invalid JSON lines
@@ -1124,6 +1177,8 @@ export class OpenAIProvider implements LLMProvider {
         message: {
           role: 'assistant',
           content: stream,
+          // Include tool calls if they were collected (fallback for unexpected behavior)
+          tool_calls: collectedToolCalls.length > 0 ? collectedToolCalls : undefined
         },
         done: false
       };

@@ -724,16 +724,18 @@ export class MCPServerManager {
 
         Logger.debug(`MCPServerManager chatWithLLM request: model=${this.model}, messages=${messages.length}, tools=${tools.length}, provider=${this.getProviderName()}`);
 
+        // NEVER stream during tool iteration loops - we need to examine the response for tool calls
+        // The LLM might decide to call tools even when we don't expect it
         const chatRequest = {
           model: this.model,
           messages: messages,
           tools: tools,
-          stream
+          stream: false  // Always false during iterations
         };
 
         let response = await this.llmProvider.chat(chatRequest, abortSignal);
         
-        // If no tool calls, we're done
+        // If no tool calls, we're done with iterations
         if (!response?.message?.tool_calls || response.message.tool_calls.length === 0) {
           return response?.message?.content || 'No response content received';
         }
@@ -790,21 +792,14 @@ export class MCPServerManager {
         throw new Error('Operation cancelled by user');
       }
 
+      // Final call can be streamed since we're not providing tools
       const finalResponse = await this.llmProvider.chat({
         model: this.model,
         messages: messages,
         stream
       }, abortSignal);
 
-      const finalContent = finalResponse?.message?.content || 'No response content received after maximum iterations';
-      
-      // // Add assistant's response to conversation history
-      // await this.conversationHistory.addMessage({
-      //   role: 'assistant',
-      //   content: finalContent
-      // });
-      
-      return finalContent;
+      return finalResponse?.message?.content;
     } catch (error) {
       if (error instanceof Error && error.message === 'Operation cancelled by user') {
         throw error;
