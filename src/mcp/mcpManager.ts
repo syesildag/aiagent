@@ -72,6 +72,14 @@ export interface MCPConfig {
   servers: MCPServer[];
 }
 
+export interface ChatWithLLMArgs {
+  message: string;
+  customSystemPrompt: string;
+  abortSignal?: AbortSignal;
+  serverNames?: string[];
+  stream?: boolean;
+}
+
 export class MCPServerConnection extends EventEmitter {
   private process: ChildProcess | null = null;
   private requestId = 1;
@@ -670,13 +678,8 @@ export class MCPServerManager {
     });
   }
 
-  async chatWithLLM(
-    message: string,
-    customSystemPrompt: string,
-    abortSignal?: AbortSignal, 
-    serverNames?: string[],
-    stream?: boolean
-  ): Promise<ReadableStream<string> | string> {
+  async chatWithLLM(args: ChatWithLLMArgs): Promise<ReadableStream<string> | string> {
+    const { message, customSystemPrompt, abortSignal, serverNames, stream } = args;
     try {
       // Ensure MCP servers are initialized on first use
       await this.ensureInitialized();

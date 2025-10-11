@@ -559,7 +559,11 @@ async function main() {
           currentAbortController = new AbortController();
           console.log('Assistant: Thinking... (type "cancel" or press Ctrl+C to cancel)');
 
-          const response = await currentManager.chatWithLLM(query, GENERAL_ASSISTANT_SYSTEM_PROMPT, currentAbortController.signal);
+          const response = await currentManager.chatWithLLM({
+            message: query,
+            customSystemPrompt: GENERAL_ASSISTANT_SYSTEM_PROMPT,
+            abortSignal: currentAbortController.signal
+          });
 
           // Clear the abort controller since operation completed successfully
           currentAbortController = null;
