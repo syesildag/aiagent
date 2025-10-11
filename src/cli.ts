@@ -568,7 +568,28 @@ async function main() {
 
           // Clear the abort controller since operation completed successfully
           currentAbortController = null;
-          console.log(`Assistant: ${response}\n`);
+          
+          // Handle streaming response
+          if (response instanceof ReadableStream) {
+            process.stdout.write('Assistant: ');
+            const reader = response.getReader();
+            
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                // The stream returns string chunks directly
+                process.stdout.write(value);
+              }
+              console.log('\n'); // Add newline after streaming is complete
+            } finally {
+              reader.releaseLock();
+            }
+          } else {
+            // Handle non-streaming response (fallback)
+            console.log(`Assistant: ${response}\n`);
+          }
         } catch (error) {
           // Clear the abort controller
           currentAbortController = null;
