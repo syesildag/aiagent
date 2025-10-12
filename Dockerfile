@@ -5,7 +5,7 @@ FROM node:24.9-alpine3.22
 WORKDIR /app
 
 # Install system dependencies (for node-gyp, if needed)
-RUN apk add --no-cache python3 make g++ openssl
+RUN apk add --no-cache python3 make g++ openssl gcompat
 
 # Copy package files and install dependencies
 COPY package.json package-lock.json* ./
