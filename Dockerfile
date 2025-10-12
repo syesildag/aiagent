@@ -24,4 +24,4 @@ EXPOSE 3000
 ENV NODE_ENV=development
 
 # Start the server
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "migrateDev"]
