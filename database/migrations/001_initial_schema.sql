@@ -98,19 +98,19 @@ END;
 $$ language 'plpgsql';
 
 -- Add triggers for updated_at (drop if exists first to avoid conflicts)
-DROP TRIGGER IF EXISTS update_users_updated_at ON ai_agent_user;
-CREATE TRIGGER update_users_updated_at 
-    BEFORE UPDATE ON ai_agent_user 
+DROP TRIGGER IF EXISTS ai_agent_update_users_updated_at ON ai_agent_user;
+CREATE TRIGGER ai_agent_update_users_updated_at 
+    BEFORE UPDATE ON ai_agent_user
     FOR EACH ROW EXECUTE FUNCTION ai_agent_update_updated_at_column();
 
-DROP TRIGGER IF EXISTS update_documents_updated_at ON ai_agent_document;
-CREATE TRIGGER update_documents_updated_at 
-    BEFORE UPDATE ON ai_agent_document 
+DROP TRIGGER IF EXISTS ai_agent_update_documents_updated_at ON ai_agent_document;
+CREATE TRIGGER ai_agent_update_documents_updated_at 
+    BEFORE UPDATE ON ai_agent_document
     FOR EACH ROW EXECUTE FUNCTION ai_agent_update_updated_at_column();
 
-DROP TRIGGER IF EXISTS update_memories_updated_at ON ai_agent_memories;
-CREATE TRIGGER update_memories_updated_at 
-    BEFORE UPDATE ON ai_agent_memories 
+DROP TRIGGER IF EXISTS ai_agent_update_memories_updated_at ON ai_agent_memories;
+CREATE TRIGGER ai_agent_update_memories_updated_at 
+    BEFORE UPDATE ON ai_agent_memories
     FOR EACH ROW EXECUTE FUNCTION ai_agent_update_updated_at_column();
 
 -- Record this migration
