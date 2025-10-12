@@ -138,17 +138,17 @@ export class DbConversationHistory implements IConversationHistory {
       const conversationId = randomUUID();
       const now = new Date();
 
-      // Get or create session if sessionId provided
-      let dbSessionId: number | undefined;
-      if (sessionId) {
-        const session = await this._getOrCreateSession(sessionId, userId);
-        dbSessionId = session.getId()!;
-      }
+      // Always get or create a session - use default if not provided
+      const effectiveSessionId = sessionId || `session-${conversationId}`;
+      const effectiveUserId = userId || 'serkan'; // Use existing user
+      
+      const session = await this._getOrCreateSession(effectiveSessionId, effectiveUserId);
+      const dbSessionId = session.getId()!;
 
       // Create conversation entity
       const conversationEntity = new AiAgentConversations({
-        sessionId: dbSessionId!,
-        userId: userId || null,
+        sessionId: dbSessionId,
+        userId: effectiveUserId,
         createdAt: now,
         updatedAt: now,
         metadata: { 
@@ -298,13 +298,18 @@ export class DbConversationHistory implements IConversationHistory {
         return existingSessions[0];
       }
 
-      // Get the user login to use - default to existing user 'serkan' if not provided
-      const userLogin = userId || 'serkan'; // Use existing user from database
+      // Get the user login to use - default to 'serkan' if not provided
+      let userLogin = userId || 'default_user';
       
-      // Verify the user exists in ai_agent_user table
+      // Verify the user exists in ai_agent_user table, create if it doesn't exist
       const userExists = await queryDatabase('SELECT id FROM ai_agent_user WHERE login = $1', [userLogin]);
       if (userExists.length === 0) {
-        throw new DatabaseError(`User '${userLogin}' does not exist in ai_agent_user table`);
+        // Create the default user if it doesn't exist (only login and password columns exist)
+        await queryDatabase(
+          'INSERT INTO ai_agent_user (login, password) VALUES ($1, $2)',
+          [userLogin, 'default_password'] // You might want to use a better default password or hash
+        );
+        Logger.info(`Created default user: ${userLogin}`);
       }
 
       // Create new session
