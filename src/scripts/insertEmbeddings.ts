@@ -2,6 +2,7 @@ import aiagentdocumentRepository, { AiAgentDocument } from '../entities/ai-agent
 import aiagentdocumenttypeRepository, { AiAgentDocumentType } from '../entities/ai-agent-document-type';
 import { getEmbeddingService, EmbeddingProviderType } from '../utils/embeddingService';
 import Logger from '../utils/logger';
+import { closeDatabase } from '../utils/pgClient';
 
 export interface DocumentInput {
   name: string;
@@ -109,6 +110,9 @@ export async function insertEmbeddings(
   } catch (error) {
     Logger.error('Failed to insert embeddings:', error);
     throw error;
+  }
+  finally {
+    closeDatabase();
   }
 }
 
