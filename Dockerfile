@@ -17,9 +17,6 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
-# Migrate database
-RUN npm run migrate
-
 # Expose port (default: 443 for HTTPS, or 3000 if you use HTTP)
 EXPOSE 3000
 
