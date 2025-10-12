@@ -50,6 +50,7 @@ const envSchema = z.object({
   
   // Conversation History Configuration
   CONVERSATION_HISTORY_WINDOW_SIZE: z.string().transform(Number).pipe(z.number().min(1)).default('10'),
+  USE_DB_CONVERSATION_HISTORY: z.string().transform((val) => val === 'true').default('false'),
   
   // Embedding Service Configuration
   EMBEDDING_PROVIDER: z.enum(['openai', 'ollama', 'local', 'auto']).default('auto'),
@@ -92,6 +93,7 @@ function validateEnvironment(): Environment {
       EMBEDDING_MODEL_OLLAMA: 'nomic-embed-text',
       EMBEDDING_CACHE_ENABLED: true,
       EMBEDDING_CACHE_TTL: 3600000,
+      USE_DB_CONVERSATION_HISTORY: false,
     } as Environment;
   }
 

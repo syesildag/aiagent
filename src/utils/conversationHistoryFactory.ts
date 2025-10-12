@@ -16,7 +16,7 @@ export class ConversationHistoryFactory {
   static getInstance(): IConversationHistory {
     if (!this._instance) {
       // Check if database conversation history is enabled
-      const useDatabase = config.NODE_ENV !== 'test' && process.env.USE_DB_CONVERSATION_HISTORY === 'true';
+      const useDatabase = config.NODE_ENV !== 'test' && config.USE_DB_CONVERSATION_HISTORY;
       
       if (useDatabase) {
         this._instance = new DbConversationHistory();
