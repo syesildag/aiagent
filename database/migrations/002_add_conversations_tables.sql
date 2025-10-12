@@ -49,8 +49,3 @@ CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON ai_agent_conversation_messa
 CREATE OR REPLACE TRIGGER ai_agent_update_conversations_updated_at 
     BEFORE UPDATE ON ai_agent_conversations 
     FOR EACH ROW EXECUTE FUNCTION ai_agent_update_updated_at_column();
-
--- Record this migration
-INSERT INTO public.ai_agent_schema_migrations (version, description) 
-VALUES ('002', 'Add conversations and conversation messages tables for persistent chat history')
-ON CONFLICT (version) DO NOTHING;

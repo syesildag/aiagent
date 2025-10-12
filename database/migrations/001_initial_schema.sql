@@ -5,13 +5,6 @@
 -- Enable the vector extension
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Create migration tracking table
-CREATE TABLE IF NOT EXISTS public.ai_agent_schema_migrations (
-    version VARCHAR(255) PRIMARY KEY,
-    applied_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    description TEXT
-);
-
 -- Create users table
 CREATE TABLE IF NOT EXISTS public.ai_agent_user (
     id SERIAL PRIMARY KEY,
@@ -112,8 +105,3 @@ DROP TRIGGER IF EXISTS ai_agent_update_memories_updated_at ON ai_agent_memories;
 CREATE TRIGGER ai_agent_update_memories_updated_at 
     BEFORE UPDATE ON ai_agent_memories
     FOR EACH ROW EXECUTE FUNCTION ai_agent_update_updated_at_column();
-
--- Record this migration
-INSERT INTO public.ai_agent_schema_migrations (version, description) 
-VALUES ('001', 'Create initial database schema with users, sessions, documents, and memories')
-ON CONFLICT (version) DO NOTHING;
