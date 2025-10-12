@@ -4,7 +4,7 @@ import path from 'path';
 function run(cmd: string) {
   try {
     console.log(`$ ${cmd}`);
-    execSync(cmd, { stdio: 'inherit', cwd: path.resolve(__dirname, '../../') });
+    execSync(cmd, { stdio: 'inherit', cwd: path.resolve(__dirname, '../../../') });
   } catch (err) {
     console.error(`Error running command: ${cmd}`);
     process.exit(1);
