@@ -1,4 +1,5 @@
 import { ColumnInfo, RelationshipInfo, TableInfo } from './dbMetadataExtractor.js';
+import { toPascalCase, toCamelCase, capitalize } from './stringCase.js';
 
 export interface FieldInfo {
   name: string;
@@ -79,7 +80,7 @@ export class TypeScriptCodeGenerator {
     options: EntityGenerationOptions = this.getDefaultOptions(),
     outputPath?: string
   ): string {
-    const className = this.toPascalCase(tableInfo.tableName);
+    const className = toPascalCase(tableInfo.tableName);
     const uniqueColumnNames = options.uniqueColumns || [];
     const fields = this.generateFieldsFromColumns(tableInfo.columns, uniqueColumnNames);
     const relationshipFields = this.generateRelationshipFields(relationships);
@@ -275,7 +276,7 @@ import { queryDatabase } from "${relativePath.replace(/repository\/$/, '')}utils
 
   private generateFieldsFromColumns(columns: ColumnInfo[], uniqueColumnNames: string[] = []): FieldInfo[] {
     return columns.map(col => ({
-      name: this.toCamelCase(col.name),
+      name: toCamelCase(col.name),
       type: this.mapDatabaseTypeToTypeScript(col),
       isOptional: col.isNullable || col.name === 'id' || col.hasDefault,
       columnName: col.name,
@@ -399,8 +400,8 @@ import { queryDatabase } from "${relativePath.replace(/repository\/$/, '')}utils
       for (const columnName of uniqueColumnNames) {
         const column = tableInfo.columns.find(col => col.name === columnName);
         if (column) {
-          const methodName = `findBy${this.toPascalCase(column.name)}`;
-          const paramName = this.toCamelCase(column.name);
+          const methodName = `findBy${toPascalCase(column.name)}`;
+          const paramName = toCamelCase(column.name);
           const tsType = this.mapDatabaseTypeToTypeScript(column);
           
           lines.push('   @Find()');
@@ -422,11 +423,11 @@ import { queryDatabase } from "${relativePath.replace(/repository\/$/, '')}utils
     
     lines.push('}');
     lines.push('');
-    lines.push(`const ${this.toCamelCase(className)}Repository = new ${className}Repository();`);
+    lines.push(`const ${toCamelCase(className)}Repository = new ${className}Repository();`);
     lines.push('');
-    lines.push(`repository.set(${className}, ${this.toCamelCase(className)}Repository);`);
+    lines.push(`repository.set(${className}, ${toCamelCase(className)}Repository);`);
     lines.push('');
-    lines.push(`export default ${this.toCamelCase(className)}Repository;`);
+    lines.push(`export default ${toCamelCase(className)}Repository;`);
     
     return lines;
   }
@@ -558,17 +559,7 @@ import { queryDatabase } from "${relativePath.replace(/repository\/$/, '')}utils
     return isArray ? `${tsType}[]` : tsType;
   }
 
-  toPascalCase(str: string): string {
-    return str
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join('');
-  }
 
-  toCamelCase(str: string): string {
-    const pascal = this.toPascalCase(str);
-    return pascal.charAt(0).toLowerCase() + pascal.slice(1);
-  }
 
   /**
    * Capitalizes the first letter of a camelCase string

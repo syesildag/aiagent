@@ -11,11 +11,7 @@ import { AbstractRepository, Entity } from "../repository/abstractRepository";
 import { Column } from "../repository/annotations/Column";
 import { Find } from "../repository/annotations/find";
 import { Id } from "../repository/annotations/Id";
-import { OneToOne } from "../repository/annotations/OneToOne";
-import { OneToMany } from "../repository/annotations/OneToMany";
-import { ManyToOne } from "../repository/annotations/ManyToOne";
 import { repository } from "../repository/repository";
-import { queryDatabase } from "../utils/pgClient";
 export class AiAgentSchemaMigrations extends Entity<string> {
 
    private version: string;
@@ -67,63 +63,19 @@ class AiAgentSchemaMigrationsRepository extends AbstractRepository<AiAgentSchema
    /**
     * Find migration by version (string-based ID)
     */
+   @Find()
    public async findByVersion(version: string): Promise<AiAgentSchemaMigrations | null> {
-      const rows = await queryDatabase(
-         'SELECT version, applied_at, description FROM ai_agent_schema_migrations WHERE version = $1',
-         [version]
-      );
-      
-      if (rows.length === 0) {
-         return null;
-      }
-      
-      const row = rows[0];
-      return new AiAgentSchemaMigrations({
-         version: row.version,
-         appliedAt: row.applied_at,
-         description: row.description
-      });
+      // Implementation provided by @Find decorator
+      return null;
    }
 
    /**
     * Get all applied migrations ordered by version
     */
-   public async findAllApplied(): Promise<AiAgentSchemaMigrations[]> {
-      const rows = await queryDatabase(
-         'SELECT version, applied_at, description FROM ai_agent_schema_migrations ORDER BY version ASC'
-      );
-      
-      return rows.map((row: any) => new AiAgentSchemaMigrations({
-         version: row.version,
-         appliedAt: row.applied_at,
-         description: row.description
-      }));
-   }
-
-   /**
-    * Insert a new migration record
-    */
-   public async insertMigration(version: string, description: string): Promise<AiAgentSchemaMigrations> {
-      const appliedAt = new Date();
-      
-      await queryDatabase(
-         'INSERT INTO ai_agent_schema_migrations (version, applied_at, description) VALUES ($1, $2, $3)',
-         [version, appliedAt, description]
-      );
-      
-      return new AiAgentSchemaMigrations({
-         version,
-         appliedAt,
-         description
-      });
-   }
-
-   /**
-    * Check if a migration version exists
-    */
-   public async exists(version: string): Promise<boolean> {
-      const migration = await this.findByVersion(version);
-      return migration !== null;
+   @Find()
+   public async findAllOrderByVersionAsc(): Promise<AiAgentSchemaMigrations[]> {
+      // Implementation provided by @Find decorator
+      return [];
    }
 
 }

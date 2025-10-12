@@ -29,7 +29,7 @@ export class MigrationRunner {
         description TEXT
       );
     `;
-    
+
     await queryDatabase(createTableSQL);
     Logger.info('Migration tracking table ensured');
   }
@@ -49,14 +49,14 @@ export class MigrationRunner {
     return files.map(filename => {
       const filePath = path.join(this.migrationsDir, filename);
       const sql = fs.readFileSync(filePath, 'utf8');
-      
+
       // Extract version from filename (e.g., "001_initial_schema.sql" -> "001")
       const versionMatch = filename.match(/^(\d+)_/);
       const version = versionMatch ? versionMatch[1] : filename.replace('.sql', '');
-      
+
       // Extract description from filename or SQL comments
       let description = filename.replace(/^\d+_/, '').replace('.sql', '').replace(/_/g, ' ');
-      
+
       // Try to extract description from SQL comments
       const descriptionMatch = sql.match(/-- Description: (.+)/);
       if (descriptionMatch) {
@@ -77,7 +77,7 @@ export class MigrationRunner {
    */
   private async getAppliedMigrations(): Promise<string[]> {
     try {
-      const migrations = await aiagentschemamigrationsRepository.findAllApplied();
+      const migrations = await aiagentschemamigrationsRepository.findAllOrderByVersionAsc();
       return migrations.map(migration => migration.getVersion());
     } catch (error) {
       // If table doesn't exist, return empty array
@@ -91,22 +91,21 @@ export class MigrationRunner {
    */
   private async applyMigration(migration: Migration): Promise<void> {
     Logger.info(`Applying migration ${migration.version}: ${migration.description}`);
-    
+
     try {
       await withTransaction(async (query) => {
         // Execute the migration SQL
         await query(migration.sql);
-        
+
         // Record the migration using repository pattern (if not already recorded by the migration itself)
-        const exists = await aiagentschemamigrationsRepository.exists(migration.version);
-        if (!exists) {
-          await aiagentschemamigrationsRepository.insertMigration(
-            migration.version, 
-            migration.description
-          );
-        }
+        const migrationRecord = new AiAgentSchemaMigrations({
+          version: migration.version,
+          appliedAt: new Date(),
+          description: migration.description
+        });
+        await migrationRecord.save();
       });
-      
+
       Logger.info(`✓ Migration ${migration.version} applied successfully`);
     } catch (error) {
       throw new Error(`Failed to apply migration ${migration.version}: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -120,30 +119,30 @@ export class MigrationRunner {
     try {
       Logger.info('Connected to database for migrations');
       await this.ensureMigrationTable();
-      
+
       const allMigrations = this.getMigrationFiles();
       const appliedMigrations = await this.getAppliedMigrations();
-      
+
       Logger.info(`Found ${allMigrations.length} migration files`);
       Logger.info(`${appliedMigrations.length} migrations already applied`);
-      
+
       const pendingMigrations = allMigrations.filter(
         migration => !appliedMigrations.includes(migration.version)
       );
-      
+
       if (pendingMigrations.length === 0) {
         Logger.info('No pending migrations to run');
         return;
       }
-      
+
       Logger.info(`Running ${pendingMigrations.length} pending migrations...`);
-      
+
       for (const migration of pendingMigrations) {
         await this.applyMigration(migration);
       }
-      
+
       Logger.info('All migrations completed successfully');
-      
+
     } catch (error) {
       Logger.error('Migration failed:', error);
       throw error;
@@ -164,7 +163,7 @@ export class MigrationRunner {
         AND tablename LIKE 'ai_agent_%'
         ORDER BY tablename;
       `);
-      
+
       if (tables.length > 0) {
         Logger.info(`Found ${tables.length} ai_agent tables to drop`);
         for (const table of tables) {
@@ -184,7 +183,7 @@ export class MigrationRunner {
         WHERE schemaname = 'public'
         AND tablename = 'schema_migrations';
       `);
-      
+
       if (legacyTable.length > 0) {
         await queryDatabase('DROP TABLE IF EXISTS public.schema_migrations CASCADE;');
         Logger.info('✓ Dropped legacy table: schema_migrations');
@@ -198,7 +197,7 @@ export class MigrationRunner {
         WHERE extname NOT IN ('plpgsql', 'adminpack')
         ORDER BY extname;
       `);
-      
+
       if (extensions.length > 0) {
         Logger.info(`Found ${extensions.length} extensions to drop`);
         for (const ext of extensions) {
@@ -223,7 +222,7 @@ export class MigrationRunner {
         AND p.proname LIKE 'ai_agent_%'
         ORDER BY p.proname;
       `);
-      
+
       if (functions.length > 0) {
         Logger.info(`Found ${functions.length} ai_agent functions to drop`);
         for (const func of functions) {
@@ -246,7 +245,7 @@ export class MigrationRunner {
         AND typname LIKE 'ai_agent_%'
         ORDER BY typname;
       `);
-      
+
       if (types.length > 0) {
         Logger.info(`Found ${types.length} ai_agent custom types to drop`);
         for (const type of types) {
@@ -271,21 +270,21 @@ export class MigrationRunner {
     try {
       Logger.info('Connected to database for migrations');
       await this.ensureMigrationTable();
-      
+
       const allMigrations = this.getMigrationFiles();
       const appliedMigrations = await this.getAppliedMigrations();
-      
+
       console.log('\n=== Migration Status ===');
       console.log(`Total migrations: ${allMigrations.length}`);
       console.log(`Applied migrations: ${appliedMigrations.length}`);
       console.log(`Pending migrations: ${allMigrations.length - appliedMigrations.length}`);
-      
+
       console.log('\n=== Migration Details ===');
       for (const migration of allMigrations) {
         const status = appliedMigrations.includes(migration.version) ? '✓ Applied' : '⏳ Pending';
         console.log(`${migration.version} - ${migration.description} [${status}]`);
       }
-      
+
     } catch (error) {
       Logger.error('Failed to get migration status:', error);
       throw error;
@@ -297,18 +296,18 @@ export class MigrationRunner {
    */
   async reset(): Promise<void> {
     Logger.warn('DANGER: Resetting ai_agent migrations - this will drop all ai_agent data!');
-    
+
     try {
       Logger.info('Connected to database for migrations');
-      
+
       // Dynamically discover and drop all ai_agent tables, functions, and related objects
       await this.dropAllDatabaseObjects();
       Logger.info('All ai_agent database objects dropped');
-      
+
       // Now run all migrations from scratch
       // Create a new instance for fresh migrations
       await this.runMigrations();
-      
+
     } catch (error) {
       Logger.error('Migration reset failed:', error);
       throw error;

@@ -1,5 +1,6 @@
 import { queryDatabase } from "../utils/pgClient";
 import ReflectMetadata from "../utils/reflectMetadata";
+import { toCamelCase } from "../utils/stringCase";
 import { __columnFields__, __fieldColumn__, __notNullColumns__, __uniqueColumns__, __defaultColumns__ } from "./annotations/Column";
 import { __id__ } from "./annotations/Id";
 import { __oneToManyRelations__, OneToManyMetadata } from "./annotations/OneToMany";
@@ -61,7 +62,19 @@ export abstract class AbstractRepository<C extends Entity<any>> {
    }
 
    public getFieldName(columnName: string) {
-      return { ...this.columnFieldNames, [this.idColumnName]: __id__ }[columnName];
+      // Check if there's an explicit mapping first
+      if (this.columnFieldNames[columnName]) {
+         return this.columnFieldNames[columnName];
+      }
+      
+      // For ID column, try to find the actual field name
+      if (columnName === this.idColumnName) {
+         // For non-standard ID columns, derive field name from column name
+         // Convert snake_case to camelCase (e.g., 'version' stays 'version', 'user_id' becomes 'userId')
+         return toCamelCase(columnName);
+      }
+      
+      return this.columnFieldNames[columnName];
    }
 
    public getUniqueColumns() {
@@ -182,7 +195,10 @@ export abstract class AbstractRepository<C extends Entity<any>> {
       // Handle cascade save operations first
       await this.handleCascadeSave(entity);
 
-      const columns = Object.keys(this.columnFieldNames).filter(column => {
+      // Get all columns including ID column
+      const allColumns = new Set([...Object.keys(this.columnFieldNames), this.idColumnName]);
+      
+      const columns = Array.from(allColumns).filter(column => {
          const fieldName = this.getFieldName(column);
          const fieldValue = (entity as any)[fieldName];
          
@@ -217,7 +233,9 @@ export abstract class AbstractRepository<C extends Entity<any>> {
          `;
       } else {
          // For existing entities, use UPSERT with primary key
-         const updateAssignments = columns.map(column => `${column} = EXCLUDED.${column}`).join(', ');
+         // Exclude primary key from update assignments since it cannot be updated
+         const updateColumns = columns.filter(column => column !== this.idColumnName);
+         const updateAssignments = updateColumns.map(column => `${column} = EXCLUDED.${column}`).join(', ');
          
          // Use unique columns for conflict resolution if they exist, otherwise use primary key
          const conflictColumns = this.uniqueColumns.length > 0 

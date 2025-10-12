@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-import { MigrationRunner } from '../utils/migrationRunner';
 import Logger from '../utils/logger';
+import { MigrationRunner } from '../utils/migrationRunner';
+import { closeDatabase } from '../utils/pgClient';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -62,12 +63,27 @@ Examples:
     Logger.error('Migration command failed:', error);
     process.exit(1);
   }
+  finally {
+    gracefulShutdown();
+  }
 }
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
   console.log('\nMigration interrupted');
-  process.exit(0);
+  gracefulShutdown();
 });
+
+process.on('SIGTERM', () => {
+  console.log('\nMigration terminated');
+  gracefulShutdown();
+});
+
+function gracefulShutdown() {
+  console.log('\nGracefully shutting down...');
+  closeDatabase().then(() => {
+    process.exit(0);
+  });
+}
 
 main();

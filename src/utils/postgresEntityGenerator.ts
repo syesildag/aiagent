@@ -5,6 +5,7 @@ import { Logger } from './logger.js';
 import { DbMetadataExtractor, TableInfo, RelationshipInfo } from './dbMetadataExtractor.js';
 import { TypeScriptCodeGenerator, EntityGenerationOptions, CodeGenerationUtils } from './typeScriptCodeGenerator.js';
 import { AnnotationDetector, ConstraintBasedAnnotation, ConstraintAnalyzer } from './annotationDetector.js';
+import { toPascalCase, toSnakeCase } from './stringCase.js';
 
 export interface EntityGenerationConfig {
   outputDirectory: string;
@@ -124,7 +125,7 @@ export class PostgreSQLEntityGenerator {
    */
   private async generateMissingDependencies(relationships: RelationshipInfo[], config: EntityGenerationConfig): Promise<void> {
     for (const relationship of relationships) {
-      const targetTableName = this.toSnakeCase(relationship.targetEntity);
+      const targetTableName = toSnakeCase(relationship.targetEntity);
       const targetFileName = `${this.toKebabCase(relationship.targetEntity)}.ts`;
       const targetFilePath = path.join(config.outputDirectory, targetFileName);
 
@@ -302,7 +303,7 @@ export class PostgreSQLEntityGenerator {
       if (config.fileHeader) {
         finalCode = config.fileHeader + '\n' + entityCode;
       } else {
-        const className = this.toPascalCase(tableName);
+        const className = toPascalCase(tableName);
         const header = CodeGenerationUtils.generateFileHeader(
           `${className}.ts`,
           `Entity class generated from PostgreSQL table: ${config.schemaName || 'public'}.${tableName}`
@@ -314,7 +315,7 @@ export class PostgreSQLEntityGenerator {
       finalCode = CodeGenerationUtils.formatTypeScriptCode(finalCode);
 
       // Step 10: Write to file
-      const className = this.toPascalCase(tableName);
+      const className = toPascalCase(tableName);
       const fileName = `${this.toKebabCase(className)}.ts`;
       const fullPath = path.join(config.outputDirectory, fileName);
 
@@ -500,7 +501,7 @@ export class PostgreSQLEntityGenerator {
     const indexPath = path.join(config.outputDirectory, 'index.ts');
     const exports = generatedFiles.map(filePath => {
       const fileName = path.basename(filePath, '.ts');
-      const className = this.toPascalCase(fileName.replace(/-/g, '_'));
+      const className = toPascalCase(fileName.replace(/-/g, '_'));
       return `export { ${className} } from './${fileName}.js';`;
     });
 
@@ -559,25 +560,7 @@ export class PostgreSQLEntityGenerator {
     return errors;
   }
 
-  /**
-   * Convert string to PascalCase
-   */
-  private toPascalCase(str: string): string {
-    return str
-      .split(/[-_\s]+/)
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join('');
-  }
 
-  /**
-   * Convert PascalCase to snake_case
-   */
-  private toSnakeCase(str: string): string {
-    return str
-      .replace(/([A-Z])/g, '_$1')
-      .toLowerCase()
-      .replace(/^_/, '');
-  }
 
   /**
    * Convert string to kebab-case
