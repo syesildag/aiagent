@@ -6,7 +6,7 @@
    "scripts": {
       "clean": "rm -fr dist",
       "start": "NODE_ENV=production node dist/src/index.js",
-      "docker": "node dist/src/scripts/initSql.js && node dist/src/scripts/addUser.js username password",
+      "docker": "npm run migrate && node dist/src/scripts/addUser.js username password",
       "dev": "NODE_ENV=development node --trace-deprecation dist/src/index.js",
       "dockerDev": "npm run docker && npm run dev",
       "cli": "NODE_ENV=production node dist/src/cli.js",
@@ -19,6 +19,9 @@
       "buildCliDev": "npm run build && npm run cli:dev",
       "entityGen": "node dist/src/utils/entityGenerator.js",
       "buildEntityGen": "npm run build && npm run entityGen",
+      "migrate": "npm run build && node dist/src/scripts/migrate.js",
+      "migrate:status": "npm run build && node dist/src/scripts/migrate.js status",
+      "migrate:reset": "npm run build && node dist/src/scripts/migrate.js reset",
       "test": "jest",
       "dev:watch": "ts-node-dev --respawn --transpile-only src/index.ts",
       "lint": "eslint . --ext .ts",

@@ -1,3 +1,7 @@
+-- Migration: 002_add_conversations_tables
+-- Description: Add conversations and conversation messages tables for persistent chat history
+-- Created: 2025-10-12
+
 -- Add conversations table to support persistent conversation history
 -- This table stores conversation metadata and has a foreign key to ai_agent_session
 
@@ -51,6 +55,11 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
-CREATE TRIGGER update_conversations_updated_at 
+CREATE OR REPLACE TRIGGER update_conversations_updated_at 
     BEFORE UPDATE ON ai_agent_conversations 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Record this migration
+INSERT INTO public.ai_agent_schema_migrations (version, description) 
+VALUES ('002', 'Add conversations and conversation messages tables for persistent chat history')
+ON CONFLICT (version) DO NOTHING;

@@ -9,11 +9,7 @@
 
 import { AbstractRepository, Entity } from "../repository/abstractRepository";
 import { Column } from "../repository/annotations/Column";
-import { Find } from "../repository/annotations/find";
 import { Id } from "../repository/annotations/Id";
-import { OneToOne } from "../repository/annotations/OneToOne";
-import { OneToMany } from "../repository/annotations/OneToMany";
-import { ManyToOne } from "../repository/annotations/ManyToOne";
 import { repository } from "../repository/repository";
 export class AiAgentConversationMessages extends Entity {
 

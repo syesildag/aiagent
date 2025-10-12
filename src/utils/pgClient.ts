@@ -60,6 +60,36 @@ export async function queryDatabase(query: string, values: any[] = []) {
    }
 }
 
+/**
+ * Execute multiple queries within a transaction
+ * @param callback Function that receives a query function to execute queries within the transaction
+ * @returns Promise that resolves with the callback result
+ */
+export async function withTransaction<T>(callback: (query: (sql: string, values?: any[]) => Promise<any[]>) => Promise<T>): Promise<T> {
+   const activePool = getPool();
+   const client = await activePool.connect();
+   
+   try {
+      await client.query('BEGIN');
+      
+      // Create a query function that uses the transaction client
+      const transactionQuery = async (sql: string, values: any[] = []) => {
+         const res = await client.query(sql, values);
+         return res.rows;
+      };
+      
+      const result = await callback(transactionQuery);
+      await client.query('COMMIT');
+      return result;
+   } catch (error) {
+      await client.query('ROLLBACK');
+      Logger.error(`[Pool ${poolId}] Transaction failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+   } finally {
+      client.release();
+   }
+}
+
 // Only allow main thread to close the database
 export function closeDatabase() {
    if (!isMainThread) {

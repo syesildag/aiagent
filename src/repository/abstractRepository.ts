@@ -7,15 +7,16 @@ import { __oneToOneRelations__, OneToOneMetadata } from "./annotations/OneToOne"
 import { LazyLoadingUtils } from "./lazyLoading";
 import { repository } from "./repository";
 import { Table } from "./table";
+import { PrimaryKey } from "./serializable";
 
-export abstract class Entity {
-   abstract getId(): number | undefined;
-   public save<T extends Entity>(this: T): Promise<T | undefined> {
-      const repo = repository.get(this.constructor as Constructor<Entity>);
-      return repo?.save(this) as Promise<T | undefined>;
+export abstract class Entity<T extends PrimaryKey = number> {
+   abstract getId(): T | undefined;
+   public save<E extends Entity<T>>(this: E): Promise<E | undefined> {
+      const repo = repository.get(this.constructor as Constructor<Entity<any>>);
+      return repo?.save(this) as Promise<E | undefined>;
    }
    public async delete(): Promise<void> {
-      const repo = repository.get(this.constructor as Constructor<Entity>);
+      const repo = repository.get(this.constructor as Constructor<Entity<any>>);
       if (repo) {
          await repo.delete(this);
       }
@@ -29,7 +30,7 @@ export interface Constructor<T, A extends any[] = any[]> {
 export const GET_PREFIX = 'get';
 export const SET_PREFIX = 'set';
 
-export abstract class AbstractRepository<C extends Entity> {
+export abstract class AbstractRepository<C extends Entity<any>> {
 
    private idColumnName: string;
    private fieldColumnNames: Record<string, string>;
@@ -111,7 +112,7 @@ export abstract class AbstractRepository<C extends Entity> {
             if (metadata.lazy) {
                // Create lazy loading proxy
                const proxy = LazyLoadingUtils.createSingleProxy(async () => {
-                  const targetRepository = repository.get(metadata.target() as Constructor<Entity>);
+                  const targetRepository = repository.get(metadata.target() as Constructor<Entity<any>>);
                   if (!targetRepository) {
                      throw new Error(`No repository found for target entity: ${metadata.target().name}`);
                   }
@@ -120,7 +121,7 @@ export abstract class AbstractRepository<C extends Entity> {
                (entity as any)[fieldName] = proxy;
             } else {
                // Eager loading
-               const targetRepository = repository.get(metadata.target() as Constructor<Entity>);
+               const targetRepository = repository.get(metadata.target() as Constructor<Entity<any>>);
                if (targetRepository) {
                   (entity as any)[fieldName] = await targetRepository.getById(foreignKeyValue);
                }
@@ -139,7 +140,7 @@ export abstract class AbstractRepository<C extends Entity> {
             if (metadata.lazy) {
                // Create lazy loading proxy for collection
                const proxy = LazyLoadingUtils.createCollectionProxy(async () => {
-                  const targetRepository = repository.get(metadata.target() as Constructor<Entity>);
+                  const targetRepository = repository.get(metadata.target() as Constructor<Entity<any>>);
                   if (!targetRepository) {
                      throw new Error(`No repository found for target entity: ${metadata.target().name}`);
                   }
@@ -149,7 +150,7 @@ export abstract class AbstractRepository<C extends Entity> {
                (entity as any)[fieldName] = proxy;
             } else {
                // Eager loading
-               const targetRepository = repository.get(metadata.target() as Constructor<Entity>);
+               const targetRepository = repository.get(metadata.target() as Constructor<Entity<any>>);
                if (targetRepository) {
                   const results = await targetRepository.getByColumnValues({ [metadata.mappedBy!]: entityId });
                   (entity as any)[fieldName] = results || [];
@@ -325,7 +326,7 @@ export abstract class AbstractRepository<C extends Entity> {
       return entities.filter(e => e !== null) as C[];
    }
 
-   public async getById(id: number): Promise<C | null> {
+   public async getById(id: PrimaryKey): Promise<C | null> {
       const sqlQuery = `
             SELECT *
               FROM ${this.table}
@@ -388,7 +389,7 @@ export abstract class AbstractRepository<C extends Entity> {
       return entities.filter(e => e !== null) as C[];
    }
 
-   public async deleteById(id: number): Promise<void> {
+   public async deleteById(id: PrimaryKey): Promise<void> {
       const entity = await this.getById(id);
       if (entity)
          return this.delete(entity);
@@ -397,7 +398,7 @@ export abstract class AbstractRepository<C extends Entity> {
 
    public async delete(entity: C): Promise<void> {
       const id = entity.getId();
-      if (id === undefined) {
+      if (id === undefined || id === null) {
          throw new Error('Cannot delete entity without ID');
       }
 

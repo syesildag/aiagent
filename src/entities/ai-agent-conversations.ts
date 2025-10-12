@@ -9,14 +9,12 @@
 
 import { AbstractRepository, Entity } from "../repository/abstractRepository";
 import { Column } from "../repository/annotations/Column";
-import { Find } from "../repository/annotations/find";
 import { Id } from "../repository/annotations/Id";
-import { OneToOne } from "../repository/annotations/OneToOne";
-import { OneToMany } from "../repository/annotations/OneToMany";
 import { ManyToOne } from "../repository/annotations/ManyToOne";
+import { OneToMany } from "../repository/annotations/OneToMany";
 import { repository } from "../repository/repository";
-import { AiAgentSession } from './ai-agent-session';
 import { AiAgentConversationMessages } from './ai-agent-conversation-messages';
+import { AiAgentSession } from './ai-agent-session';
 export class AiAgentConversations extends Entity {
 
    private id?: number;

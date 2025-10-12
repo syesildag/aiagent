@@ -84,6 +84,10 @@ export class TypeScriptCodeGenerator {
     const fields = this.generateFieldsFromColumns(tableInfo.columns, uniqueColumnNames);
     const relationshipFields = this.generateRelationshipFields(relationships);
     
+    // Find primary key field once for reuse
+    const primaryField = fields.find(f => f.isPrimaryKey);
+    const primaryType = primaryField ? primaryField.type : 'number';
+    
     const parts: string[] = [];
 
     // Imports
@@ -95,8 +99,8 @@ export class TypeScriptCodeGenerator {
       parts.push(entityImports);
     }
 
-    // Class declaration
-    parts.push(`export class ${className} extends Entity {`);
+    // Class declaration with parameterized Entity type
+    parts.push(`export class ${className} extends Entity<${primaryType}> {`);
     parts.push('');
 
     // Private fields (columns)
@@ -119,6 +123,15 @@ export class TypeScriptCodeGenerator {
       parts.push(line.length > 0 ? `   ${line}` : '');
     }
     parts.push('');
+
+    // Implementation required by Entity base class - getId() method
+    if (primaryField) {
+      const getIdLines = this.generateGetIdMethod(primaryField);
+      for (const line of getIdLines) {
+        parts.push(line.length > 0 ? `   ${line}` : '');
+      }
+      parts.push('');
+    }
 
     // Getter methods with annotations (columns)
     for (const field of fields) {
@@ -176,7 +189,8 @@ import { Id } from "${relativePath}annotations/Id";
 import { OneToOne } from "${relativePath}annotations/OneToOne";
 import { OneToMany } from "${relativePath}annotations/OneToMany";
 import { ManyToOne } from "${relativePath}annotations/ManyToOne";
-import { repository } from "${relativePath}repository";`;
+import { repository } from "${relativePath}repository";
+import { queryDatabase } from "${relativePath.replace(/repository\/$/, '')}utils/pgClient";`;
   }
 
   /**
@@ -302,13 +316,39 @@ import { repository } from "${relativePath}repository";`;
     return lines;
   }
 
+  /**
+   * Generate the getId() method implementation required by Entity base class
+   */
+  private generateGetIdMethod(primaryField: FieldInfo): string[] {
+    const lines: string[] = [];
+    const returnType = primaryField.isOptional ? `${primaryField.type} | undefined` : primaryField.type;
+    
+    // Add @Id annotation
+    lines.push(`@Id('${primaryField.columnName}')`);
+    lines.push(`public getId(): ${returnType} {`);
+    lines.push(`   return this.${primaryField.name};`);
+    lines.push('}');
+    
+    return lines;
+  }
+
   private generateAnnotatedGetter(field: FieldInfo): string[] {
     const lines: string[] = [];
     const capitalizedName = this.capitalizeCamelCase(field.name);
     const returnType = field.isOptional ? `${field.type} | undefined` : field.type;
     
     if (field.isPrimaryKey) {
-      lines.push(`@Id('${field.columnName}')`);
+      // For primary key fields, skip generating a getter if it's named 'id' 
+      // since getId() method already provides access to it
+      if (field.name.toLowerCase() === 'id') {
+        // Skip generating getId() getter since getId() method handles it
+        return lines;
+      } else {
+        // For non-'id' primary keys (like 'version'), generate the regular getter
+        lines.push(`public get${capitalizedName}(): ${returnType} {`);
+        lines.push(`   return this.${field.name};`);
+        lines.push('}');
+      }
     } else {
       const columnOptions: string[] = [];
       columnOptions.push(`columnName: '${field.columnName}'`);
@@ -323,11 +363,10 @@ import { repository } from "${relativePath}repository";`;
       }
       
       lines.push(`@Column({ ${columnOptions.join(', ')} })`);
+      lines.push(`public get${capitalizedName}(): ${returnType} {`);
+      lines.push(`   return this.${field.name};`);
+      lines.push('}');
     }
-    
-    lines.push(`public get${capitalizedName}(): ${returnType} {`);
-    lines.push(`   return this.${field.name};`);
-    lines.push('}');
     
     return lines;
   }
@@ -455,8 +494,11 @@ import { repository } from "${relativePath}repository";`;
 
     let tsType: string;
 
+    // Clean the base type by removing length/precision specifiers (e.g., "character varying(255)" -> "character varying")
+    const cleanType = baseType.replace(/\([^)]*\)/g, '').toLowerCase();
+
     // Map PostgreSQL types to TypeScript types
-    switch (baseType.toLowerCase()) {
+    switch (cleanType) {
       case 'integer':
       case 'int':
       case 'int4':
@@ -508,6 +550,7 @@ import { repository } from "${relativePath}repository";`;
         break;
 
       default:
+        console.warn(`Unknown database type '${cleanType}' (original: '${column.dataType}'), mapping to 'any'`);
         tsType = 'any';
         break;
     }
