@@ -575,20 +575,24 @@ async function main() {
             const reader = response.getReader();
             
             try {
+              let assistantMessage = '';
               while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
                 
                 // The stream returns string chunks directly
                 process.stdout.write(value);
+                assistantMessage += value;
               }
               console.log('\n'); // Add newline after streaming is complete
+              currentManager.addAssistantMessageToHistory(assistantMessage);
             } finally {
               reader.releaseLock();
             }
           } else {
             // Handle non-streaming response (fallback)
             console.log(`Assistant: ${response}\n`);
+            currentManager.addAssistantMessageToHistory(response);
           }
         } catch (error) {
           // Clear the abort controller
