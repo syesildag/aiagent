@@ -8,7 +8,7 @@
         "@upstash/context7-mcp"
       ],
       "env": {},
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "memory",
