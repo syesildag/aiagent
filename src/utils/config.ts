@@ -39,6 +39,7 @@ const envSchema = z.object({
   
   // GitHub Copilot
   GITHUB_COPILOT_BASE_URL: z.string().url().default('https://api.githubcopilot.com'),
+  GITHUB_COPILOT_EMBEDDINGS_BASE_URL: z.string().url().default('https://copilot-proxy.githubusercontent.com'),
   AUTH_GITHUB_COPILOT: z.string().optional(),
   
   // External APIs
@@ -84,6 +85,7 @@ function validateEnvironment(): Environment {
       OLLAMA_HOST: 'http://localhost:11434',
       OPENAI_BASE_URL: 'https://api.openai.com',
       GITHUB_COPILOT_BASE_URL: 'https://api.githubcopilot.com',
+      GITHUB_COPILOT_EMBEDDINGS_BASE_URL: 'https://copilot-proxy.githubusercontent.com',
       REDIS_URL: 'redis://localhost:6379',
       MCP_SERVERS_PATH: './mcp-servers.json',
       MAX_LLM_ITERATIONS: 2,

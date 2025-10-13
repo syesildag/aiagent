@@ -336,7 +336,7 @@ export class GitHubCopilotEmbeddingProvider implements EmbeddingProvider {
 
   constructor(config?: EmbeddingConfig['github']) {
     this.apiKey = config?.apiKey;
-    this.baseUrl = (config?.baseUrl || 'https://api.githubcopilot.com').replace(/\/$/, '');
+    this.baseUrl = (config?.baseUrl || 'https://copilot-proxy.githubusercontent.com').replace(/\/$/, '');
     this.defaultModel = config?.defaultModel || 'text-embedding-3-small';
     // If an API key is explicitly provided, prefer token-based auth over OAuth
     this.useOAuth = config?.useOAuth ?? (!config?.apiKey);
@@ -345,7 +345,7 @@ export class GitHubCopilotEmbeddingProvider implements EmbeddingProvider {
 
   async isAvailable(): Promise<boolean> {
     try {
-  const response = await fetch(`${this.baseUrl}/v1/models`, {
+      const response = await fetch(`${this.baseUrl}/models`, {
         headers: await this.createHeaders(),
       });
       return response.ok;
@@ -357,7 +357,7 @@ export class GitHubCopilotEmbeddingProvider implements EmbeddingProvider {
 
   async getAvailableModels(): Promise<string[]> {
     try {
-  const response = await fetch(`${this.baseUrl}/v1/models`, {
+      const response = await fetch(`${this.baseUrl}/models`, {
         headers: await this.createHeaders(),
       });
 
@@ -402,15 +402,27 @@ export class GitHubCopilotEmbeddingProvider implements EmbeddingProvider {
 
       if (!response.ok) {
         let errorPayload: any = null;
+        let errorText: string = '';
+        
         try {
-          errorPayload = await response.json();
+          // First try to get the response as text
+          errorText = await response.text();
+          
+          // Then try to parse it as JSON if it looks like JSON
+          if (errorText.trim().startsWith('{') || errorText.trim().startsWith('[')) {
+            errorPayload = JSON.parse(errorText);
+          }
         } catch (parseError) {
-          Logger.warn(`Failed to parse GitHub Copilot embedding error payload: ${parseError}`);
+          Logger.warn(`Failed to parse GitHub Copilot embedding error response: ${parseError}`);
+          // errorText will still contain the plain text response
         }
 
-        const errorMessage =
-          errorPayload?.error?.message || `HTTP ${response.status}: ${response.statusText}`;
-        const errorCode = errorPayload?.error?.code;
+        // Use structured error message if available, otherwise use the raw text or status
+        const errorMessage = errorPayload?.error?.message || 
+                            errorPayload?.message || 
+                            (errorText.trim() || `HTTP ${response.status}: ${response.statusText}`);
+        const errorCode = errorPayload?.error?.code || errorPayload?.code;
+        
         throw new EmbeddingError('GitHub Copilot', errorMessage, errorCode);
       }
 
@@ -1179,7 +1191,7 @@ export function createEmbeddingService(overrides?: Partial<EmbeddingConfig>): Em
       : undefined,
     github: {
       apiKey: config.AUTH_GITHUB_COPILOT,
-      baseUrl: config.GITHUB_COPILOT_BASE_URL,
+      baseUrl: config.GITHUB_COPILOT_EMBEDDINGS_BASE_URL,
       defaultModel: 'text-embedding-3-small',
       // Use OAuth by default if no explicit API key is provided
       useOAuth: !config.AUTH_GITHUB_COPILOT,

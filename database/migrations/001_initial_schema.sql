@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS public.ai_agent_document (
     name CHARACTER VARYING NOT NULL,
     content CHARACTER VARYING NOT NULL,
     type_id INTEGER NOT NULL,
-    embedding vector(384) NOT NULL,
+    embedding vector(1536) NOT NULL,
     created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT document_name_unique UNIQUE (name),

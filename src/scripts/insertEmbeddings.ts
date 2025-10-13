@@ -32,7 +32,11 @@ export async function insertEmbeddings(
   }
 ): Promise<AiAgentDocument[]> {
   const embeddingService = getEmbeddingService({
-    provider: options?.embeddingProvider || 'auto'
+    provider: options?.embeddingProvider || 'auto',
+    github: {
+      defaultModel: options?.embeddingModel || 'text-embedding-3-small',
+      useOAuth: true // Prefer OAuth if available
+    }
   });
   const batchSize = options?.batchSize || 10;
   const createdDocuments: AiAgentDocument[] = [];
