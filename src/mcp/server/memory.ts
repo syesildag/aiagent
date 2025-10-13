@@ -251,6 +251,27 @@ server.registerTool(
       const createdMemory = { id: memory.getId(), type: memory.getType() };
       Logger.info(`Memory created successfully with ID: ${createdMemory.id}`);
 
+      // Optional: Clean up near-duplicate embeddings
+      queryDatabase(`
+        DELETE FROM ai_agent_memories WHERE id IN (
+        SELECT m1.id
+          FROM ai_agent_memories AS m1
+         INNER JOIN ai_agent_memories AS m2
+            ON m1.id <> m2.id
+           AND m1.id < m2.id
+         WHERE m1.embedding <=> m2.embedding < 0.025
+      )`);
+
+      return {
+        content: [{
+          type: "text",
+          text: `Successfully created memory with ID ${createdMemory.id} of type "${validatedData.type}"`
+        }]
+      };
+//    AND m1.id < m2.id
+//  WHERE m1.embedding <=> m2.embedding < 0.025
+)
+
       return {
         content: [{
           type: "text",
