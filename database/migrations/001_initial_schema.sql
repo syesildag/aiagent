@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS public.ai_agent_memories (
     type TEXT NOT NULL,
     content JSONB NOT NULL,
     source TEXT NOT NULL,
-    embedding vector(384) NOT NULL,  -- BERT model outputs 384-dimensional vectors
+    embedding vector(1536) NOT NULL,  -- 1536-dimensional vectors
     tags TEXT[] DEFAULT '{}',
     confidence DECIMAL(3,2) CHECK (confidence >= 0 AND confidence <= 1),
     created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
