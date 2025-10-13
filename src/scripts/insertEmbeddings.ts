@@ -31,7 +31,9 @@ export async function insertEmbeddings(
     batchSize?: number;
   }
 ): Promise<AiAgentDocument[]> {
-  const embeddingService = getEmbeddingService();
+  const embeddingService = getEmbeddingService({
+    provider: options?.embeddingProvider || 'auto'
+  });
   const batchSize = options?.batchSize || 10;
   const createdDocuments: AiAgentDocument[] = [];
 
