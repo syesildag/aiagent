@@ -339,7 +339,7 @@ export class GitHubCopilotEmbeddingProvider implements EmbeddingProvider {
     this.baseUrl = (config?.baseUrl || 'https://copilot-proxy.githubusercontent.com').replace(/\/$/, '');
     this.defaultModel = config?.defaultModel || 'text-embedding-3-small';
     // If an API key is explicitly provided, prefer token-based auth over OAuth
-    this.useOAuth = config?.useOAuth ?? (!config?.apiKey);
+    this.useOAuth = config?.useOAuth;
     this.extraHeaders = config?.extraHeaders || {};
   }
 
@@ -589,7 +589,7 @@ export class GitHubCopilotEmbeddingProvider implements EmbeddingProvider {
       apiKey,
       baseUrl: options?.baseUrl,
       defaultModel: options?.defaultModel,
-      useOAuth: false, // Explicitly disable OAuth when using API key
+      useOAuth: true, // Explicitly enable OAuth
       extraHeaders: options?.extraHeaders,
     });
   }
@@ -1194,7 +1194,7 @@ export function createEmbeddingService(overrides?: Partial<EmbeddingConfig>): Em
       baseUrl: config.GITHUB_COPILOT_EMBEDDINGS_BASE_URL,
       defaultModel: 'text-embedding-3-small',
       // Use OAuth by default if no explicit API key is provided
-      useOAuth: !config.AUTH_GITHUB_COPILOT,
+      useOAuth: true,
     },
     ollama: {
       host: config.OLLAMA_HOST,
