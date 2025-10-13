@@ -53,7 +53,7 @@ const envSchema = z.object({
   USE_DB_CONVERSATION_HISTORY: z.string().transform((val) => val === 'true').default('false'),
   
   // Embedding Service Configuration
-  EMBEDDING_PROVIDER: z.enum(['openai', 'ollama', 'local', 'auto']).default('auto'),
+  EMBEDDING_PROVIDER: z.enum(['openai', 'ollama', 'local', 'github', 'auto']).default('auto'),
   EMBEDDING_MODEL_OPENAI: z.string().default('text-embedding-3-small'),
   EMBEDDING_MODEL_OLLAMA: z.string().default('nomic-embed-text'),
   EMBEDDING_CACHE_ENABLED: z.string().transform((val) => val === 'true').default('true'),

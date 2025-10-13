@@ -67,7 +67,10 @@ Sous statuts de dossier annulé / option expirée annulée :
   Logger.info('Starting embedding insertion example...');
 
   try {
-    const results = await insertEmbeddings(documents);
+    const results = await insertEmbeddings(documents, {
+      embeddingModel: 'text-embedding-3-small',
+      embeddingProvider: 'github'
+    });
 
     Logger.info(`✅ Successfully inserted ${results.length} documents`);
     

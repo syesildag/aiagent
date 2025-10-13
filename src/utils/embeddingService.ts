@@ -5,6 +5,7 @@
  * - OpenAI (text-embedding-3-small, text-embedding-3-large)
  * - Ollama (nomic-embed-text, all-minilm)
  * - Local models (via transformers.js for offline capability)
+ * - GitHub Copilot (OpenAI-compatible embeddings via Copilot API)
  * 
  * Features:
  * - Provider fallback with intelligent error handling
@@ -19,6 +20,7 @@ import { config } from './config';
 import Logger from './logger';
 import { AppError, ExternalServiceError, ValidationError } from './errors';
 import { OllamaProvider } from '../mcp/llmProviders';
+import { AuthGithubCopilot } from './githubAuth';
 import { LRUCache } from 'lru-cache';
 
 // Core interfaces and types
@@ -80,7 +82,7 @@ export class EmbeddingValidationError extends ValidationError {
 }
 
 // Provider type definition
-export type EmbeddingProviderType = 'openai' | 'ollama' | 'local' | 'auto';
+export type EmbeddingProviderType = 'openai' | 'ollama' | 'local' | 'github' | 'auto';
 
 // Provider-specific configuration
 export interface EmbeddingConfig {
@@ -98,6 +100,13 @@ export interface EmbeddingConfig {
   local?: {
     modelPath?: string;
     defaultModel?: string;
+  };
+  github?: {
+    apiKey?: string;
+    baseUrl?: string;
+    defaultModel?: string;
+    useOAuth?: boolean;
+    extraHeaders?: Record<string, string>;
   };
   fallbackProviders?: Exclude<EmbeddingProviderType, 'auto'>[];
   cache?: {
@@ -298,6 +307,298 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
         `Estimated tokens ${estimatedTokens} exceeds maximum ${this.maxTokensPerRequest}`
       );
     }
+  }
+}
+
+/**
+ * GitHub Copilot Embedding Provider
+ * 
+ * Supports both OAuth and API key authentication:
+ * - OAuth: Uses AuthGithubCopilot.access() for token-based authentication (default)
+ * - API Key: Uses provided API key directly for authentication
+ * 
+ * Authentication priority:
+ * 1. If useOAuth=true: Try OAuth first, fallback to API key if OAuth fails
+ * 2. If useOAuth=false: Use API key directly
+ * 3. If no API key provided and OAuth fails: Throw authentication error
+ */
+export class GitHubCopilotEmbeddingProvider implements EmbeddingProvider {
+  readonly name = 'GitHub Copilot';
+  readonly supportsBatch = true;
+  readonly maxBatchSize = 2048;
+  readonly maxTokensPerRequest = 8191;
+
+  private apiKey?: string;
+  private baseUrl: string;
+  private defaultModel: string;
+  private useOAuth: boolean;
+  private extraHeaders: Record<string, string>;
+
+  constructor(config?: EmbeddingConfig['github']) {
+    this.apiKey = config?.apiKey;
+    this.baseUrl = (config?.baseUrl || 'https://api.githubcopilot.com').replace(/\/$/, '');
+    this.defaultModel = config?.defaultModel || 'text-embedding-3-small';
+    // If an API key is explicitly provided, prefer token-based auth over OAuth
+    this.useOAuth = config?.useOAuth ?? (!config?.apiKey);
+    this.extraHeaders = config?.extraHeaders || {};
+  }
+
+  async isAvailable(): Promise<boolean> {
+    try {
+  const response = await fetch(`${this.baseUrl}/v1/models`, {
+        headers: await this.createHeaders(),
+      });
+      return response.ok;
+    } catch (error) {
+      Logger.error(`GitHub Copilot embedding provider availability check failed: ${error}`);
+      return false;
+    }
+  }
+
+  async getAvailableModels(): Promise<string[]> {
+    try {
+  const response = await fetch(`${this.baseUrl}/v1/models`, {
+        headers: await this.createHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new EmbeddingError('GitHub Copilot', `Failed to fetch models: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const models = data.data || data;
+
+      return Array.isArray(models)
+        ? models
+            .map((model: any) => model.id || model.name)
+            .filter((id: string) => id && id.includes('embedding'))
+        : ['text-embedding-3-small'];
+    } catch (error) {
+      throw new EmbeddingError(
+        'GitHub Copilot',
+        `Error fetching available models: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  async generateEmbedding(request: EmbeddingRequest): Promise<EmbeddingVector> {
+    this.validateRequest(request);
+
+    const model = request.model || this.defaultModel;
+    const requestBody = {
+      model,
+      input: request.input,
+      encoding_format: request.encoding_format || 'float',
+      dimensions: request.dimensions,
+      user: request.user,
+    };
+
+    try {
+  const response = await fetch(`${this.baseUrl}/v1/embeddings`, {
+        method: 'POST',
+        headers: await this.createHeaders(),
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        let errorPayload: any = null;
+        try {
+          errorPayload = await response.json();
+        } catch (parseError) {
+          Logger.warn(`Failed to parse GitHub Copilot embedding error payload: ${parseError}`);
+        }
+
+        const errorMessage =
+          errorPayload?.error?.message || `HTTP ${response.status}: ${response.statusText}`;
+        const errorCode = errorPayload?.error?.code;
+        throw new EmbeddingError('GitHub Copilot', errorMessage, errorCode);
+      }
+
+      const data = await response.json();
+      if (!data.data || !data.data.length) {
+        throw new EmbeddingError('GitHub Copilot', 'Invalid response format: missing embedding data');
+      }
+
+      if (Array.isArray(request.input)) {
+        const embeddings = data.data.map((item: any) => item.embedding);
+        return {
+          embedding: embeddings,
+          model: data.model || model,
+          usage: data.usage,
+        } as any;
+      }
+
+      return {
+        embedding: data.data[0].embedding,
+        model: data.model || model,
+        usage: data.usage,
+      };
+    } catch (error) {
+      if (error instanceof EmbeddingError) {
+        throw error;
+      }
+
+      throw new EmbeddingError(
+        'GitHub Copilot',
+        `Request failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  async generateBatchEmbeddings(request: EmbeddingBatchRequest): Promise<EmbeddingVector[]> {
+    if (!request.inputs?.length) {
+      throw new EmbeddingValidationError('Batch request must contain at least one input');
+    }
+
+    const batchSize = Math.min(request.batchSize || this.maxBatchSize, this.maxBatchSize);
+    const results: EmbeddingVector[] = [];
+
+    for (let i = 0; i < request.inputs.length; i += batchSize) {
+      const batch = request.inputs.slice(i, i + batchSize);
+      try {
+        const batchResult = await this.generateEmbedding({
+          input: batch,
+          model: request.model,
+          dimensions: request.dimensions,
+        });
+
+        if (Array.isArray(batchResult.embedding[0])) {
+          const embeddings = batchResult.embedding as unknown as number[][];
+          embeddings.forEach(embedding =>
+            results.push({
+              embedding,
+              model: batchResult.model,
+              usage: batchResult.usage,
+            })
+          );
+        } else {
+          results.push(batchResult);
+        }
+      } catch (error) {
+        Logger.error(`GitHub Copilot batch processing failed for batch ${Math.floor(i / batchSize)}: ${error}`);
+        throw error;
+      }
+    }
+
+    return results;
+  }
+
+  private async createHeaders(): Promise<Record<string, string>> {
+    let token: string | null = null;
+
+    // Authentication strategy based on configuration
+    if (this.useOAuth) {
+      // Try OAuth first, fallback to API key if available
+      try {
+        token = (await AuthGithubCopilot.access()) || null;
+      } catch (error) {
+        Logger.warn(`GitHub Copilot OAuth failed, trying fallback: ${error}`);
+      }
+      
+      if (!token && this.apiKey) {
+        Logger.info('Using GitHub Copilot API key as fallback for OAuth');
+        token = this.apiKey || null;
+      }
+    } else {
+      // Use API key directly when OAuth is disabled
+      token = this.apiKey || null;
+    }
+
+    if (!token) {
+      const authMethod = this.useOAuth ? 'OAuth token or API key' : 'API key';
+      throw new EmbeddingError(
+        'GitHub Copilot', 
+        `No GitHub Copilot ${authMethod} available. ${
+          this.useOAuth 
+            ? 'Try running authentication or provide an API key in config.'
+            : 'Please provide an API key in the github.apiKey configuration.'
+        }`
+      );
+    }
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...this.extraHeaders,
+    };
+
+    // Set appropriate headers based on auth method
+    if (this.useOAuth && token !== this.apiKey) {
+      // Using OAuth token - VS Code-like headers
+      headers['Editor-Version'] = 'vscode/1.95.0';
+      headers['Editor-Plugin-Version'] = 'copilot-chat/0.22.0';
+      headers['Copilot-Integration-Id'] = 'vscode-chat';
+      headers['User-Agent'] = 'GitHubCopilotChat/0.22.0';
+    } else {
+      // Using API key - AI Agent headers
+      headers['Editor-Version'] = 'AI-Agent/1.0';
+      headers['Editor-Plugin-Version'] = 'AI-Agent/1.0';
+      headers['Copilot-Integration-Id'] = 'ai-agent';
+      headers['User-Agent'] = 'AI-Agent/1.0';
+    }
+
+    return headers;
+  }
+
+  private validateRequest(request: EmbeddingRequest): void {
+    if (!request.input || (Array.isArray(request.input) && request.input.length === 0)) {
+      throw new EmbeddingValidationError('Input text is required');
+    }
+
+    if (Array.isArray(request.input) && request.input.length > this.maxBatchSize) {
+      throw new EmbeddingValidationError(
+        `Batch size ${request.input.length} exceeds maximum ${this.maxBatchSize}`
+      );
+    }
+
+    const text = Array.isArray(request.input) ? request.input.join(' ') : request.input;
+    const estimatedTokens = Math.ceil(text.length / 4);
+
+    if (estimatedTokens > this.maxTokensPerRequest) {
+      throw new EmbeddingValidationError(
+        `Estimated tokens ${estimatedTokens} exceeds maximum ${this.maxTokensPerRequest}`
+      );
+    }
+  }
+
+  /**
+   * Create a new GitHubCopilotEmbeddingProvider with API key authentication
+   * This is a convenience method for token-based authentication without OAuth
+   */
+  static withApiKey(
+    apiKey: string,
+    options?: {
+      baseUrl?: string;
+      defaultModel?: string;
+      extraHeaders?: Record<string, string>;
+    }
+  ): GitHubCopilotEmbeddingProvider {
+    return new GitHubCopilotEmbeddingProvider({
+      apiKey,
+      baseUrl: options?.baseUrl,
+      defaultModel: options?.defaultModel,
+      useOAuth: false, // Explicitly disable OAuth when using API key
+      extraHeaders: options?.extraHeaders,
+    });
+  }
+
+  /**
+   * Create a new GitHubCopilotEmbeddingProvider with OAuth authentication
+   * This is a convenience method for OAuth-based authentication
+   */
+  static withOAuth(options?: {
+    baseUrl?: string;
+    defaultModel?: string;
+    extraHeaders?: Record<string, string>;
+    fallbackApiKey?: string;
+  }): GitHubCopilotEmbeddingProvider {
+    return new GitHubCopilotEmbeddingProvider({
+      apiKey: options?.fallbackApiKey,
+      baseUrl: options?.baseUrl,
+      defaultModel: options?.defaultModel,
+      useOAuth: true, // Explicitly enable OAuth
+      extraHeaders: options?.extraHeaders,
+    });
   }
 }
 
@@ -807,6 +1108,21 @@ export class EmbeddingService {
       }
     }
 
+    // Initialize GitHub Copilot provider when requested or configured
+    const wantsGithubProvider =
+      config.github !== undefined ||
+      config.provider === 'github' ||
+      config.fallbackProviders?.includes('github');
+
+    if (wantsGithubProvider) {
+      try {
+        this.providers.set('github', new GitHubCopilotEmbeddingProvider(config.github));
+        Logger.info('GitHub Copilot embedding provider initialized');
+      } catch (error) {
+        Logger.error(`Failed to initialize GitHub Copilot provider: ${error}`);
+      }
+    }
+
     // Initialize Ollama provider
     try {
       this.providers.set('ollama', new OllamaEmbeddingProvider(config.ollama));
@@ -827,7 +1143,7 @@ export class EmbeddingService {
   private determinePrimaryProvider(config: EmbeddingConfig): string {
     if (config.provider === 'auto') {
       // Auto-select based on available providers, prioritizing local
-      const preferredOrder = ['local', 'openai', 'ollama'];
+      const preferredOrder: Exclude<EmbeddingProviderType, 'auto'>[] = ['local', 'github', 'openai', 'ollama'];
       for (const provider of preferredOrder) {
         if (this.providers.has(provider)) {
           return provider;
@@ -852,30 +1168,47 @@ export class EmbeddingService {
  * Factory function to create EmbeddingService with project configuration
  */
 export function createEmbeddingService(overrides?: Partial<EmbeddingConfig>): EmbeddingService {
-  const embeddingConfig: EmbeddingConfig = {
-    provider: 'local', // Prioritize local embeddings
-    openai: config.OPENAI_API_KEY ? {
-      apiKey: config.OPENAI_API_KEY,
-      baseUrl: `${config.OPENAI_BASE_URL}/v1`,
+  const baseConfig: EmbeddingConfig = {
+    provider: config.EMBEDDING_PROVIDER as EmbeddingProviderType,
+    openai: config.OPENAI_API_KEY
+      ? {
+          apiKey: config.OPENAI_API_KEY,
+          baseUrl: `${config.OPENAI_BASE_URL}/v1`,
+          defaultModel: 'text-embedding-3-small',
+        }
+      : undefined,
+    github: {
+      apiKey: config.AUTH_GITHUB_COPILOT,
+      baseUrl: config.GITHUB_COPILOT_BASE_URL,
       defaultModel: 'text-embedding-3-small',
-    } : undefined,
+      // Use OAuth by default if no explicit API key is provided
+      useOAuth: !config.AUTH_GITHUB_COPILOT,
+    },
     ollama: {
       host: config.OLLAMA_HOST,
       defaultModel: 'nomic-embed-text',
     },
     local: {
-      defaultModel: 'Xenova/all-MiniLM-L6-v2', // 384 dimensions - matches database
+      defaultModel: 'Xenova/all-MiniLM-L6-v2',
     },
-    fallbackProviders: ['ollama', 'openai'], // Fallback if local fails
     cache: {
       enabled: true,
-      ttl: 3600000, // 1 hour
-      maxSize: 1000, // Limit to 1000 cached embeddings
+      ttl: 3600000,
+      maxSize: 1000,
     },
+  };
+
+  const mergedConfig: EmbeddingConfig = {
+    ...baseConfig,
     ...overrides,
   };
 
-  return new EmbeddingService(embeddingConfig);
+  if (mergedConfig.fallbackProviders === undefined) {
+    const fallbackOrder: Exclude<EmbeddingProviderType, 'auto'>[] = ['local', 'github', 'ollama', 'openai'];
+    mergedConfig.fallbackProviders = fallbackOrder.filter(provider => provider !== mergedConfig.provider);
+  }
+
+  return new EmbeddingService(mergedConfig);
 }
 
 /**

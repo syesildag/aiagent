@@ -6,6 +6,7 @@
 import {
   EmbeddingService,
   OpenAIEmbeddingProvider,
+  GitHubCopilotEmbeddingProvider,
   OllamaEmbeddingProvider,
   LocalEmbeddingProvider,
   createEmbeddingService,
@@ -18,11 +19,18 @@ import {
 // Mock dependencies
 jest.mock('../mcp/llmProviders');
 jest.mock('./logger');
+jest.mock('./githubAuth', () => ({
+  AuthGithubCopilot: {
+    access: jest.fn().mockResolvedValue('test-copilot-token'),
+  },
+}));
 jest.mock('./config', () => ({
   config: {
     OPENAI_API_KEY: 'test-openai-key',
     OPENAI_BASE_URL: 'https://api.openai.com',
     OLLAMA_HOST: 'http://localhost:11434',
+  GITHUB_COPILOT_BASE_URL: 'https://api.githubcopilot.com',
+  AUTH_GITHUB_COPILOT: undefined,
     EMBEDDING_PROVIDER: 'auto',
     EMBEDDING_MODEL_OPENAI: 'text-embedding-3-small',
     EMBEDDING_MODEL_OLLAMA: 'nomic-embed-text',
@@ -183,6 +191,107 @@ describe('EmbeddingService', () => {
         await expect(
           provider.generateBatchEmbeddings({ inputs: [] })
         ).rejects.toThrow(EmbeddingValidationError);
+      });
+    });
+  });
+
+  describe('GitHubCopilotEmbeddingProvider', () => {
+    let provider: GitHubCopilotEmbeddingProvider;
+
+    beforeEach(() => {
+      provider = new GitHubCopilotEmbeddingProvider({
+        apiKey: 'test-copilot-key',
+        baseUrl: 'https://api.githubcopilot.com',
+        useOAuth: false, // Use API key for tests
+      });
+    });
+
+    describe('constructor', () => {
+      it('should initialize with correct defaults', () => {
+        expect(provider.name).toBe('GitHub Copilot');
+        expect(provider.supportsBatch).toBe(true);
+        expect(provider.maxBatchSize).toBe(2048);
+      });
+
+      it('should prefer OAuth when no API key is provided', () => {
+        const oauthProvider = new GitHubCopilotEmbeddingProvider({});
+        expect(oauthProvider['useOAuth']).toBe(true);
+      });
+
+      it('should prefer API key when explicitly provided', () => {
+        const apiKeyProvider = new GitHubCopilotEmbeddingProvider({
+          apiKey: 'test-key'
+        });
+        expect(apiKeyProvider['useOAuth']).toBe(false);
+      });
+    });
+
+    describe('static factory methods', () => {
+      it('should create provider with API key authentication', () => {
+        const apiKeyProvider = GitHubCopilotEmbeddingProvider.withApiKey('test-key');
+        expect(apiKeyProvider['useOAuth']).toBe(false);
+        expect(apiKeyProvider['apiKey']).toBe('test-key');
+      });
+
+      it('should create provider with OAuth authentication', () => {
+        const oauthProvider = GitHubCopilotEmbeddingProvider.withOAuth();
+        expect(oauthProvider['useOAuth']).toBe(true);
+      });
+    });
+
+    describe('isAvailable', () => {
+      it('should return true when API is accessible', async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+        } as Response);
+
+        const result = await provider.isAvailable();
+        expect(result).toBe(true);
+      });
+
+      it('should return false when API is not accessible', async () => {
+        mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+        const result = await provider.isAvailable();
+        expect(result).toBe(false);
+      });
+    });
+
+    describe('generateEmbedding', () => {
+      it('should generate embedding for single text', async () => {
+        const mockResponse = {
+          data: [{ embedding: [0.1, 0.2, 0.3] }],
+          model: 'text-embedding-3-small',
+          usage: { prompt_tokens: 5, total_tokens: 5 },
+        };
+
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockResponse),
+        } as Response);
+
+        const result = await provider.generateEmbedding({
+          input: 'Hello GitHub Copilot',
+        });
+
+        expect(result.embedding).toEqual([0.1, 0.2, 0.3]);
+        expect(result.model).toBe('text-embedding-3-small');
+        expect(result.usage).toEqual({ prompt_tokens: 5, total_tokens: 5 });
+      });
+
+      it('should handle authentication errors', async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+          statusText: 'Unauthorized',
+          json: () => Promise.resolve({
+            error: { message: 'Invalid token', code: 'invalid_token' },
+          }),
+        } as Response);
+
+        await expect(
+          provider.generateEmbedding({ input: 'Hello world' })
+        ).rejects.toThrow(EmbeddingError);
       });
     });
   });
