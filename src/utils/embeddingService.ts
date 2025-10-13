@@ -1155,7 +1155,7 @@ export class EmbeddingService {
   private determinePrimaryProvider(config: EmbeddingConfig): string {
     if (config.provider === 'auto') {
       // Auto-select based on available providers, prioritizing local
-      const preferredOrder: Exclude<EmbeddingProviderType, 'auto'>[] = ['local', 'github', 'openai', 'ollama'];
+      const preferredOrder: Exclude<EmbeddingProviderType, 'auto'>[] = ['github', 'openai', 'ollama', 'local'];
       for (const provider of preferredOrder) {
         if (this.providers.has(provider)) {
           return provider;
