@@ -268,16 +268,6 @@ server.registerTool(
           text: `Successfully created memory with ID ${createdMemory.id} of type "${validatedData.type}"`
         }]
       };
-//    AND m1.id < m2.id
-//  WHERE m1.embedding <=> m2.embedding < 0.025
-)
-
-      return {
-        content: [{
-          type: "text",
-          text: `Successfully created memory with ID ${createdMemory.id} of type "${validatedData.type}"`
-        }]
-      };
     } catch (error) {
       Logger.error("Failed to create memory:", error);
       return {
