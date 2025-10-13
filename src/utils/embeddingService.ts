@@ -339,7 +339,7 @@ export class GitHubCopilotEmbeddingProvider implements EmbeddingProvider {
     this.baseUrl = (config?.baseUrl || 'https://copilot-proxy.githubusercontent.com').replace(/\/$/, '');
     this.defaultModel = config?.defaultModel || 'text-embedding-3-small';
     // If an API key is explicitly provided, prefer token-based auth over OAuth
-    this.useOAuth = config?.useOAuth;
+    this.useOAuth = config?.useOAuth ?? true;
     this.extraHeaders = config?.extraHeaders || {};
   }
 
