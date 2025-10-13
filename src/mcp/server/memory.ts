@@ -259,7 +259,7 @@ server.registerTool(
          INNER JOIN ai_agent_memories AS m2
             ON m1.id <> m2.id
            AND m1.id < m2.id
-         WHERE (1 - (m1.embedding <=> m2.embedding)) > 0.95
+         WHERE (1 - (m1.embedding <=> m2.embedding)) > 0.9
       )`);
 
       return {
