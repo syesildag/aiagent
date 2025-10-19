@@ -2,8 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: aiagent
+  labels:
+    app: aiagent
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
       app: aiagent
@@ -12,25 +14,11 @@ spec:
       labels:
         app: aiagent
     spec:
-      initContainers:
-        - name: wait-for-postgres
-          image: busybox
-          command:
-            - sh
-            - -c
-            - "until nc -z postgres-service 5432; do sleep 2; done;"
-          resources:
-            requests:
-              cpu: "10m"
-              memory: "16Mi"
-            limits:
-              cpu: "50m"
-              memory: "32Mi"
       containers:
         - name: aiagent
-          image: localhost:6000/aiagent:latest
+          image: {{ .Values.aiagent.image.repository }}:{{ .Values.aiagent.image.tag }}
           ports:
-            - containerPort: 3000
+            - containerPort: {{ .Values.aiagent.targetPort }}
           env:
             - name: DB_HOST
               value: "postgres-service"

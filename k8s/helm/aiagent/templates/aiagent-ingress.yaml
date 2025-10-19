@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aiagent-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - {{ .Release.Namespace }}.aiagent.local
+      secretName: {{ .Release.Namespace }}-aiagent-tls
+  rules:
+    - host: {{ .Release.Namespace }}.aiagent.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: aiagent-service
+                port:
+                  number: {{ .Values.aiagent.port }}

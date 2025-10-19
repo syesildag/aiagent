@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres
+  labels:
+    app: postgres
 spec:
   replicas: 1
   selector:
@@ -14,7 +16,7 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: pgvector/pgvector:pg15
+          image: {{ .Values.postgres.image }}
           env:
             - name: POSTGRES_DB
               value: postgres
@@ -23,7 +25,7 @@ spec:
             - name: POSTGRES_PASSWORD
               value: postgres
           ports:
-            - containerPort: 5432
+            - containerPort: {{ .Values.postgres.service.targetPort }}
           resources:
             requests:
               cpu: "250m"

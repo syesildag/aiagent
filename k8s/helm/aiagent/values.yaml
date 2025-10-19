@@ -1,0 +1,12 @@
+replicaCount: 1
+aiagent:
+  image:
+    repository: localhost:6000/aiagent
+    tag: latest
+  port: 3000
+  targetPort: 3000
+postgres:
+  image: pgvector/pgvector:pg15
+  service:
+    port: 5432
+    targetPort: 5432

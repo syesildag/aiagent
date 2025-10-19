@@ -3,11 +3,10 @@ kind: Service
 metadata:
   name: postgres-service
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: postgres
   ports:
     - protocol: TCP
-      port: 5432
-      targetPort: 5432
-      nodePort: 30001    # Optional: pick a port in 30000-32767
+      port: {{ .Values.postgres.service.port }}
+      targetPort: {{ .Values.postgres.service.targetPort }}
