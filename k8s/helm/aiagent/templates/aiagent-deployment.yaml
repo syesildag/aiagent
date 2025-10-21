@@ -20,8 +20,26 @@ spec:
           ports:
             - containerPort: {{ .Values.aiagent.targetPort }}
           env:
+            - name: DEFAULT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Namespace }}-default-values
+                  key: username
+            - name: DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Namespace }}-default-values
+                  key: password
             - name: DB_HOST
-              value: "postgres-service"
+              value: "{{ .Values.postgres.service.name }}"
+            - name: DB_PORT
+              value: "{{ .Values.postgres.service.port }}"
+            - name: DB_NAME
+              value: "{{ .Values.postgres.database }}"
+            - name: DB_USER
+              value: "{{ .Values.postgres.user }}"
+            - name: DB_PASSWORD
+              value: "{{ .Values.postgres.password }}"
           resources:
             requests:
               cpu: "1000m"

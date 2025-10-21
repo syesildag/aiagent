@@ -19,11 +19,11 @@ spec:
           image: {{ .Values.postgres.image }}
           env:
             - name: POSTGRES_DB
-              value: postgres
+              value: {{ .Values.postgres.database }}
             - name: POSTGRES_USER
-              value: postgres
+              value: {{ .Values.postgres.user }}
             - name: POSTGRES_PASSWORD
-              value: postgres
+              value: {{ .Values.postgres.password }}
           ports:
             - containerPort: {{ .Values.postgres.service.targetPort }}
           resources:

@@ -140,7 +140,7 @@ export class DbConversationHistory implements IConversationHistory {
 
       // Always get or create a session - use default if not provided
       const effectiveSessionId = sessionId || `session-${conversationId}`;
-      const effectiveUserId = userId || config.DEFAULT_USER;
+      const effectiveUserId = userId || config.DEFAULT_USERNAME;
 
       const session = await this._getOrCreateSession(effectiveSessionId, effectiveUserId);
       const dbSessionId = session.getId()!;
@@ -299,7 +299,7 @@ export class DbConversationHistory implements IConversationHistory {
       }
 
       // Get the user login to use - default to 'serkan' if not provided
-      let userLogin = userId || config.DEFAULT_USER;
+      let userLogin = userId || config.DEFAULT_USERNAME;
       
       // Verify the user exists in ai_agent_user table, create if it doesn't exist
       const userExists = await queryDatabase('SELECT id FROM ai_agent_user WHERE login = $1', [userLogin]);

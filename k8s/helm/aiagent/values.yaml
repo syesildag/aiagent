@@ -7,6 +7,10 @@ aiagent:
   targetPort: 3000
 postgres:
   image: pgvector/pgvector:pg15
+  database: postgres
+  user: postgres
+  password: postgres
   service:
+    name: postgres-service
     port: 5432
     targetPort: 5432

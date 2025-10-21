@@ -16,6 +16,14 @@ for ns in "${clients[@]}"; do
   # Create namespace if it doesn't exist
   kubectl get namespace $ns >/dev/null 2>&1 || kubectl create namespace $ns
 
+  # Create generic secret if not exists
+  if ! kubectl get secret ${ns}-default-values -n $ns >/dev/null 2>&1; then
+    kubectl create secret generic ${ns}-default-values \
+      --from-literal=username=serkan \
+      --from-literal=password=yesildag \
+      -n $ns
+  fi
+
   # Generate TLS cert/key for each client
   openssl req -x509 -nodes -days 365 -newkey rsa:4096 \
   -keyout ${ns}-aiagent-tls.key -out ${ns}-aiagent-tls.crt \
@@ -24,10 +32,7 @@ for ns in "${clients[@]}"; do
 
   # Create TLS secret if not exists
   if ! kubectl get secret ${ns}-aiagent-tls -n $ns >/dev/null 2>&1; then
-    kubectl create secret tls ${ns}-aiagent-tls \
-      --cert=${ns}-aiagent-tls.crt \<
-      --key=${ns}-aiagent-tls.key \
-      -n $ns
+    kubectl create secret tls ${ns}-aiagent-tls --cert=${ns}-aiagent-tls.crt --key=${ns}-aiagent-tls.key -n $ns
   fi
 
   # Helm install/upgrade
