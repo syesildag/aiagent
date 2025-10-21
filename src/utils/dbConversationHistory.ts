@@ -32,7 +32,7 @@ export class DbConversationHistory implements IConversationHistory {
     try {
       // Validate input
       const validatedData = MessageSchema.omit({ id: true, timestamp: true }).parse(messageData);
-      
+
       // Ensure we have a current conversation
       if (!this._currentConversationId) {
         await this.startNewConversation();
@@ -42,9 +42,14 @@ export class DbConversationHistory implements IConversationHistory {
       const timestamp = new Date();
 
       // Find the database conversation ID by our UUID
-      const dbConversation = await this._findDbConversationByUuid(this._currentConversationId!);
+      let dbConversation = await this._findDbConversationByUuid(this._currentConversationId!);
       if (!dbConversation) {
-        throw new DatabaseError(`Current conversation ${this._currentConversationId} not found in database`);
+        Logger.warn(`Current conversation ${this._currentConversationId} not found in database. Starting a new conversation.`);
+        await this.startNewConversation();
+        dbConversation = await this._findDbConversationByUuid(this._currentConversationId!);
+        if (!dbConversation) {
+          throw new DatabaseError(`Failed to create or find a valid conversation in database`);
+        }
       }
 
       // Create the message entity

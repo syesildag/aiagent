@@ -47,6 +47,9 @@ const app = express();
 app.use(helmet());
 app.use(cors());
 
+// Trust proxy headers (required for express-rate-limit behind Ingress)
+app.set('trust proxy', true);
+
 app.use(rateLimit({
    windowMs: 1 * 60 * 1000, // 1 minute
    limit: 60, // Limit each IP to 60 requests per `window` (here, per 1 minute).
