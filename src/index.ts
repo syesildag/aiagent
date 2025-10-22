@@ -48,7 +48,7 @@ app.use(helmet());
 app.use(cors());
 
 // Trust proxy headers (required for express-rate-limit behind Ingress)
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 
 app.use(rateLimit({
    windowMs: 1 * 60 * 1000, // 1 minute

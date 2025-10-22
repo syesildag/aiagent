@@ -12,7 +12,8 @@ for arg in "$@"; do
 done
 
 # Read release number from release file
-RELEASE_FILE="$(dirname "$0")/release"
+BASE_DIR="$(dirname "$0")"
+RELEASE_FILE="$BASE_DIR/release"
 RELEASE=$(cat "$RELEASE_FILE")
 
 # Parse MAJOR.MINOR.PATCH from release file
@@ -35,8 +36,17 @@ if $BUILD_IMAGE; then
   echo "$MAJOR.$MINOR.$PATCH" > "$RELEASE_FILE"
 fi
 
+# Always update values.yaml and Chart.yaml to match the release version
+CHART_YAML="$BASE_DIR/helm/aiagent/Chart.yaml"
+VALUES_YAML="$BASE_DIR/helm/aiagent/values.yaml"
+echo "Updating Helm values.yaml and Chart.yaml to version $RELEASE..."
+# Update aiagent.image.tag in values.yaml (match any indentation)
+sed -i '' "s/^[[:space:]]*tag:.*/    tag: $RELEASE/" "$VALUES_YAML"
+# Update version in Chart.yaml
+sed -i '' "s/^version:.*/version: $RELEASE/" "$CHART_YAML"
+
 # Source clients array from clients.list
-source "$(dirname "$0")/clients.list"
+source "$BASE_DIR/clients.list"
 
 for ns in "${clients[@]}"; do
   echo "Processing namespace: $ns"

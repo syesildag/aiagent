@@ -27,6 +27,7 @@ spec:
             httpGet:
               path: /healthz
               port: {{ .Values.aiagent.targetPort }}
+              scheme: HTTPS
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 2
@@ -35,6 +36,7 @@ spec:
             httpGet:
               path: /readyz
               port: {{ .Values.aiagent.targetPort }}
+              scheme: HTTPS
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 2
