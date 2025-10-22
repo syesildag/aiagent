@@ -1,6 +1,6 @@
 import compression from "compression";
 import cors from 'cors';
-import "dotenv/config";
+import { config, isDevelopment } from './utils/config';
 import express, { NextFunction, Request, Response } from "express";
 import { rateLimit } from 'express-rate-limit';
 import fs from 'fs';
@@ -72,7 +72,11 @@ function shouldCompress(req: express.Request, res: express.Response) {
 // Error-handling middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
    Logger.error(err.stack);
-   res.status(500).send('Something broke!');
+   if (isDevelopment()) {
+      res.status(500).send(`<pre>${err.message}\n${err.stack}</pre>`);
+   } else {
+      res.status(500).send('Something broke!');
+   }
 });
 
 // JSON parsing middleware
@@ -116,7 +120,7 @@ app.post("/login", asyncHandler(async (req: Request, res: Response) => {
       sendAuthenticationRequired(res);
       return;
    }
-   const hmacKey = process.env.HMAC_SECRET_KEY;
+   const hmacKey = config.HMAC_SECRET_KEY;
    if (!hmacKey) {
       Logger.error('HMAC_SECRET_KEY environment variable is not set');
       res.status(500).send('Server configuration error');
@@ -195,8 +199,8 @@ app.get('/readyz', async (req: Request, res: Response) => {
    }
 });
 
-const PORT: number = +process.env.PORT!;
-const HOST: string = process.env.HOST!;
+const PORT: number = config.PORT;
+const HOST: string = config.HOST;
 const server = https.createServer(options, app).listen(PORT, HOST, async () => {
    Logger.info(`[server]: Server is running at http://${HOST}:${PORT}`);
 
@@ -285,7 +289,7 @@ async function gracefulShutdown(event: NodeJS.Signals) {
       Logger.error('Could not close connections in time, forcefully shutting down');
       connections.forEach(curr => curr.destroy());
       process.exit(1);
-   }, +process.env.SERVER_TERMINATE_TIMEOUT!);
+   }, config.SERVER_TERMINATE_TIMEOUT);
 }
 
 /**
