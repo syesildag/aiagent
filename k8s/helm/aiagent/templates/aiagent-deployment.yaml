@@ -14,11 +14,31 @@ spec:
       labels:
         app: aiagent
     spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:latest
+          command: ['sh', '-c', 'until nc -z {{ .Values.postgres.service.name }} {{ .Values.postgres.service.port }}; do echo waiting for postgres; sleep 2; done']
       containers:
         - name: aiagent
           image: {{ .Values.aiagent.image.repository }}:{{ .Values.aiagent.image.tag }}
           ports:
             - containerPort: {{ .Values.aiagent.targetPort }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.aiagent.targetPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.aiagent.targetPort }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
           env:
             - name: DEFAULT_USERNAME
               valueFrom:
