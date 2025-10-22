@@ -5,7 +5,7 @@ import Logger from './logger';
 dotenv.config();
 
 const envSchema = z.object({
-  GITHUB_COPILOT_CLIENT_ID: z.string().min(1),
+  GITHUB_COPILOT_CLIENT_ID: z.string().min(1).default('Iv1.b507a08c87ecfe98'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().transform(Number).pipe(z.number().min(1).max(65535)),
   HOST: z.string().min(1),
