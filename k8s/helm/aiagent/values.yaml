@@ -1,7 +1,7 @@
 replicaCount: 1
 aiagent:
   image:
-    repository: localhost:6000/aiagent
+    repository: aiagent
     tag: latest
   port: 3000
   targetPort: 3000

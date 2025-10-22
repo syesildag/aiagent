@@ -3,12 +3,22 @@
 # Exit immediately if a command exits with a non-zero status
 #set -e
 
-#kind delete cluster --name desktop || true
+# Optional Docker build: pass --build to enable
+BUILD_IMAGE=false
+for arg in "$@"; do
+  if [[ "$arg" == "--build" ]]; then
+    BUILD_IMAGE=true
+  fi
+done
 
-# Create kind cluster
-#kind create cluster --name desktop --config ./kind-config.yaml
+if $BUILD_IMAGE; then
+  echo "Building Docker image..."
+  docker build -t aiagent ../
+  echo "Docker image built successfully."
+fi
 
-clients=(manisa izmir)
+# Source clients array from clients.list
+source "$(dirname "$0")/clients.list"
 
 for ns in "${clients[@]}"; do
   echo "Processing namespace: $ns"
@@ -44,4 +54,4 @@ done
 
 #helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 #helm repo update
-helm install ingress-nginx ingress-nginx/ingress-nginx --version 4.13.3 --namespace ingress-nginx --create-namespace
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
