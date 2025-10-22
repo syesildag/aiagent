@@ -11,10 +11,28 @@ for arg in "$@"; do
   fi
 done
 
+# Read release number from release file
+RELEASE_FILE="$(dirname "$0")/release"
+RELEASE=$(cat "$RELEASE_FILE")
+
+# Parse MAJOR.MINOR.PATCH from release file
+IFS='.' read -r MAJOR MINOR PATCH <<< "$RELEASE"
+
 if $BUILD_IMAGE; then
-  echo "Building Docker image..."
-  docker build -t aiagent ../
+  echo "Building Docker image with tag: $MAJOR.$MINOR.$PATCH..."
+  docker build -t aiagent:$MAJOR.$MINOR.$PATCH ../
   echo "Docker image built successfully."
+  # Increment PATCH, roll over to MINOR and MAJOR as needed
+  PATCH=$((PATCH + 1))
+  if [ "$PATCH" -ge 100 ]; then
+    PATCH=0
+    MINOR=$((MINOR + 1))
+  fi
+  if [ "$MINOR" -ge 100 ]; then
+    MINOR=0
+    MAJOR=$((MAJOR + 1))
+  fi
+  echo "$MAJOR.$MINOR.$PATCH" > "$RELEASE_FILE"
 fi
 
 # Source clients array from clients.list
