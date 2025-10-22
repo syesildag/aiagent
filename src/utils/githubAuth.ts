@@ -44,15 +44,15 @@ export namespace AuthGithubCopilot {
         client_id: CLIENT_ID,
         scope: "read:user",
       }),
-    })
-    const deviceData: DeviceCodeResponse = await deviceResponse.json()
+    });
+    const deviceData: DeviceCodeResponse = await deviceResponse.json();
     return {
       device: deviceData.device_code,
       user: deviceData.user_code,
       verification: deviceData.verification_uri,
       interval: deviceData.interval || 5,
       expiry: deviceData.expires_in,
-    }
+    };
   }
 
   export async function poll(device_code: string) {
@@ -68,11 +68,11 @@ export namespace AuthGithubCopilot {
         device_code,
         grant_type: "urn:ietf:params:oauth:grant-type:device_code",
       }),
-    })
+    });
 
-    if (!response.ok) return "failed"
+    if (!response.ok) return "failed";
 
-    const data: AccessTokenResponse = await response.json()
+    const data: AccessTokenResponse = await response.json();
 
     if (data.access_token) {
       // Store the GitHub OAuth token
@@ -81,32 +81,32 @@ export namespace AuthGithubCopilot {
         refresh: data.access_token,
         access: "",
         expires: 0,
-      })
-      return "complete"
+      });
+      return "complete";
     }
 
-    if (data.error === "authorization_pending") return "pending"
+    if (data.error === "authorization_pending") return "pending";
 
-    if (data.error) return "failed"
+    if (data.error) return "failed";
 
-    return "pending"
+    return "pending";
   }
 
   export async function access() {
-    const info = await Auth.get("github-copilot")
+    const info = await Auth.get("github-copilot");
     if (!info || info.type !== "oauth") {
-      Logger.debug("No OAuth authentication stored. Please run 'login' command.")
-      return
+      Logger.debug("No OAuth authentication stored. Please run 'login' command.");
+      return;
     }
     
     // Check if current access token is still valid
     if (info.access && info.expires > Date.now()) {
-      Logger.debug("Using cached Copilot access token")
-      return info.access
+      Logger.debug("Using cached Copilot access token");
+      return info.access;
     }
 
     // Token expired, try to refresh
-    Logger.debug("Copilot access token expired, attempting refresh...")
+    Logger.debug("Copilot access token expired, attempting refresh...");
     
     try {
       // Get new Copilot API token using refresh token
@@ -118,19 +118,19 @@ export namespace AuthGithubCopilot {
           "Editor-Version": "vscode/1.99.3",
           "Editor-Plugin-Version": "copilot-chat/0.26.7",
         },
-      })
+      });
 
       if (!response.ok) {
-        const errorText = await response.text()
-        Logger.error(`Failed to refresh Copilot token: ${response.status} ${response.statusText} - ${errorText}`)
+        const errorText = await response.text();
+        Logger.error(`Failed to refresh Copilot token: ${response.status} ${response.statusText} - ${errorText}`);
         
         // If refresh fails, the OAuth token itself might be expired
         // Clear the stored token and require re-authentication
-        await Auth.remove("github-copilot")
-        throw new Error(`Copilot token refresh failed: ${response.status} ${response.statusText}`)
+        await Auth.remove("github-copilot");
+        throw new Error(`Copilot token refresh failed: ${response.status} ${response.statusText}`);
       }
 
-      const tokenData: CopilotTokenResponse = await response.json()
+      const tokenData: CopilotTokenResponse = await response.json();
 
       // Store the new Copilot API token
       await Auth.set("github-copilot", {
@@ -138,44 +138,44 @@ export namespace AuthGithubCopilot {
         refresh: info.refresh,
         access: tokenData.token,
         expires: tokenData.expires_at * 1000,
-      })
+      });
 
-      Logger.debug("Successfully refreshed Copilot access token")
-      return tokenData.token
-      
+      Logger.debug("Successfully refreshed Copilot access token");
+      return tokenData.token;
+
     } catch (error) {
-      Logger.error(`Error refreshing Copilot token: ${error}`)
-      
+      Logger.error(`Error refreshing Copilot token: ${error}`);
+
       // Clear invalid token
-      await Auth.remove("github-copilot")
-      
-      Logger.warn("Authentication failed. Please run 'login' command to re-authenticate.")
-      return null
+      await Auth.remove("github-copilot");
+
+      Logger.warn("Authentication failed. Please run 'login' command to re-authenticate.");
+      return null;
     }
   }
 
-  export const DeviceCodeError = createNamedError("DeviceCodeError", z.object({}))
+  export const DeviceCodeError = createNamedError("DeviceCodeError", z.object({}));
 
   export const TokenExchangeError = createNamedError(
     "TokenExchangeError",
     z.object({
       message: z.string(),
     }),
-  )
+  );
 
   export const AuthenticationError = createNamedError(
     "AuthenticationError",
     z.object({
       message: z.string(),
     }),
-  )
+  );
 
   export const CopilotTokenError = createNamedError(
     "CopilotTokenError",
     z.object({
       message: z.string(),
     }),
-  )
+  );
 }
 
 // Simple NamedError implementation

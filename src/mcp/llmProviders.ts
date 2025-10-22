@@ -1019,17 +1019,6 @@ export class GitHubCopilotProvider implements LLMProvider {
       done: true
     };
   }
-
-  /**
-   * Create a new GitHubCopilotProvider with additional headers
-   */
-  static withExtraHeaders(
-    apiKey: string,
-    extraHeaders: Record<string, string>,
-    baseUrl: string = 'https://api.githubcopilot.com'
-  ): GitHubCopilotProvider {
-    return new GitHubCopilotProvider(apiKey, baseUrl, extraHeaders);
-  }
 }
 
 export class OpenAIProvider implements LLMProvider {
