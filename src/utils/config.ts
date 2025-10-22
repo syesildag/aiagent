@@ -5,6 +5,7 @@ import Logger from './logger';
 dotenv.config();
 
 const envSchema = z.object({
+  GITHUB_COPILOT_CLIENT_ID: z.string().min(1),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().transform(Number).pipe(z.number().min(1).max(65535)),
   HOST: z.string().min(1),
@@ -80,6 +81,7 @@ function validateEnvironment(): Environment {
       EMBEDDING_CACHE_TTL: 3600000,
       USE_DB_CONVERSATION_HISTORY: false,
       OPENWEATHERMAP_API_KEY: undefined,
+      GITHUB_COPILOT_CLIENT_ID: 'Ov23liwtwZwa1bIdrSWG',
     } as Environment;
   }
 
