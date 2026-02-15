@@ -1,7 +1,11 @@
 import { DbConversationHistory } from './dbConversationHistory';
 import { ValidationError } from './errors';
 
-describe('DbConversationHistory', () => {
+// Skip database integration tests if no database is available
+const shouldRunDatabaseTests = process.env.RUN_DB_TESTS === 'true';
+const describeDatabase = shouldRunDatabaseTests ? describe : describe.skip;
+
+describeDatabase('DbConversationHistory', () => {
   let conversationHistory: DbConversationHistory;
 
   beforeEach(() => {

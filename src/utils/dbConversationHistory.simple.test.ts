@@ -6,7 +6,11 @@
 import { Pool } from 'pg';
 import { config } from './config';
 
-describe('DbConversationHistory Database Integration', () => {
+// Skip database integration tests if no database is available
+const shouldRunDatabaseTests = process.env.RUN_DB_TESTS === 'true';
+const describeDatabase = shouldRunDatabaseTests ? describe : describe.skip;
+
+describeDatabase('DbConversationHistory Database Integration', () => {
   let pool: Pool;
 
   beforeAll(async () => {

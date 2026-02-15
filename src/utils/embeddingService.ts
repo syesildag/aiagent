@@ -339,7 +339,7 @@ export class GitHubCopilotEmbeddingProvider implements EmbeddingProvider {
     this.baseUrl = (config?.baseUrl || 'https://copilot-proxy.githubusercontent.com').replace(/\/$/, '');
     this.defaultModel = config?.defaultModel || 'text-embedding-3-small';
     // If an API key is explicitly provided, prefer token-based auth over OAuth
-    this.useOAuth = config?.useOAuth ?? true;
+    this.useOAuth = config?.useOAuth ?? !config?.apiKey;
     this.extraHeaders = config?.extraHeaders || {};
   }
 
@@ -589,7 +589,7 @@ export class GitHubCopilotEmbeddingProvider implements EmbeddingProvider {
       apiKey,
       baseUrl: options?.baseUrl,
       defaultModel: options?.defaultModel,
-      useOAuth: true, // Explicitly enable OAuth
+      useOAuth: false, // Explicitly disable OAuth for API key auth
       extraHeaders: options?.extraHeaders,
     });
   }
