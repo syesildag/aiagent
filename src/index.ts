@@ -237,7 +237,7 @@ app.get('/readyz', async (req: Request, res: Response) => {
 const PORT: number = config.PORT;
 const HOST: string = config.HOST;
 const server = https.createServer(options, app).listen(PORT, HOST, async () => {
-   Logger.info(`[server]: Server is running at http://${HOST}:${PORT}`);
+   Logger.info(`[server]: Server is running at https://${HOST}:${PORT}`);
 
    try {
       await initializeAgents();
