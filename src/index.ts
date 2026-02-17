@@ -20,6 +20,8 @@ import Logger from "./utils/logger";
 import { closeDatabase, queryDatabase } from "./utils/pgClient";
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
 import { handleStreamingResponse } from './utils/streamUtils';
+import { generateFrontendHTML } from './utils/frontendTemplate';
+import path from 'path';
 
 // This array will hold references to the job factories, preventing them from being garbage collected.
 const activeJobs: JobFactory[] = [];
@@ -176,6 +178,39 @@ app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
 
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.send(answer);
+   }
+}));
+
+// Frontend endpoint - serves React chat interface
+app.get("/front/:agent", asyncHandler(async (req: Request, res: Response) => {
+   const agentName = req.params.agent;
+   
+   // Validate agent exists
+   try {
+      await getAgentFromName(agentName);
+   } catch (error) {
+      res.status(404).send(`Agent "${agentName}" not found`);
+      return;
+   }
+
+   // Serve HTML that loads the bundle from a separate endpoint
+   const html = generateFrontendHTML('', agentName);
+   res.setHeader('Content-Type', 'text/html; charset=utf-8');
+   res.send(html);
+}));
+
+// Serve the frontend bundle as a static file
+app.get("/static/bundle.js", asyncHandler(async (req: Request, res: Response) => {
+   const bundlePath = path.join(__dirname, '../frontend/bundle.js');
+   
+   try {
+      const bundleJs = fs.readFileSync(bundlePath, 'utf-8');
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+      res.send(bundleJs);
+   } catch (error) {
+      Logger.error(`Failed to read frontend bundle: ${error}`);
+      res.status(500).send(`console.error('Failed to load frontend bundle');`);
    }
 }));
 
