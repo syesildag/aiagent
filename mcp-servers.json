@@ -8,7 +8,19 @@
         "@upstash/context7-mcp"
       ],
       "env": {},
-      "enabled": false
+      "enabled": true
+    },
+    {
+      "name": "tavily-search",
+      "command": "npx",
+      "args": [
+        "-y",
+        "tavily-mcp"
+      ],
+      "env": {
+        "TAVILY_API_KEY": "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"
+      },
+      "enabled": true
     },
     {
       "name": "memory",
