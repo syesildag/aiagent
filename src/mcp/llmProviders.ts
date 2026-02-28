@@ -20,10 +20,26 @@ import { AuthGithubCopilot } from '../utils/githubAuth';
  * - Extensible architecture allows easy addition of new providers
  */
 
+// Multimodal content parts (OpenAI format)
+export interface TextContentPart {
+  type: 'text';
+  text: string;
+}
+
+export interface ImageContentPart {
+  type: 'image_url';
+  image_url: {
+    url: string; // base64 data URL: "data:<mimeType>;base64,<data>"
+    detail?: 'auto' | 'low' | 'high';
+  };
+}
+
+export type ContentPart = TextContentPart | ImageContentPart;
+
 // LLM Provider Types
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
+  content: string | ContentPart[];
   tool_calls?: ToolCall[];
   tool_call_id?: string; // Required for tool messages
 }
@@ -254,6 +270,18 @@ export function getModelMaxTokens(model: string): number {
 }
 
 /**
+ * Extract plain text from an LLMMessage content (handles string and ContentPart[])
+ */
+export function getContentText(content: string | ContentPart[] | undefined): string {
+  if (!content) return '';
+  if (typeof content === 'string') return content;
+  return content
+    .filter((p): p is TextContentPart => p.type === 'text')
+    .map(p => p.text)
+    .join(' ');
+}
+
+/**
  * Estimate tokens for a string (rough approximation: ~4 characters per token)
  */
 function estimateTokens(text: string): number {
@@ -287,7 +315,7 @@ export function handleTokenLimits(request: LLMChatRequest, maxTokens?: number): 
   // Estimate tokens for messages
   let messageTokens = 0;
   const messageTexts = request.messages.map(msg => {
-    let content = msg.content || '';
+    let content = getContentText(msg.content);
     if (msg.tool_calls) {
       content += JSON.stringify(msg.tool_calls);
     }
@@ -319,12 +347,12 @@ export function handleTokenLimits(request: LLMChatRequest, maxTokens?: number): 
   
   if (systemMessage) {
     preservedMessages.push(systemMessage);
-    preservedTokens += estimateTokens(systemMessage.content || '');
+    preservedTokens += estimateTokens(getContentText(systemMessage.content));
   }
   
   if (lastUserMessage) {
     preservedMessages.push(lastUserMessage);
-    preservedTokens += estimateTokens(lastUserMessage.content || '');
+    preservedTokens += estimateTokens(getContentText(lastUserMessage.content));
   }
 
   Logger.debug(`Starting with minimal messages: ${preservedMessages.length} messages, ${preservedTokens} tokens`);
@@ -373,7 +401,7 @@ export function handleTokenLimits(request: LLMChatRequest, maxTokens?: number): 
   for (const block of conversationBlocks) {
     let blockTokens = 0;
     for (const msg of block) {
-      let content = msg.content || '';
+      let content = getContentText(msg.content);
       if (msg.tool_calls) {
         content += JSON.stringify(msg.tool_calls);
       }
@@ -406,7 +434,7 @@ export function handleTokenLimits(request: LLMChatRequest, maxTokens?: number): 
     };
 
     if (lastUserMessage) {
-      let userContent = lastUserMessage.content;
+      let userContent = getContentText(lastUserMessage.content);
       let userTokens = estimateTokens(userContent);
       
       // Truncate user message if too long

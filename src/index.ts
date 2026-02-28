@@ -10,7 +10,7 @@ import https from 'https';
 import schedule from "node-schedule";
 import { Duplex } from "stream";
 import { z } from 'zod';
-import { getAgentFromName, initializeAgents, shutdownAgentSystem } from './agent';
+import { getAgentFromName, getGlobalMCPManager, initializeAgents, shutdownAgentSystem } from './agent';
 import { AiAgentSession } from "./entities/ai-agent-session";
 import aiagentuserRepository from "./entities/ai-agent-user";
 import { repository } from "./repository/repository";
@@ -42,7 +42,9 @@ const options: https.ServerOptions | null = isDevelopment() ? null : {
 
 const Query = z.object({
    session: z.string().optional().describe('The session id'),
-   prompt: z.string().describe('user prompt')
+   prompt: z.string().describe('user prompt'),
+   imageBase64: z.string().optional().describe('base64-encoded image data'),
+   imageMimeType: z.string().optional().describe('MIME type of the image, e.g. image/png')
 });
 
 const app = express();
@@ -86,16 +88,16 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 // JSON parsing middleware
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '20mb' }));
 
 // RAW parsing middleware
-app.use(express.raw({ limit: '1mb' }));
+app.use(express.raw({ limit: '20mb' }));
 
 // TEXT parsing middleware
-app.use(express.text({ limit: '1mb' }));
+app.use(express.text({ limit: '20mb' }));
 
 // URLENCODED parsing middleware
-app.use(express.urlencoded({ limit: '1mb', extended: true }));
+app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
 // Custom middleware for token-based authentication
 async function sessionMiddleware(req: Request, res: Response, next: NextFunction) {
@@ -164,10 +166,11 @@ app.post("/logout", asyncHandler(async (req: Request, res: Response) => {
 }));
 
 app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
-   const { prompt } = Query.parse(req.body);
+   const { prompt, imageBase64, imageMimeType } = Query.parse(req.body);
    const agent = await getAgentFromName(req.params.agent);
    agent.setSession(res.locals.session);
-   const answer = await agent.chat(prompt, undefined, true);
+   const imageData = imageBase64 && imageMimeType ? { base64: imageBase64, mimeType: imageMimeType } : undefined;
+   const answer = await agent.chat(prompt, undefined, true, imageData);
 
    if (answer instanceof ReadableStream) {
       // Set appropriate headers for streaming
@@ -183,6 +186,32 @@ app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.send(answer);
    }
+}));
+
+// Info endpoint - returns current model, provider and all available models for the agent
+app.get("/info/:agent", asyncHandler(async (req: Request, res: Response) => {
+   await getAgentFromName(req.params.agent); // validates agent exists
+   const manager = getGlobalMCPManager();
+   const models = manager ? await manager.getAvailableModels() : [];
+   res.json({
+      model: manager?.getCurrentModel() ?? '',
+      provider: manager?.getProviderName() ?? '',
+      models
+   });
+}));
+
+// Model switch endpoint - changes the active model
+app.post("/model/:agent", asyncHandler(async (req: Request, res: Response) => {
+   await getAgentFromName(req.params.agent);
+   const { model } = z.object({ model: z.string() }).parse(req.body);
+   const manager = getGlobalMCPManager();
+   if (!manager) {
+      res.status(503).json({ error: 'Agent not initialised' });
+      return;
+   }
+   manager.updateModel(model);
+   Logger.info(`Model switched to: ${model}`);
+   res.json({ model });
 }));
 
 // Frontend endpoint - serves React chat interface

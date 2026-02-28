@@ -1,7 +1,9 @@
 import {
     SmartToy as BotIcon,
     Logout as LogoutIcon,
-    Send as SendIcon
+    Send as SendIcon,
+    AttachFile as AttachFileIcon,
+    Close as CloseIcon
 } from '@mui/icons-material';
 import {
     Alert,
@@ -10,17 +12,22 @@ import {
     Button,
     CircularProgress,
     Container,
+    FormControl,
     IconButton,
     List,
     ListItem,
+    MenuItem,
     Paper,
+    Select,
+    SelectChangeEvent,
     TextField,
     Toolbar,
+    Tooltip,
     Typography
 } from '@mui/material';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Message } from '../types';
+import { isVisionModel, Message } from '../types';
 import { ChatMessage } from './ChatMessage';
 
 export const ChatInterface: React.FC = () => {
@@ -28,7 +35,12 @@ export const ChatInterface: React.FC = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [attachedImage, setAttachedImage] = useState<{ dataUrl: string; base64: string; mimeType: string } | null>(null);
+  const [supportsVision, setSupportsVision] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [currentModel, setCurrentModel] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { session, username, agentName, logout } = useAuth();
 
   const scrollToBottom = () => {
@@ -39,6 +51,64 @@ export const ChatInterface: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Fetch model info to determine if vision/image attachment is supported
+  useEffect(() => {
+    fetch(`/info/${agentName}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          setAvailableModels(data.models ?? []);
+          setCurrentModel(data.model ?? '');
+          setSupportsVision(isVisionModel(data.model ?? ''));
+        }
+      })
+      .catch(() => {/* non-critical */});
+  }, [agentName]);
+
+  const handleModelChange = (e: SelectChangeEvent<string>) => {
+    const model = e.target.value;
+    fetch(`/model/${agentName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session, model }),
+    })
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(() => {
+        setCurrentModel(model);
+        setSupportsVision(isVisionModel(model));
+        if (!isVisionModel(model)) setAttachedImage(null);
+      })
+      .catch(() => setError('Failed to switch model'));
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      setError('Image must be smaller than 15 MB');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      // dataUrl is "data:<mimeType>;base64,<data>"
+      const [header, base64] = dataUrl.split(',');
+      const mimeType = header.replace('data:', '').replace(';base64', '');
+      setAttachedImage({ dataUrl, base64, mimeType });
+    };
+    reader.readAsDataURL(file);
+
+    // Reset file input so the same file can be re-selected if needed
+    e.target.value = '';
+  };
+
+  const handleRemoveImage = () => {
+    setAttachedImage(null);
+  };
+
   const handleSendMessage = useCallback(async () => {
     if (!inputMessage.trim() || !session) return;
 
@@ -47,21 +117,30 @@ export const ChatInterface: React.FC = () => {
       role: 'user',
       content: inputMessage,
       timestamp: new Date(),
+      imageUrl: attachedImage?.dataUrl,
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInputMessage('');
+    const imageCopy = attachedImage;
+    setAttachedImage(null);
     setLoading(true);
     setError('');
 
     try {
+      const body: Record<string, string> = {
+        session: session!,
+        prompt: inputMessage,
+      };
+      if (imageCopy) {
+        body.imageBase64 = imageCopy.base64;
+        body.imageMimeType = imageCopy.mimeType;
+      }
+
       const response = await fetch(`/chat/${agentName}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session,
-          prompt: inputMessage,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -115,7 +194,7 @@ export const ChatInterface: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [inputMessage, session, agentName]);
+  }, [inputMessage, session, agentName, attachedImage]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -132,6 +211,26 @@ export const ChatInterface: React.FC = () => {
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             AI Agent: {agentName}
           </Typography>
+          {availableModels.length > 0 && (
+            <FormControl size="small" sx={{ mr: 2, minWidth: 180 }}>
+              <Select
+                value={currentModel}
+                onChange={handleModelChange}
+                disabled={loading}
+                sx={{
+                  color: 'inherit',
+                  '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
+                  '.MuiSvgIcon-root': { color: 'inherit' },
+                  fontSize: '0.85rem',
+                }}
+              >
+                {availableModels.map(m => (
+                  <MenuItem key={m} value={m} sx={{ fontSize: '0.85rem' }}>{m}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
           <Typography variant="body2" sx={{ mr: 2 }}>
             {username}
           </Typography>
@@ -187,7 +286,65 @@ export const ChatInterface: React.FC = () => {
         }}
       >
         <Container maxWidth="md">
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          {/* Image preview */}
+          {attachedImage && (
+            <Box sx={{ position: 'relative', display: 'inline-block', mb: 1 }}>
+              <Box
+                component="img"
+                src={attachedImage.dataUrl}
+                alt="attachment preview"
+                sx={{
+                  height: 72,
+                  borderRadius: 1,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  objectFit: 'cover',
+                }}
+              />
+              <IconButton
+                size="small"
+                onClick={handleRemoveImage}
+                sx={{
+                  position: 'absolute',
+                  top: -8,
+                  right: -8,
+                  bgcolor: 'background.paper',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  p: '2px',
+                  '&:hover': { bgcolor: 'error.light', color: 'white' },
+                }}
+              >
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          )}
+
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleImageSelect}
+            />
+
+            {/* Attach button — only shown for vision-capable models */}
+            {supportsVision && (
+              <Tooltip title="Attach image">
+                <span>
+                  <IconButton
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={loading}
+                    color={attachedImage ? 'primary' : 'default'}
+                  >
+                    <AttachFileIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
+
             <TextField
               fullWidth
               multiline

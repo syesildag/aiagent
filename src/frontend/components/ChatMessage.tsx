@@ -51,6 +51,21 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
             color: isUser ? 'primary.contrastText' : 'text.primary',
           }}
         >
+          {message.imageUrl && (
+            <Box
+              component="img"
+              src={message.imageUrl}
+              alt="attachment"
+              sx={{
+                display: 'block',
+                maxWidth: '100%',
+                maxHeight: 320,
+                borderRadius: 1,
+                mb: message.content ? 1 : 0,
+                objectFit: 'contain',
+              }}
+            />
+          )}
           <Typography
             variant="body1"
             sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}

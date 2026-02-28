@@ -10,7 +10,7 @@ export type AgentName = 'general' | 'weather';
 
 export interface Agent {
    setSession(session: AiAgentSession): void;
-   chat(prompt: string, abortSignal?: AbortSignal, stream?: boolean): Promise<ReadableStream<string> | string>;
+   chat(prompt: string, abortSignal?: AbortSignal, stream?: boolean, imageData?: { base64: string; mimeType: string }): Promise<ReadableStream<string> | string>;
    getSystemPrompt(): string;
    getName(): AgentName;
    getOptions(): Partial<Options> | undefined;

@@ -78,6 +78,10 @@ export interface ChatWithLLMArgs {
   abortSignal?: AbortSignal;
   serverNames?: string[];
   stream?: boolean;
+  imageData?: {
+    base64: string;
+    mimeType: string;
+  };
 }
 
 export class MCPServerConnection extends EventEmitter {
@@ -679,7 +683,7 @@ export class MCPServerManager {
   }
 
   async chatWithLLM(args: ChatWithLLMArgs): Promise<ReadableStream<string> | string> {
-    const { message, customSystemPrompt, abortSignal, serverNames, stream } = args;
+    const { message, customSystemPrompt, abortSignal, serverNames, stream, imageData } = args;
     try {
       // Ensure MCP servers are initialized on first use
       await this.ensureInitialized();
@@ -697,7 +701,7 @@ export class MCPServerManager {
         ? serverNames.filter(name => this.connections.has(name))
         : Array.from(this.connections.keys());
       
-      // Add user message to conversation history
+      // Add user message to conversation history (text only — images are not persisted)
       await this.conversationHistory.addMessage({
         role: 'user',
         content: message
@@ -705,12 +709,38 @@ export class MCPServerManager {
       
       // Get conversation history and add system prompt at the beginning
       const conversationMessages = await this.conversationHistory.getCurrentConversation();
+
+      // Build messages; if an image was provided, replace the last user message with
+      // a multimodal content array so vision models can process it.
+      let historyMessages: LLMMessage[] = [...conversationMessages];
+      if (imageData) {
+        const lastUserIdx = historyMessages.map(m => m.role).lastIndexOf('user');
+        if (lastUserIdx !== -1) {
+          historyMessages[lastUserIdx] = {
+            ...historyMessages[lastUserIdx],
+            content: [
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${imageData.mimeType};base64,${imageData.base64}`,
+                  detail: 'auto'
+                }
+              },
+              {
+                type: 'text',
+                text: message
+              }
+            ]
+          };
+        }
+      }
+
       let messages: LLMMessage[] = [
         {
           role: 'system',
           content: customSystemPrompt
         },
-        ...conversationMessages
+        ...historyMessages
       ];
 
       const maxIterations = config.MAX_LLM_ITERATIONS;
