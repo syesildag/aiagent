@@ -21,8 +21,9 @@ IFS='.' read -r MAJOR MINOR PATCH <<< "$RELEASE"
 
 if $BUILD_IMAGE; then
   echo "Building Docker image with tag: $MAJOR.$MINOR.$PATCH..."
-  docker build -t aiagent:$MAJOR.$MINOR.$PATCH ../
+  docker build -t syesildag/aiagent:$MAJOR.$MINOR.$PATCH ../
   echo "Docker image built successfully."
+  docker push syesildag/aiagent:$MAJOR.$MINOR.$PATCH
   # Increment PATCH, roll over to MINOR and MAJOR as needed
   PATCH=$((PATCH + 1))
   if [ "$PATCH" -ge 100 ]; then
