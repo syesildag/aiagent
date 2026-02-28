@@ -1,10 +1,20 @@
+export interface ToolApproval {
+  id: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  description: string;
+  status: 'pending' | 'approved' | 'denied';
+}
+
 export interface Message {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool_approval';
   content: string;
   timestamp: Date;
   /** base64 data URL of an attached image, e.g. "data:image/png;base64,..." */
   imageUrl?: string;
+  /** Present when role === 'tool_approval' */
+  approval?: ToolApproval;
 }
 
 /** Models that support image (vision) input */

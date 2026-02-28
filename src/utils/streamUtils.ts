@@ -20,7 +20,9 @@ export async function handleStreamingResponse(
          try {
             const str = chunk.toString('utf8');
             capturedContent += str;
-            this.push(chunk); // Pass through unchanged
+            // Wrap each text fragment as an NDJSON event so the browser can
+            // distinguish text chunks from other events (e.g. tool-approval).
+            this.push(Buffer.from(JSON.stringify({ t: 'text', v: str }) + '\n', 'utf8'));
             callback();
          } catch (error) {
             callback(error);

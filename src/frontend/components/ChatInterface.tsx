@@ -28,8 +28,9 @@ import {
 } from '@mui/material';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { isVisionModel, Message } from '../types';
+import { isVisionModel, Message, ToolApproval } from '../types';
 import { ChatMessage } from './ChatMessage';
+import { ToolApprovalCard } from './ToolApprovalCard';
 
 export const ChatInterface: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -153,47 +154,90 @@ export const ChatInterface: React.FC = () => {
         throw new Error('Failed to get response');
       }
 
-      // Handle streaming response
+      // Handle streaming response (NDJSON protocol)
+      // Each line is a JSON event: {t:'text',v:'...'} or {t:'approval',...}
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let assistantContent = '';
+      let assistantMsgId: string | null = null;
+
+      /** Ensure the assistant placeholder bubble exists, return its id */
+      const ensureAssistantMsg = (): string => {
+        if (!assistantMsgId) {
+          assistantMsgId = String(Date.now() + 1);
+          setMessages(prev => [
+            ...prev,
+            { id: assistantMsgId!, role: 'assistant', content: '', timestamp: new Date() },
+          ]);
+        }
+        return assistantMsgId;
+      };
 
       if (reader) {
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: '',
-          timestamp: new Date(),
-        };
-
-        setMessages((prev) => [...prev, assistantMessage]);
-
+        let ndJsonBuffer = '';
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value, { stream: true });
-          assistantContent += chunk;
+          ndJsonBuffer += decoder.decode(value, { stream: true });
+          const lines = ndJsonBuffer.split('\n');
+          ndJsonBuffer = lines.pop() ?? '';
 
-          setMessages((prev) => {
-            const updated = [...prev];
-            const lastMessage = updated[updated.length - 1];
-            if (lastMessage.role === 'assistant') {
-              lastMessage.content = assistantContent;
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const event = JSON.parse(trimmed) as { t: string; v?: string; id?: string; tool?: string; args?: Record<string, unknown>; desc?: string };
+              if (event.t === 'text' && event.v !== undefined) {
+                const msgId = ensureAssistantMsg();
+                assistantContent += event.v;
+                setMessages(prev =>
+                  prev.map(m => m.id === msgId ? { ...m, content: assistantContent } : m),
+                );
+              } else if (event.t === 'approval' && event.id) {
+                const approval: ToolApproval = {
+                  id: event.id,
+                  toolName: event.tool ?? event.id,
+                  args: event.args ?? {},
+                  description: event.desc ?? '',
+                  status: 'pending',
+                };
+                setMessages(prev => [
+                  ...prev,
+                  { id: event.id!, role: 'tool_approval', content: '', timestamp: new Date(), approval },
+                ]);
+              }
+            } catch {
+              // Fallback: treat unrecognised lines as raw text
+              const msgId = ensureAssistantMsg();
+              assistantContent += line;
+              setMessages(prev =>
+                prev.map(m => m.id === msgId ? { ...m, content: assistantContent } : m),
+              );
             }
-            return updated;
-          });
+          }
         }
       } else {
-        // Non-streaming fallback
-        const text = await response.text();
+        // Non-streaming fallback: parse NDJSON body
+        const rawBody = await response.text();
+        let content = '';
+        try {
+          for (const line of rawBody.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            const event = JSON.parse(trimmed);
+            if (event.t === 'text') content += event.v ?? '';
+          }
+        } catch {
+          content = rawBody; // fallback
+        }
         const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
+          id: String(Date.now() + 1),
           role: 'assistant',
-          content: text,
+          content,
           timestamp: new Date(),
         };
-        setMessages((prev) => [...prev, assistantMessage]);
+        setMessages(prev => [...prev, assistantMessage]);
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
@@ -210,6 +254,27 @@ export const ChatInterface: React.FC = () => {
   const handleCancel = () => {
     abortControllerRef.current?.abort();
   };
+
+  /** Send the user's approval/denial decision to the server. */
+  const handleApproval = useCallback(async (approvalId: string, approved: boolean) => {
+    // Update the card status instantly
+    setMessages(prev =>
+      prev.map(m =>
+        m.approval?.id === approvalId
+          ? { ...m, approval: { ...m.approval!, status: approved ? ('approved' as const) : ('denied' as const) } }
+          : m,
+      ),
+    );
+    try {
+      await fetch(`/chat/approve/${approvalId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session, approved }),
+      });
+    } catch {
+      setError('Failed to send approval decision');
+    }
+  }, [session]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -294,9 +359,18 @@ export const ChatInterface: React.FC = () => {
                 </Typography>
               </Box>
             )}
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
-            ))}
+            {messages.map((message) =>
+              message.role === 'tool_approval' && message.approval ? (
+                <ToolApprovalCard
+                  key={message.id}
+                  approval={message.approval}
+                  onApprove={() => handleApproval(message.approval!.id, true)}
+                  onDeny={() => handleApproval(message.approval!.id, false)}
+                />
+              ) : (
+                <ChatMessage key={message.id} message={message} />
+              )
+            )}
             {loading && (
               <ListItem sx={{ justifyContent: 'center', py: 2 }}>
                 <CircularProgress size={24} />

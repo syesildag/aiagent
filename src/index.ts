@@ -22,6 +22,7 @@ import { closeDatabase, queryDatabase } from "./utils/pgClient";
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
 import { handleStreamingResponse } from './utils/streamUtils';
 import { generateFrontendHTML } from './utils/frontendTemplate';
+import { approvalManager } from './mcp/approvalManager';
 import path from 'path';
 
 // This array will hold references to the job factories, preventing them from being garbage collected.
@@ -170,22 +171,59 @@ app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
    const agent = await getAgentFromName(req.params.agent);
    agent.setSession(res.locals.session);
    const imageData = imageBase64 && imageMimeType ? { base64: imageBase64, mimeType: imageMimeType } : undefined;
-   const answer = await agent.chat(prompt, undefined, true, imageData);
+
+   // All responses use NDJSON so we can multiplex approval events and text chunks
+   // on the same stream (MCP 2025-11-25 human-in-the-loop pattern).
+   res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+   res.setHeader('Transfer-Encoding', 'chunked');
+   res.setHeader('Cache-Control', 'no-cache');
+   res.flushHeaders();  // open the connection now so early writes (approvals) reach the client
+
+   // Approval callback: broadcasts the approval request event to the browser
+   // and then suspends tool execution until the user decides.
+   const approvalCallback = async (
+     toolName: string,
+     args: Record<string, unknown>,
+     description: string,
+   ): Promise<boolean> => {
+     const request = approvalManager.buildRequest(toolName, args, description);
+     const decision = approvalManager.register(request.id);
+     // Emit the approval event as an NDJSON line
+     res.write(
+       JSON.stringify({
+         t: 'approval',
+         id: request.id,
+         tool: request.toolName,
+         args: request.args,
+         desc: request.description,
+       }) + '\n',
+     );
+     return decision;
+   };
+
+   const answer = await agent.chat(prompt, undefined, true, imageData, approvalCallback);
 
    if (answer instanceof ReadableStream) {
-      // Set appropriate headers for streaming
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.setHeader('Transfer-Encoding', 'chunked');
-
       await handleStreamingResponse(answer, res, agent.addAssistantMessageToHistory.bind(agent));
    } else {
-      // Handle non-streaming string responses
-      Logger.debug(`Non-streaming response. Length: ${answer.length} chars`);
+      // Wrap non-streaming response as an NDJSON text event
       agent.addAssistantMessageToHistory(answer);
-
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.send(answer);
+      res.write(JSON.stringify({ t: 'text', v: answer }) + '\n');
+      res.end();
    }
+}));
+
+// Approve / deny a pending tool execution (called by the browser when the user decides)
+app.post("/chat/approve/:approvalId", asyncHandler(async (req: Request, res: Response) => {
+   const { approvalId } = req.params;
+   const { approved } = z.object({ approved: z.boolean() }).parse(req.body);
+   const resolved = approvalManager.resolve(approvalId, approved);
+   if (!resolved) {
+      res.status(404).json({ error: 'Approval request not found or already resolved' });
+      return;
+   }
+   Logger.info(`Tool approval ${approvalId}: ${approved ? 'APPROVED' : 'DENIED'}`);
+   res.json({ success: true });
 }));
 
 // Info endpoint - returns current model, provider and all available models for the agent

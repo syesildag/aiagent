@@ -1,6 +1,7 @@
 import { Options } from "ollama";
 import { Agent, AgentName } from "../agent";
 import { MCPServerManager } from "../mcp/mcpManager";
+import { ToolApprovalCallback } from "../mcp/approvalManager";
 import { AiAgentSession } from "../entities/ai-agent-session";
 import Logger from "../utils/logger";
 
@@ -57,7 +58,13 @@ export default abstract class AbstractAgent implements Agent {
      return this.mcpManager.addAssistantMessageToHistory(finalContent);
    }
 
-   async chat(prompt: string, abortSignal?: AbortSignal, stream?: boolean, imageData?: { base64: string; mimeType: string }): Promise<ReadableStream<string> | string> {
+   async chat(
+     prompt: string,
+     abortSignal?: AbortSignal,
+     stream?: boolean,
+     imageData?: { base64: string; mimeType: string },
+     approvalCallback?: ToolApprovalCallback,
+   ): Promise<ReadableStream<string> | string> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');
       }
@@ -74,7 +81,8 @@ export default abstract class AbstractAgent implements Agent {
             serverNames,
             stream,
             imageData,
-            userLogin
+            userLogin,
+            approvalCallback,
          });
       } catch (error) {
          Logger.error(`MCP chat failed: ${error instanceof Error ? error.message : String(error)}`);

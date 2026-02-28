@@ -6,6 +6,33 @@ import { config } from '../utils/config';
 import { LLMMessage, LLMProvider, OllamaProvider, Tool } from './llmProviders';
 import { IConversationHistory } from '../descriptions/conversationTypes';
 import { ConversationHistoryFactory } from '../utils/conversationHistoryFactory';
+import { ToolApprovalCallback } from './approvalManager';
+
+/**
+ * Tool name patterns that require human approval before execution.
+ * Based on MCP 2025-11-25 spec: hosts SHOULD prompt users before invoking
+ * tools with destructiveHint=true, and SHOULD respect openWorldHint.
+ * We also match common destructive verb suffixes as a safety net.
+ */
+const DANGEROUS_TOOL_PATTERNS: RegExp[] = [
+  /(_|^)delete$/i,
+  /(_|^)drop$/i,
+  /(_|^)truncate$/i,
+  /(_|^)execute$/i,
+  /(_|^)run$/i,
+  /(_|^)send$/i,
+  /(_|^)write$/i,
+  /(_|^)remove$/i,
+  /(_|^)kill$/i,
+  /(_|^)deploy$/i,
+  /(_|^)publish$/i,
+  /(_|^)destroy$/i,
+  /(_|^)reset$/i,
+  /(_|^)wipe$/i,
+  /(_|^)format$/i,
+  /(_|^)nuke$/i,
+  /(_|^)purge$/i,
+];
 
 // MCP Protocol Types
 interface MCPRequest {
@@ -33,6 +60,14 @@ export interface MCPTool {
     type: string;
     properties: Record<string, any>;
     required?: string[];
+  };
+  /** MCP 2025-11-25 tool annotations for human-in-the-loop hints */
+  annotations?: {
+    destructiveHint?: boolean;
+    readOnlyHint?: boolean;
+    idempotentHint?: boolean;
+    openWorldHint?: boolean;
+    title?: string;
   };
 }
 
@@ -83,6 +118,12 @@ export interface ChatWithLLMArgs {
     mimeType: string;
   };
   userLogin?: string;
+  /**
+   * Optional callback invoked before executing a dangerous MCP tool.
+   * Return true to allow execution, false to deny it.
+   * Follows the MCP 2025-11-25 human-in-the-loop recommendation.
+   */
+  approvalCallback?: ToolApprovalCallback;
 }
 
 export class MCPServerConnection extends EventEmitter {
@@ -576,7 +617,41 @@ export class MCPServerManager {
   }
 
   // Handle tool calls by routing them to appropriate MCP servers
-  private async handleToolCall(toolCall: any): Promise<string> {
+  /**
+   * Returns true when the given full tool name ("server_method") is considered
+   * destructive and requires human approval before execution.
+   * Checks both MCP annotations (destructiveHint) and name patterns.
+   */
+  private isToolDangerous(fullToolName: string): boolean {
+    const parts = fullToolName.split('_');
+    if (parts.length < 2) return false;
+    const serverName = parts[0];
+    const methodName = parts.slice(1).join('_');
+    const connection = this.connections.get(serverName);
+    if (connection) {
+      const tool = connection.getTools().find(t => t.name === methodName);
+      if (tool?.annotations?.destructiveHint === true) return true;
+      // A readOnly tool is always safe
+      if (tool?.annotations?.readOnlyHint === true) return false;
+    }
+    return DANGEROUS_TOOL_PATTERNS.some(p => p.test(methodName));
+  }
+
+  /** Returns the description for a full tool name ("server_method"). */
+  private getToolDescription(fullToolName: string): string {
+    const parts = fullToolName.split('_');
+    if (parts.length < 2) return fullToolName;
+    const serverName = parts[0];
+    const methodName = parts.slice(1).join('_');
+    const connection = this.connections.get(serverName);
+    const tool = connection?.getTools().find(t => t.name === methodName);
+    return tool?.description ?? fullToolName;
+  }
+
+  private async handleToolCall(
+    toolCall: any,
+    approvalCallback?: ToolApprovalCallback,
+  ): Promise<string> {
     // Defensive check for tool call structure
     if (!toolCall?.function) {
       return 'Error: Tool call missing function property';
@@ -610,6 +685,19 @@ export class MCPServerManager {
     if (!connection) {
       return `Server ${serverName} not found or not running`;
     }
+
+    // ── Human-in-the-loop check (MCP 2025-11-25) ──────────────────────────────
+    if (approvalCallback && this.isToolDangerous(name)) {
+      Logger.info(`Tool '${name}' requires user approval before execution.`);
+      const description = this.getToolDescription(name);
+      const approved = await approvalCallback(name, parsedArgs ?? {}, description);
+      if (!approved) {
+        Logger.info(`Tool '${name}' execution denied by user.`);
+        return JSON.stringify({ denied: true, message: `User denied execution of tool: ${name}` });
+      }
+      Logger.info(`Tool '${name}' approved by user.`);
+    }
+    // ──────────────────────────────────────────────────────────────────────────
 
     try {
       // Handle different types of calls
@@ -684,7 +772,7 @@ export class MCPServerManager {
   }
 
   async chatWithLLM(args: ChatWithLLMArgs): Promise<ReadableStream<string> | string> {
-    const { message, customSystemPrompt, abortSignal, serverNames, stream, imageData, userLogin } = args;
+    const { message, customSystemPrompt, abortSignal, serverNames, stream, imageData, userLogin, approvalCallback } = args;
     try {
       // Ensure MCP servers are initialized on first use
       await this.ensureInitialized();
@@ -795,8 +883,11 @@ export class MCPServerManager {
           }
           
           Logger.debug(`Calling tool: ${JSON.stringify(toolCall)}`);
-          const result = await this.handleToolCall(toolCall);
+          const result = await this.handleToolCall(toolCall, approvalCallback);
           Logger.debug(`Tool call result for ${toolCall.function.name}: ${result}`);
+          if (abortSignal?.aborted) {
+            throw new Error('Operation cancelled by user');
+          }
 
           toolResults.push(result);
         }

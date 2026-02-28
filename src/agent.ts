@@ -2,6 +2,7 @@ import { Options } from 'ollama';
 import { GeneralAgent } from './agents/generalAgent';
 import { createLLMProvider, getLLMModel } from './mcp/llmFactory';
 import { MCPServerManager } from './mcp/mcpManager';
+import { ToolApprovalCallback } from './mcp/approvalManager';
 import { AiAgentSession } from './entities/ai-agent-session';
 import { config } from './utils/config';
 import Logger from './utils/logger';
@@ -10,7 +11,13 @@ export type AgentName = 'general' | 'weather';
 
 export interface Agent {
    setSession(session: AiAgentSession): void;
-   chat(prompt: string, abortSignal?: AbortSignal, stream?: boolean, imageData?: { base64: string; mimeType: string }): Promise<ReadableStream<string> | string>;
+   chat(
+     prompt: string,
+     abortSignal?: AbortSignal,
+     stream?: boolean,
+     imageData?: { base64: string; mimeType: string },
+     approvalCallback?: ToolApprovalCallback,
+   ): Promise<ReadableStream<string> | string>;
    getSystemPrompt(): string;
    getName(): AgentName;
    getOptions(): Partial<Options> | undefined;
