@@ -354,7 +354,7 @@ async function main() {
   try {
 
     // Example interactions with the LLM using MCP tools
-    console.log(`\n--- Interactive Chat with ${actualProviderType.toUpperCase()} ---`);
+    console.log(`\n--- Interactive Chat with ${actualProviderType.toUpperCase()} (${model}) ---`);
     console.log('Type your questions or commands. Special commands:');
     console.log('  - "help" - Show available commands');
     console.log('  - "login" - Configure LLM provider and authenticate');
