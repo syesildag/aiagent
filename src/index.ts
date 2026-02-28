@@ -5,6 +5,7 @@ import express, { NextFunction, Request, Response } from "express";
 import { rateLimit } from 'express-rate-limit';
 import fs from 'fs';
 import helmet from 'helmet';
+import http from 'http';
 import https from 'https';
 import schedule from "node-schedule";
 import { Duplex } from "stream";
@@ -33,8 +34,8 @@ function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => P
    };
 }
 
-// Load SSL certificate and private key
-const options: https.ServerOptions = {
+// Load SSL certificate and private key (production only)
+const options: https.ServerOptions | null = isDevelopment() ? null : {
    key: fs.readFileSync('server.key'),
    cert: fs.readFileSync('server.cert')
 };
@@ -46,7 +47,10 @@ const Query = z.object({
 
 const app = express();
 
-app.use(helmet());
+app.use(helmet(isDevelopment() ? {
+   contentSecurityPolicy: false,
+   strictTransportSecurity: false,
+} : {}));
 app.use(cors());
 
 // Trust proxy headers (required for express-rate-limit behind Ingress)
@@ -232,8 +236,12 @@ app.get('/readyz', async (req: Request, res: Response) => {
 
 const PORT: number = config.PORT;
 const HOST: string = config.HOST;
-const server = https.createServer(options, app).listen(PORT, HOST, async () => {
-   Logger.info(`[server]: Server is running at https://${HOST}:${PORT}`);
+const server = (isDevelopment()
+   ? http.createServer(app)
+   : https.createServer(options!, app)
+).listen(PORT, HOST, async () => {
+   const protocol = isDevelopment() ? 'http' : 'https';
+   Logger.info(`[server]: Server is running at ${protocol}://${HOST}:${PORT}`);
 
    try {
       await initializeAgents();
