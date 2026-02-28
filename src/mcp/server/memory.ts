@@ -22,6 +22,40 @@ import { AiAgentMemories } from "../../entities/ai-agent-memories.js";
 import aiagentmemoriesRepository from "../../entities/ai-agent-memories.js";
 
 /**
+ * Explicit TypeScript types for tool handler arguments.
+ * These bypass the MCP SDK's Zod inference machinery which cannot handle
+ * ZodUnion<[ZodRecord<ZodString,ZodAny>, ZodString]> without hitting
+ * TypeScript's instantiation depth limit (TS2589).
+ */
+type CreateMemoryArgs = {
+  type: string;
+  content: Record<string, any> | string;
+  source: string;
+  tags?: string[];
+  confidence: number;
+  user_login?: string;
+};
+
+type SearchMemoryArgs = {
+  query: string;
+  type?: string;
+  tags?: string[];
+  limit?: number;
+  user_login?: string;
+};
+
+type ListMemoryArgs = {
+  type?: string;
+  tags?: string[];
+  limit?: number;
+  user_login?: string;
+};
+
+type DeleteMemoryArgs = {
+  id: number;
+};
+
+/**
  * Zod schemas for memory validation
  */
 const MemorySchema = z.object({
@@ -33,9 +67,11 @@ const MemorySchema = z.object({
 });
 
 // Input schemas for tools (using object shape, not Zod objects directly)
+// content uses z.any() to avoid TypeScript's recursive type instantiation
+// limit (TS2589) caused by ZodUnion<[ZodRecord, ZodString]> in the MCP SDK.
 const CreateMemoryInputSchema = z.object({
   type: z.string().min(1, "Memory type cannot be empty"),
-  content: z.record(z.any()).or(z.string()).describe("Memory content (object or string)"),
+  content: z.any().describe("Memory content (object or string)"),
   source: z.string().min(1, "Source cannot be empty"),
   tags: z.array(z.string()).optional().describe("Optional tags for the memory"),
   confidence: z.number().min(0).max(1).describe("Confidence score between 0 and 1"),
@@ -217,9 +253,10 @@ server.registerTool(
   {
     title: "Create Memory",
     description: "Create a new memory entry with semantic embedding",
-    inputSchema: CreateMemoryInputSchema
-  },
-  async ({ type, content, source, tags = [], confidence, user_login }) => {
+    inputSchema: CreateMemoryInputSchema.shape
+  } as any,
+  async (args) => {
+    const { type, content, source, tags = [], confidence, user_login } = args as unknown as CreateMemoryArgs;
     try {
       // Validate input
       const validatedData = MemorySchema.parse({ type, content, source, tags, confidence });
@@ -293,9 +330,10 @@ server.registerTool(
   {
     title: "Search Memories",
     description: "Search memories using semantic similarity with optional filters",
-    inputSchema: SearchMemoryInputSchema
-  },
-  async ({ query, type, tags, limit = 10, user_login }) => {
+    inputSchema: SearchMemoryInputSchema.shape
+  } as any,
+  async (args) => {
+    const { query, type, tags, limit = 10, user_login } = args as unknown as SearchMemoryArgs;
     try {
       // Generate embedding for search query
       const queryEmbedding = await getEmbeddings(query);
@@ -390,9 +428,10 @@ server.registerTool(
   {
     title: "List Memories",
     description: "List all memories with optional type and tag filters",
-    inputSchema: ListMemoryInputSchema
-  },
-  async ({ type, tags, limit = 50, user_login }) => {
+    inputSchema: ListMemoryInputSchema.shape
+  } as any,
+  async (args) => {
+    const { type, tags, limit = 50, user_login } = args as unknown as ListMemoryArgs;
     try {
       let memories: AiAgentMemories[] | null = null;
 
@@ -540,8 +579,9 @@ server.registerTool(
     inputSchema: {
       id: z.number().int().positive().describe("Memory ID to delete")
     }
-  },
-  async ({ id }) => {
+  } as any,
+  async (args) => {
+    const { id } = args as unknown as DeleteMemoryArgs;
     try {
       // Find memory using repository pattern
       const memory = await aiagentmemoriesRepository.getById(id);

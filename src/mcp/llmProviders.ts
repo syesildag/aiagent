@@ -546,32 +546,65 @@ export class OllamaProvider implements LLMProvider {
     const modelMaxTokens = getModelMaxTokens(request.model);
     const adjustedRequest = handleTokenLimits(request, modelMaxTokens);
 
-    // Convert LLMMessage to Ollama Message format
-    const ollamaMessages = adjustedRequest.messages.map(msg => ({
-      role: msg.role,
-      content: msg.content,
-      tool_calls: msg.tool_calls?.map(tc => ({
-        function: {
-          name: tc.function.name,
-          arguments: typeof tc.function.arguments === 'string' 
-            ? JSON.parse(tc.function.arguments) 
-            : tc.function.arguments
-        }
-      }))
-    }));
+    // Convert LLMMessage to Ollama Message format.
+    // Ollama's Message type only accepts content: string, with images in a
+    // separate string[] field (base64 data, no data-URL prefix).
+    const ollamaMessages = adjustedRequest.messages.map(msg => {
+      let textContent: string;
+      const images: string[] = [];
+
+      if (typeof msg.content === 'string') {
+        textContent = msg.content;
+      } else {
+        // ContentPart[] — split into text and image arrays
+        textContent = msg.content
+          .filter((p): p is TextContentPart => p.type === 'text')
+          .map(p => p.text)
+          .join('');
+        msg.content
+          .filter((p): p is ImageContentPart => p.type === 'image_url')
+          .forEach(p => {
+            // Strip the data-URL prefix: "data:<mime>;base64,<data>" → "<data>"
+            const base64 = p.image_url.url.includes(',')
+              ? p.image_url.url.split(',')[1]
+              : p.image_url.url;
+            images.push(base64);
+          });
+      }
+
+      return {
+        role: msg.role as 'user' | 'assistant' | 'system' | 'tool',
+        content: textContent,
+        ...(images.length > 0 ? { images } : {}),
+        ...(msg.tool_calls ? {
+          tool_calls: msg.tool_calls.map(tc => ({
+            function: {
+              name: tc.function.name,
+              arguments: typeof tc.function.arguments === 'string'
+                ? JSON.parse(tc.function.arguments)
+                : tc.function.arguments
+            }
+          }))
+        } : {})
+      };
+    });
+
+    // Cast to any[] to satisfy Ollama's strict Message type — the runtime shape
+    // is fully compatible; TypeScript cannot reconcile our role/tool_call unions.
+    const ollamaMessagesCast = ollamaMessages as any[];
 
     let chatPromise;
     if (request.stream === true) {
       chatPromise = this.ollama.chat({
         model: adjustedRequest.model,
-        messages: ollamaMessages,
+        messages: ollamaMessagesCast,
         tools: adjustedRequest.tools,
         stream: true
       });
     } else {
       chatPromise = this.ollama.chat({
         model: adjustedRequest.model,
-        messages: ollamaMessages,
+        messages: ollamaMessagesCast,
         tools: adjustedRequest.tools,
         stream: false
       });
@@ -591,7 +624,7 @@ export class OllamaProvider implements LLMProvider {
     // Handle streaming and non-streaming responses
     if (request.stream === true) {
       // Streaming: Create a ReadableStream that handles content streaming
-      const ollamaStream = response as AsyncIterable<any>;
+      const ollamaStream = response as unknown as AsyncIterable<any>;
       let collectedToolCalls: any[] = [];
       
       const stream = new ReadableStream({
