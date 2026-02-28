@@ -21,10 +21,11 @@ export class AiAgentMemories extends Entity {
    private embedding: any;
    private tags?: string[];
    private confidence?: any;
+   private userLogin?: string;
    private createdAt?: Date;
    private updatedAt?: Date;
 
-   constructor({ id, type, content, source, embedding, tags, confidence, createdAt, updatedAt }: { id?: number, type: string, content: any, source: string, embedding: any, tags?: string[], confidence?: any, createdAt?: Date, updatedAt?: Date }) {
+   constructor({ id, type, content, source, embedding, tags, confidence, userLogin, createdAt, updatedAt }: { id?: number, type: string, content: any, source: string, embedding: any, tags?: string[], confidence?: any, userLogin?: string, createdAt?: Date, updatedAt?: Date }) {
       super();
       this.id = id;
       this.type = type;
@@ -33,6 +34,7 @@ export class AiAgentMemories extends Entity {
       this.embedding = embedding;
       this.tags = tags;
       this.confidence = confidence;
+      this.userLogin = userLogin;
       this.createdAt = createdAt;
       this.updatedAt = updatedAt;
    }
@@ -72,6 +74,11 @@ export class AiAgentMemories extends Entity {
       return this.confidence;
    }
 
+   @Column({ columnName: 'user_login' })
+   public getUserLogin(): string | undefined {
+      return this.userLogin;
+   }
+
    @Column({ columnName: 'created_at', notNull: true, hasDefault: true })
    public getCreatedAt(): Date | undefined {
       return this.createdAt;
@@ -88,6 +95,10 @@ export class AiAgentMemories extends Entity {
 
    public setConfidence(confidence?: any) {
       this.confidence = confidence;
+   }
+
+   public setUserLogin(userLogin?: string) {
+      this.userLogin = userLogin;
    }
 
    public setCreatedAt(createdAt?: Date) {
@@ -109,6 +120,16 @@ class AiAgentMemoriesRepository extends AbstractRepository<AiAgentMemories> {
    // Custom finder methods
    @Find()
    public async findByTypeOrderByCreatedAtDesc(type: string): Promise<AiAgentMemories[]> {
+      return [];
+   }
+
+   @Find()
+   public async findByUserLoginOrderByCreatedAtDesc(userLogin: string): Promise<AiAgentMemories[]> {
+      return [];
+   }
+
+   @Find()
+   public async findByUserLoginAndTypeOrderByCreatedAtDesc(userLogin: string, type: string): Promise<AiAgentMemories[]> {
       return [];
    }
 

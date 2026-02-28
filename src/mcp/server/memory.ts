@@ -38,20 +38,23 @@ const CreateMemoryInputSchema = z.object({
   content: z.record(z.any()).or(z.string()).describe("Memory content (object or string)"),
   source: z.string().min(1, "Source cannot be empty"),
   tags: z.array(z.string()).optional().describe("Optional tags for the memory"),
-  confidence: z.number().min(0).max(1).describe("Confidence score between 0 and 1")
+  confidence: z.number().min(0).max(1).describe("Confidence score between 0 and 1"),
+  user_login: z.string().optional().describe("User login to scope this memory to a specific user")
 });
 
 const SearchMemoryInputSchema = z.object({
   query: z.string().min(1, "Search query cannot be empty"),
   type: z.string().optional().describe("Filter by memory type"),
   tags: z.array(z.string()).optional().describe("Filter by tags"),
-  limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return")
+  limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return"),
+  user_login: z.string().optional().describe("Restrict search to memories of this user")
 });
 
 const ListMemoryInputSchema = z.object({
   type: z.string().optional().describe("Filter by memory type"),
   tags: z.array(z.string()).optional().describe("Filter by tags"),
-  limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return")
+  limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return"),
+  user_login: z.string().optional().describe("Restrict listing to memories of this user")
 });
 
 type Memory = z.infer<typeof MemorySchema>;
@@ -216,7 +219,7 @@ server.registerTool(
     description: "Create a new memory entry with semantic embedding",
     inputSchema: CreateMemoryInputSchema
   },
-  async ({ type, content, source, tags = [], confidence }) => {
+  async ({ type, content, source, tags = [], confidence, user_login }) => {
     try {
       // Validate input
       const validatedData = MemorySchema.parse({ type, content, source, tags, confidence });
@@ -243,6 +246,7 @@ server.registerTool(
         embedding: `[${embedding.join(',')}]`,
         tags: validatedData.tags,
         confidence: validatedData.confidence,
+        userLogin: user_login,
         createdAt: new Date(),
         updatedAt: new Date()
       });
@@ -291,7 +295,7 @@ server.registerTool(
     description: "Search memories using semantic similarity with optional filters",
     inputSchema: SearchMemoryInputSchema
   },
-  async ({ query, type, tags, limit = 10 }) => {
+  async ({ query, type, tags, limit = 10, user_login }) => {
     try {
       // Generate embedding for search query
       const queryEmbedding = await getEmbeddings(query);
@@ -310,11 +314,11 @@ server.registerTool(
       const queryParams: any[] = [`[${queryEmbedding.join(',')}]`];
       let paramCount = 1;
 
-      // if (type) {
-      //   paramCount++;
-      //   sqlQuery += ` AND type = $${paramCount}`;
-      //   queryParams.push(type);
-      // }
+      if (user_login) {
+        paramCount++;
+        sqlQuery += ` AND (user_login = $${paramCount} OR user_login IS NULL)`;
+        queryParams.push(user_login);
+      }
 
       if (tags && tags.length > 0) {
         paramCount++;
@@ -388,17 +392,29 @@ server.registerTool(
     description: "List all memories with optional type and tag filters",
     inputSchema: ListMemoryInputSchema
   },
-  async ({ type, tags, limit = 50 }) => {
+  async ({ type, tags, limit = 50, user_login }) => {
     try {
       let memories: AiAgentMemories[] | null = null;
 
-      if (type && !tags) {
+      if (type && !tags && !user_login) {
         // Simple type filter - use repository pattern
         memories = await aiagentmemoriesRepository.findByTypeOrderByCreatedAtDesc(type);
         if (memories && limit < memories.length) {
           memories = memories.slice(0, limit);
         }
-      } else if (!type && !tags) {
+      } else if (user_login && type && !tags) {
+        // User + type filter - use repository pattern
+        memories = await aiagentmemoriesRepository.findByUserLoginAndTypeOrderByCreatedAtDesc(user_login, type);
+        if (memories && limit < memories.length) {
+          memories = memories.slice(0, limit);
+        }
+      } else if (user_login && !type && !tags) {
+        // User-only filter - use repository pattern
+        memories = await aiagentmemoriesRepository.findByUserLoginOrderByCreatedAtDesc(user_login);
+        if (memories && limit < memories.length) {
+          memories = memories.slice(0, limit);
+        }
+      } else if (!type && !tags && !user_login) {
         // No filters - use repository pattern with options
         memories = await aiagentmemoriesRepository.findAll({ 
           orderBy: [{ field: 'createdAt', direction: 'DESC' }],
@@ -419,6 +435,12 @@ server.registerTool(
           paramCount++;
           sqlQuery += ` AND type = $${paramCount}`;
           queryParams.push(type);
+        }
+
+        if (user_login) {
+          paramCount++;
+          sqlQuery += ` AND (user_login = $${paramCount} OR user_login IS NULL)`;
+          queryParams.push(user_login);
         }
 
         if (tags && tags.length > 0) {

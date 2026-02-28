@@ -82,6 +82,7 @@ export interface ChatWithLLMArgs {
     base64: string;
     mimeType: string;
   };
+  userLogin?: string;
 }
 
 export class MCPServerConnection extends EventEmitter {
@@ -683,7 +684,7 @@ export class MCPServerManager {
   }
 
   async chatWithLLM(args: ChatWithLLMArgs): Promise<ReadableStream<string> | string> {
-    const { message, customSystemPrompt, abortSignal, serverNames, stream, imageData } = args;
+    const { message, customSystemPrompt, abortSignal, serverNames, stream, imageData, userLogin } = args;
     try {
       // Ensure MCP servers are initialized on first use
       await this.ensureInitialized();
@@ -707,8 +708,14 @@ export class MCPServerManager {
         content: message
       });
       
-      // Get conversation history and add system prompt at the beginning
+      // Get conversation history and add system prompt at the beginning.
+      // When a user is authenticated, inject an instruction so the LLM always
+      // passes user_login to memory tools, ensuring per-user memory isolation.
       const conversationMessages = await this.conversationHistory.getCurrentConversation();
+      const userInstruction = userLogin
+        ? `\n\nCurrent authenticated user: ${userLogin}\nWhen calling any memory tool (memory_create, memory_search, memory_list, memory_delete), always include user_login="${userLogin}" in the tool arguments.`
+        : '';
+      const effectiveSystemPrompt = customSystemPrompt + userInstruction;
 
       // Build messages; if an image was provided, replace the last user message with
       // a multimodal content array so vision models can process it.
@@ -738,7 +745,7 @@ export class MCPServerManager {
       let messages: LLMMessage[] = [
         {
           role: 'system',
-          content: customSystemPrompt
+          content: effectiveSystemPrompt
         },
         ...historyMessages
       ];

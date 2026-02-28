@@ -66,13 +66,15 @@ export default abstract class AbstractAgent implements Agent {
       try {
          const systemPrompt = this.getSystemPrompt();
          const serverNames = this.getAllowedServerNames();
+         const userLogin = this.session?.getUserLogin();
          return await this.mcpManager.chatWithLLM({
             message: prompt,
             customSystemPrompt: systemPrompt,
             abortSignal,
             serverNames,
             stream,
-            imageData
+            imageData,
+            userLogin
          });
       } catch (error) {
          Logger.error(`MCP chat failed: ${error instanceof Error ? error.message : String(error)}`);
