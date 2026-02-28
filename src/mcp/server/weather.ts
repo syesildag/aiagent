@@ -32,32 +32,32 @@ if (!OPENWEATHER_API_KEY) {
 /**
  * Input schemas for tools with comprehensive validation
  */
-const CurrentWeatherInputSchema = {
+const CurrentWeatherInputSchema = z.object({
   location: z.string().min(1, "Location cannot be empty").describe("City name, state/country code (e.g., 'London,UK' or 'New York,NY,US')"),
   units: z.enum(["metric", "imperial", "kelvin"]).optional().describe("Temperature units: metric (°C), imperial (°F), or kelvin (K)")
-};
+});
 
-const ForecastInputSchema = {
+const ForecastInputSchema = z.object({
   location: z.string().min(1, "Location cannot be empty").describe("City name, state/country code"),
   days: z.number().int().min(1).max(5).optional().describe("Number of forecast days (1-5)"),
   units: z.enum(["metric", "imperial", "kelvin"]).optional().describe("Temperature units")
-};
+});
 
-const WeatherAlertsInputSchema = {
+const WeatherAlertsInputSchema = z.object({
   lat: z.number().min(-90).max(90).describe("Latitude"),
   lon: z.number().min(-180).max(180).describe("Longitude")
-};
+});
 
-const GeocodingInputSchema = {
+const GeocodingInputSchema = z.object({
   location: z.string().min(1, "Location cannot be empty").describe("City name, state/country code"),
   limit: z.number().int().min(1).max(10).optional().describe("Maximum number of results (1-10)")
-};
+});
 
-const HistoricalWeatherInputSchema = {
+const HistoricalWeatherInputSchema = z.object({
   lat: z.number().min(-90).max(90).describe("Latitude"),
   lon: z.number().min(-180).max(180).describe("Longitude"),
   dt: z.number().int().positive().describe("Unix timestamp for the requested date")
-};
+});
 
 /**
  * Weather data interfaces

@@ -33,26 +33,26 @@ const MemorySchema = z.object({
 });
 
 // Input schemas for tools (using object shape, not Zod objects directly)
-const CreateMemoryInputSchema = {
+const CreateMemoryInputSchema = z.object({
   type: z.string().min(1, "Memory type cannot be empty"),
   content: z.record(z.any()).or(z.string()).describe("Memory content (object or string)"),
   source: z.string().min(1, "Source cannot be empty"),
   tags: z.array(z.string()).optional().describe("Optional tags for the memory"),
   confidence: z.number().min(0).max(1).describe("Confidence score between 0 and 1")
-};
+});
 
-const SearchMemoryInputSchema = {
+const SearchMemoryInputSchema = z.object({
   query: z.string().min(1, "Search query cannot be empty"),
   type: z.string().optional().describe("Filter by memory type"),
   tags: z.array(z.string()).optional().describe("Filter by tags"),
   limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return")
-};
+});
 
-const ListMemoryInputSchema = {
+const ListMemoryInputSchema = z.object({
   type: z.string().optional().describe("Filter by memory type"),
   tags: z.array(z.string()).optional().describe("Filter by tags"),
   limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return")
-};
+});
 
 type Memory = z.infer<typeof MemorySchema>;
 

@@ -20,25 +20,25 @@ import Logger from "../../utils/logger.js";
 /**
  * Input schemas for tools with comprehensive validation
  */
-const GetCurrentTimeInputSchema = {
+const GetCurrentTimeInputSchema = z.object({
   timezone: z.string().optional().describe("IANA timezone name (e.g., 'America/New_York', 'Europe/London'). If not provided, uses system timezone")
-};
+});
 
-const ConvertTimeInputSchema = {
+const ConvertTimeInputSchema = z.object({
   source_timezone: z.string().min(1, "Source timezone cannot be empty").describe("Source IANA timezone name (e.g., 'America/New_York')"),
   time: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, "Time must be in HH:MM format (24-hour)").describe("Time in 24-hour format (HH:MM)"),
   target_timezone: z.string().min(1, "Target timezone cannot be empty").describe("Target IANA timezone name (e.g., 'Europe/London')"),
   date: z.string().optional().describe("Date in YYYY-MM-DD format. If not provided, uses current date")
-};
+});
 
-const ListTimezonesInputSchema = {
+const ListTimezonesInputSchema = z.object({
   region: z.string().optional().describe("Filter by region (e.g., 'America', 'Europe', 'Asia')"),
   limit: z.number().int().min(1).max(100).optional().describe("Maximum number of timezones to return (1-100)")
-};
+});
 
-const GetTimezoneInfoInputSchema = {
+const GetTimezoneInfoInputSchema = z.object({
   timezone: z.string().min(1, "Timezone cannot be empty").describe("IANA timezone name")
-};
+});
 
 /**
  * Time data interfaces

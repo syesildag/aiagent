@@ -199,19 +199,15 @@ app.get("/front/:agent", asyncHandler(async (req: Request, res: Response) => {
    res.send(html);
 }));
 
-// Serve the frontend bundle as a static file
-app.get("/static/bundle.js", asyncHandler(async (req: Request, res: Response) => {
-   const bundlePath = path.join(__dirname, '../frontend/bundle.js');
-   
-   try {
-      const bundleJs = fs.readFileSync(bundlePath, 'utf-8');
-      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-      res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
-      res.send(bundleJs);
-   } catch (error) {
-      Logger.error(`Failed to read frontend bundle: ${error}`);
-      res.status(500).send(`console.error('Failed to load frontend bundle');`);
-   }
+// Serve static files
+app.use('/static', express.static(path.join(__dirname, 'static'), {
+   index: false,
+   etag: true,
+   maxAge: '1d',
+   redirect: false,
+   setHeaders: function (res, path, stat) {
+      res.setHeader('x-timestamp', Date.now());
+   },
 }));
 
 // Health endpoint

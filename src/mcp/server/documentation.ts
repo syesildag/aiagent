@@ -24,20 +24,20 @@ import { closeDatabase, queryDatabase } from "../../utils/pgClient.js";
 /**
  * Input schemas for tools (read-only operations only)
  */
-const SearchDocumentInputSchema = {
+const SearchDocumentInputSchema = z.object({
   query: z.string().min(1, "Search query cannot be empty"),
   type: z.string().optional().describe("Filter by document type"),
   limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return")
-};
+});
 
-const ListDocumentInputSchema = {
+const ListDocumentInputSchema = z.object({
   type: z.string().optional().describe("Filter by document type"),
   limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return")
-};
+});
 
-const GetDocumentInputSchema = {
+const GetDocumentInputSchema = z.object({
   id: z.number().int().positive().describe("Document ID to retrieve")
-};
+});
 
 /**
  * Create a modern MCP server using the high-level McpServer API

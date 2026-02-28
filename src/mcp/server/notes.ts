@@ -153,9 +153,9 @@ server.registerTool(
   {
     title: "List Notes",
     description: "Get a list of all available notes with their titles",
-    inputSchema: {
+    inputSchema: z.object({
       includeContent: z.boolean().optional().describe("Include note content in the response")
-    }
+    })
   },
   async ({ includeContent = false }) => {
     const noteEntries = Object.entries(notes);
@@ -213,9 +213,9 @@ server.registerPrompt(
   {
     title: "Summarize Notes",
     description: "Generate a concise summary of all notes in the system",
-    argsSchema: {
+    argsSchema: z.object({
       style: z.enum(["brief", "detailed", "bullet-points"]).optional()
-    }
+    })
   },
   ({ style }) => {
     const selectedStyle = style ?? "brief";
