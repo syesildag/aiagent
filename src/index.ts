@@ -200,7 +200,7 @@ app.get("/front/:agent", asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // Serve static files
-app.use('/static', express.static(path.join(__dirname, 'static'), {
+app.use('/static', express.static(path.join(__dirname, '..', 'static'), {
    index: false,
    etag: true,
    maxAge: '1d',
