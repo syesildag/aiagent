@@ -2,6 +2,7 @@ import { closeDatabase } from '../utils/pgClient';
 import Logger from '../utils/logger';
 import { hashPassword } from '../utils/hashPassword';
 import { AiAgentUser } from '../entities/ai-agent-user';
+import aiagentuserRepository from '../entities/ai-agent-user';
 import "dotenv/config";
 
 async function addUser(username: string, password: string) {
@@ -12,9 +13,21 @@ async function addUser(username: string, password: string) {
   }
   const passwordHash = hashPassword(password, hmacKey);
   try {
-    const user = new AiAgentUser({ login: username, password: passwordHash });
-    await user.save();
-    Logger.info(`User '${username}' added successfully.`);
+    const existing = await aiagentuserRepository.findByLogin(username);
+    if (existing) {
+      // Update password hash on existing user using upsert (id present → DO UPDATE)
+      const updated = new AiAgentUser({
+        id: existing.getId(),
+        login: username,
+        password: passwordHash,
+      });
+      await updated.save();
+      Logger.info(`User '${username}' password updated successfully.`);
+    } else {
+      const user = new AiAgentUser({ login: username, password: passwordHash });
+      await user.save();
+      Logger.info(`User '${username}' added successfully.`);
+    }
   } catch (err) {
     Logger.error(`Failed to add user: ${err}`);
   } finally {
