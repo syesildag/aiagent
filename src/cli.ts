@@ -358,6 +358,7 @@ async function main() {
     console.log('Type your questions or commands. Special commands:');
     console.log('  - "help" - Show available commands');
     console.log('  - "login" - Configure LLM provider and authenticate');
+    console.log('  - "model" - List and select available models');
     console.log('  - "status" - Show MCP server status');
     console.log('  - "refresh" - Refresh tools cache');
     console.log('  - "new/newchat" - Start a new conversation');
