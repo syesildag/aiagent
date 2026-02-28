@@ -1,21 +1,35 @@
-# Use official Node.js 24.9 on Alpine 3.22
-FROM node:24.9-alpine3.22
+# ── Build stage ──────────────────────────────────────────────────────────────
+FROM node:24.9-alpine3.22 AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies (for node-gyp, if needed)
+# Install system dependencies needed for native addons / node-gyp
 RUN apk add --no-cache python3 make g++ openssl gcompat
 
-# Copy package files and install dependencies
+# Install ALL dependencies (including devDependencies for @swc/cli, @swc/core)
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Copy source and build
+COPY . .
+RUN npm run build
+
+# ── Runtime stage ─────────────────────────────────────────────────────────────
+FROM node:24.9-alpine3.22
+
+WORKDIR /app
+
+RUN apk add --no-cache openssl gcompat
+
+# Install production dependencies only
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev
 
-# Copy source code
-COPY . .
+# Copy compiled output from builder
+COPY --from=builder /app/dist ./dist
 
-# Build TypeScript
-RUN npm run build
+# Copy any runtime assets (templates, etc.)
+COPY --from=builder /app/src/frontend/templates ./src/frontend/templates
 
 # Expose port (default: 443 for HTTPS, or 3000 if you use HTTP)
 EXPOSE 3000
