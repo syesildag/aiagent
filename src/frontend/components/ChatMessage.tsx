@@ -43,7 +43,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
           display: 'flex',
           alignItems: 'flex-start',
           flexDirection: isUser ? 'row-reverse' : 'row',
-          maxWidth: '80%',
+          maxWidth: { xs: '92%', sm: '80%' },
         }}
       >
         <Avatar

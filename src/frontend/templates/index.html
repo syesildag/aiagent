@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
   <title>AI Agent Chat - {{AGENT_NAME}}</title>
   <style>
     * {
@@ -18,6 +18,11 @@
     #root {
       width: 100%;
       height: 100vh;
+      height: 100dvh;
+    }
+    /* Prevent callout / tap highlight on mobile */
+    * {
+      -webkit-tap-highlight-color: transparent;
     }
     /* Loading indicator */
     .loading {

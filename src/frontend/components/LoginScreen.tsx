@@ -47,7 +47,7 @@ export const LoginScreen: React.FC = () => {
         }}
       >
         <Card sx={{ width: '100%', maxWidth: 400 }}>
-          <CardContent sx={{ p: 4 }}>
+          <CardContent sx={{ p: { xs: 2.5, sm: 4 } }}>
             <Box sx={{ mb: 3, textAlign: 'center' }}>
               <BotIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
               <Typography variant="h4" gutterBottom>

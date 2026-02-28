@@ -219,15 +219,28 @@ export const ChatInterface: React.FC = () => {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
       <AppBar position="static">
-        <Toolbar>
-          <BotIcon sx={{ mr: 2 }} />
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            AI Agent: {agentName}
+        <Toolbar sx={{ gap: 0.5 }}>
+          <BotIcon sx={{ mr: { xs: 0.5, sm: 1 }, flexShrink: 0 }} />
+          <Typography
+            variant="h6"
+            sx={{
+              flexGrow: 1,
+              fontSize: { xs: '0.85rem', sm: '1.1rem', md: '1.25rem' },
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              minWidth: 0,
+            }}
+          >
+            {agentName}
           </Typography>
           {availableModels.length > 0 && (
-            <FormControl size="small" sx={{ mr: 2, minWidth: 180 }}>
+            <FormControl
+              size="small"
+              sx={{ mr: 0.5, minWidth: { xs: 110, sm: 160 }, flexShrink: 0 }}
+            >
               <Select
                 value={currentModel}
                 onChange={handleModelChange}
@@ -237,7 +250,7 @@ export const ChatInterface: React.FC = () => {
                   '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
                   '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
                   '.MuiSvgIcon-root': { color: 'inherit' },
-                  fontSize: '0.85rem',
+                  fontSize: { xs: '0.7rem', sm: '0.85rem' },
                 }}
               >
                 {availableModels.map(m => (
@@ -246,10 +259,11 @@ export const ChatInterface: React.FC = () => {
               </Select>
             </FormControl>
           )}
-          <Typography variant="body2" sx={{ mr: 2 }}>
+          {/* Hide username on phones to save space */}
+          <Typography variant="body2" sx={{ mr: 0.5, display: { xs: 'none', sm: 'block' }, flexShrink: 0 }}>
             {username}
           </Typography>
-          <IconButton color="inherit" onClick={logout}>
+          <IconButton color="inherit" onClick={logout} size="small" sx={{ flexShrink: 0 }}>
             <LogoutIcon />
           </IconButton>
         </Toolbar>
@@ -265,8 +279,9 @@ export const ChatInterface: React.FC = () => {
         sx={{
           flexGrow: 1,
           overflow: 'auto',
+          overscrollBehavior: 'contain',
           bgcolor: 'background.default',
-          p: 2,
+          p: { xs: 1, sm: 2 },
         }}
       >
         <Container maxWidth="md">
@@ -295,9 +310,11 @@ export const ChatInterface: React.FC = () => {
       <Paper
         elevation={3}
         sx={{
-          p: 2,
+          p: { xs: 1, sm: 2 },
           borderTop: 1,
           borderColor: 'divider',
+          // Safe area padding for devices with home indicator
+          pb: { xs: 'max(8px, env(safe-area-inset-bottom))', sm: 2 },
         }}
       >
         <Container maxWidth="md">
@@ -373,26 +390,49 @@ export const ChatInterface: React.FC = () => {
             />
             {loading ? (
               <Tooltip title="Cancel">
-                <Button
-                  variant="outlined"
-                  color="error"
-                  onClick={handleCancel}
-                  endIcon={<StopIcon />}
-                  sx={{ minWidth: 100 }}
-                >
-                  Cancel
-                </Button>
+                {/* Show icon-only on xs, text button on sm+ */}
+                <span>
+                  <IconButton
+                    color="error"
+                    onClick={handleCancel}
+                    sx={{ display: { xs: 'flex', sm: 'none' }, flexShrink: 0 }}
+                  >
+                    <StopIcon />
+                  </IconButton>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={handleCancel}
+                    endIcon={<StopIcon />}
+                    sx={{ minWidth: 90, display: { xs: 'none', sm: 'flex' }, flexShrink: 0 }}
+                  >
+                    Cancel
+                  </Button>
+                </span>
               </Tooltip>
             ) : (
-              <Button
-                variant="contained"
-                onClick={handleSendMessage}
-                disabled={!inputMessage.trim()}
-                endIcon={<SendIcon />}
-                sx={{ minWidth: 100 }}
-              >
-                Send
-              </Button>
+              <Tooltip title="Send">
+                <span>
+                  {/* Icon-only on xs */}
+                  <IconButton
+                    color="primary"
+                    onClick={handleSendMessage}
+                    disabled={!inputMessage.trim()}
+                    sx={{ display: { xs: 'flex', sm: 'none' }, flexShrink: 0 }}
+                  >
+                    <SendIcon />
+                  </IconButton>
+                  <Button
+                    variant="contained"
+                    onClick={handleSendMessage}
+                    disabled={!inputMessage.trim()}
+                    endIcon={<SendIcon />}
+                    sx={{ minWidth: 90, display: { xs: 'none', sm: 'flex' }, flexShrink: 0 }}
+                  >
+                    Send
+                  </Button>
+                </span>
+              </Tooltip>
             )}
           </Box>
         </Container>
