@@ -3,7 +3,8 @@ import {
     Logout as LogoutIcon,
     Send as SendIcon,
     AttachFile as AttachFileIcon,
-    Close as CloseIcon
+    Close as CloseIcon,
+    StopCircle as StopIcon
 } from '@mui/icons-material';
 import {
     Alert,
@@ -41,6 +42,7 @@ export const ChatInterface: React.FC = () => {
   const [currentModel, setCurrentModel] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { session, username, agentName, logout } = useAuth();
 
   const scrollToBottom = () => {
@@ -127,6 +129,9 @@ export const ChatInterface: React.FC = () => {
     setLoading(true);
     setError('');
 
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     try {
       const body: Record<string, string> = {
         session: session!,
@@ -141,6 +146,7 @@ export const ChatInterface: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
@@ -190,11 +196,20 @@ export const ChatInterface: React.FC = () => {
         setMessages((prev) => [...prev, assistantMessage]);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      if (err instanceof Error && err.name === 'AbortError') {
+        // User cancelled — not an error
+      } else {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      }
     } finally {
+      abortControllerRef.current = null;
       setLoading(false);
     }
   }, [inputMessage, session, agentName, attachedImage]);
+
+  const handleCancel = () => {
+    abortControllerRef.current?.abort();
+  };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -356,15 +371,29 @@ export const ChatInterface: React.FC = () => {
               disabled={loading}
               variant="outlined"
             />
-            <Button
-              variant="contained"
-              onClick={handleSendMessage}
-              disabled={loading || !inputMessage.trim()}
-              endIcon={<SendIcon />}
-              sx={{ minWidth: 100 }}
-            >
-              Send
-            </Button>
+            {loading ? (
+              <Tooltip title="Cancel">
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={handleCancel}
+                  endIcon={<StopIcon />}
+                  sx={{ minWidth: 100 }}
+                >
+                  Cancel
+                </Button>
+              </Tooltip>
+            ) : (
+              <Button
+                variant="contained"
+                onClick={handleSendMessage}
+                disabled={!inputMessage.trim()}
+                endIcon={<SendIcon />}
+                sx={{ minWidth: 100 }}
+              >
+                Send
+              </Button>
+            )}
           </Box>
         </Container>
       </Paper>

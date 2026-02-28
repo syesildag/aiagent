@@ -1,15 +1,18 @@
 import {
     SmartToy as BotIcon,
+    ContentCopy as CopyIcon,
     Person as PersonIcon
 } from '@mui/icons-material';
 import {
     Avatar,
     Box,
+    IconButton,
     ListItem,
     Paper,
+    Tooltip,
     Typography
 } from '@mui/material';
-import React from 'react';
+import React, { useState } from 'react';
 import { Message } from '../types';
 
 interface ChatMessageProps {
@@ -18,6 +21,14 @@ interface ChatMessageProps {
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const isUser = message.role === 'user';
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   return (
     <ListItem
@@ -82,6 +93,24 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
           >
             {message.timestamp.toLocaleTimeString()}
           </Typography>
+          {message.content && (
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 0.5 }}>
+              <Tooltip title={copied ? 'Copied!' : 'Copy'} placement="top">
+                <IconButton
+                  size="small"
+                  onClick={handleCopy}
+                  sx={{
+                    opacity: 0.5,
+                    '&:hover': { opacity: 1 },
+                    p: '2px',
+                    color: isUser ? 'primary.contrastText' : 'text.secondary',
+                  }}
+                >
+                  <CopyIcon fontSize="inherit" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          )}
         </Paper>
       </Box>
     </ListItem>
