@@ -805,9 +805,16 @@ export class MCPServerManager {
         : '';
       const effectiveSystemPrompt = customSystemPrompt + userInstruction;
 
+      // Trim history to the configured window to avoid exceeding LLM token limits.
+      // Keep the last N messages (pairs of user+assistant) from the conversation.
+      const windowSize = config.CONVERSATION_HISTORY_WINDOW_SIZE;
+      const trimmedConversation = conversationMessages.length > windowSize
+        ? conversationMessages.slice(-windowSize)
+        : conversationMessages;
+
       // Build messages; if an image was provided, replace the last user message with
       // a multimodal content array so vision models can process it.
-      let historyMessages: LLMMessage[] = [...conversationMessages];
+      let historyMessages: LLMMessage[] = [...trimmedConversation];
       if (imageData) {
         const lastUserIdx = historyMessages.map(m => m.role).lastIndexOf('user');
         if (lastUserIdx !== -1) {

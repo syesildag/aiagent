@@ -44,6 +44,10 @@ export default class WorkerPool<Task, Result, This = any> extends EventEmitter {
       this.workers = [];
       this.freeWorkers = [];
 
+      // Each worker registers a kError listener; raise the limit to avoid the
+      // MaxListenersExceededWarning when many workers are active.
+      this.setMaxListeners(numThreads + 10);
+
       for (let i = 0; i < numThreads; i++)
          this.addNewWorker();
    }
