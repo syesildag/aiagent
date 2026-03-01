@@ -289,6 +289,53 @@ function estimateTokens(text: string): number {
 }
 
 /**
+ * Estimate tokens for a full message, including binary (image_url) content parts.
+ * getContentText() only returns text parts, which causes huge base64 payloads to go
+ * undetected and exceed the per-request token budget.
+ */
+function estimateFullMessageTokens(msg: LLMMessage): number {
+  let text = '';
+  if (typeof msg.content === 'string') {
+    text = msg.content;
+  } else if (Array.isArray(msg.content)) {
+    for (const part of msg.content) {
+      if (part.type === 'text') {
+        text += part.text;
+      } else if (part.type === 'image_url') {
+        // Include the full data URL (base64 payload) in the size estimate
+        text += part.image_url.url;
+      }
+    }
+  }
+  if (msg.tool_calls) {
+    text += JSON.stringify(msg.tool_calls);
+  }
+  return estimateTokens(text);
+}
+
+/**
+ * Strip image_url (and other binary) content parts from every message, replacing them
+ * with a short text placeholder.  Used as a last-resort fallback so that a 413 retry
+ * can succeed even when the original attachment is too large to forward.
+ */
+export function stripBinaryContent(messages: LLMMessage[]): LLMMessage[] {
+  return messages.map(msg => {
+    if (!Array.isArray(msg.content)) return msg;
+    const textParts = msg.content.filter((p): p is TextContentPart => p.type === 'text');
+    const binaryCount = msg.content.length - textParts.length;
+    if (binaryCount === 0) return msg;
+    const placeholder: TextContentPart = {
+      type: 'text',
+      text: `[${binaryCount} attachment(s) removed — too large for model token limit]`,
+    };
+    return {
+      ...msg,
+      content: textParts.length > 0 ? [...textParts, placeholder] : placeholder.text,
+    };
+  });
+}
+
+/**
  * Handle token limits by truncating messages if needed
  * This function can be used by any LLM provider to manage token limits
  * 
@@ -312,18 +359,11 @@ export function handleTokenLimits(request: LLMChatRequest, maxTokens?: number): 
     toolTokens = estimateTokens(toolsText);
   }
 
-  // Estimate tokens for messages
+  // Estimate tokens for messages — use full content (including image_url binary payloads)
+  // to avoid underestimating large attachments and sending oversized requests.
   let messageTokens = 0;
-  const messageTexts = request.messages.map(msg => {
-    let content = getContentText(msg.content);
-    if (msg.tool_calls) {
-      content += JSON.stringify(msg.tool_calls);
-    }
-    return content;
-  });
-  
-  for (const text of messageTexts) {
-    messageTokens += estimateTokens(text);
+  for (const msg of request.messages) {
+    messageTokens += estimateFullMessageTokens(msg);
   }
 
   const totalTokens = toolTokens + messageTokens;
@@ -347,12 +387,12 @@ export function handleTokenLimits(request: LLMChatRequest, maxTokens?: number): 
   
   if (systemMessage) {
     preservedMessages.push(systemMessage);
-    preservedTokens += estimateTokens(getContentText(systemMessage.content));
+    preservedTokens += estimateFullMessageTokens(systemMessage);
   }
   
   if (lastUserMessage) {
     preservedMessages.push(lastUserMessage);
-    preservedTokens += estimateTokens(getContentText(lastUserMessage.content));
+    preservedTokens += estimateFullMessageTokens(lastUserMessage);
   }
 
   Logger.debug(`Starting with minimal messages: ${preservedMessages.length} messages, ${preservedTokens} tokens`);
@@ -401,11 +441,7 @@ export function handleTokenLimits(request: LLMChatRequest, maxTokens?: number): 
   for (const block of conversationBlocks) {
     let blockTokens = 0;
     for (const msg of block) {
-      let content = getContentText(msg.content);
-      if (msg.tool_calls) {
-        content += JSON.stringify(msg.tool_calls);
-      }
-      blockTokens += estimateTokens(content);
+      blockTokens += estimateFullMessageTokens(msg);
     }
     
     if (preservedTokens + blockTokens <= tokenBudget) {
@@ -854,11 +890,15 @@ export class GitHubCopilotProvider implements LLMProvider {
         Logger.warn('Payload too large (413), retrying with more aggressive truncation');
         
         try {
-          // Always retry unconditionally with a more conservative token budget
+          // Always retry unconditionally with a more conservative token budget.
+          // Also strip binary (image/file) content parts — they are often the sole
+          // reason the payload is too large, and no amount of history trimming will
+          // help if a multi-MB attachment is embedded in the last user message.
           const maxTokens = 5000; // Use conservative limit for 413 retry
           Logger.warn(`Retrying with ${maxTokens} token limit after 413 from model ${adjustedRequest.model}`);
           {
-            const retryRequest = handleTokenLimits(request, maxTokens);
+            const strippedRequest = { ...request, messages: stripBinaryContent(request.messages) };
+            const retryRequest = handleTokenLimits(strippedRequest, maxTokens);
             
             // Try again with more aggressive truncation
             const retryBody: any = {
@@ -1018,9 +1058,10 @@ export class GitHubCopilotProvider implements LLMProvider {
       if (data.error.code === 'tokens_limit_reached') {
         Logger.warn('Token limit reached, retrying with more aggressive truncation');
         
-        // Retry with more conservative token limit
+        // Retry with more conservative token limit, also stripping binary attachments
         const maxTokens = 6000;
-        const retryRequest = handleTokenLimits(request, maxTokens);
+        const strippedForRetry = { ...request, messages: stripBinaryContent(request.messages) };
+        const retryRequest = handleTokenLimits(strippedForRetry, maxTokens);
         
         const retryBody: any = {
           model: retryRequest.model,
