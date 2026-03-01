@@ -130,10 +130,14 @@ export const ChatInterface: React.FC = () => {
       return;
     }
 
+    // Reset the input immediately so the same file can be re-selected later and
+    // so a subsequent picker session cannot have its File objects invalidated by
+    // a delayed reset from this session's Promise callback. The File objects are
+    // already captured in the `files` array above (via Array.from), so they
+    // remain valid for FileReader regardless of the input being cleared.
+    inputEl.value = '';
+
     // Read each file as a data URL in parallel.
-    // NOTE: reset the input ONLY after reading so that File objects remain valid
-    // throughout the async read; resetting early can invalidate FileList entries
-    // in some browsers, resulting in only the last-read file being retained.
     Promise.all(
       files.map(
         f =>
@@ -156,10 +160,8 @@ export const ChatInterface: React.FC = () => {
         const fresh = results.filter(r => !existingNames.has(r.name));
         return [...prev, ...fresh];
       });
-      inputEl.value = ''; // Reset after reading so the same file can be re-selected
     }).catch(() => {
       setError('Failed to read selected file(s)');
-      inputEl.value = '';
     });
   };
 

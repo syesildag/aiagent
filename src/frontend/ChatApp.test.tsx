@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import ChatApp from './ChatApp';
 
@@ -175,5 +175,108 @@ describe('ChatApp', () => {
     const chatInterface = screen.getByTestId('chat-interface');
 
     expect(provider).toContainElement(chatInterface);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Build a minimal FileList-compatible object from an array of File instances. */
+function makeFileList(files: File[]): FileList {
+  const fl: Record<string | number | symbol, unknown> = {
+    length: files.length,
+    item: (i: number) => files[i] ?? null,
+    [Symbol.iterator]: () => files[Symbol.iterator](),
+  };
+  files.forEach((f, i) => { fl[i] = f; });
+  return fl as unknown as FileList;
+}
+
+// ---------------------------------------------------------------------------
+// ChatInterface – file-attachment behaviour
+// ---------------------------------------------------------------------------
+
+describe('ChatInterface – multiple file attachments', () => {
+  // Bypass the file-level mock so we test the real component.
+  const { ChatInterface: ActualChatInterface } =
+    jest.requireActual<typeof import('./components/ChatInterface')>('./components/ChatInterface');
+
+  beforeEach(() => {
+    mockUseAuth.mockReturnValue({
+      session: 'test-session',
+      username: 'testuser',
+      agentName: 'TestAgent',
+      logout: jest.fn(),
+    });
+
+    // Satisfy the /info/:agent fetch that ChatInterface issues on mount.
+    (global as Record<string, unknown>).fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ models: ['gpt-4o'], model: 'gpt-4o' }),
+    });
+
+    Object.defineProperty(window, 'speechSynthesis', {
+      value: { cancel: jest.fn(), speak: jest.fn() },
+      writable: true,
+      configurable: true,
+    });
+
+    // jsdom does not implement scrollIntoView; stub it to avoid errors.
+    Element.prototype.scrollIntoView = jest.fn();
+  });
+
+  it('appends files from a second picker session instead of replacing them (regression)', async () => {
+    const { container } = render(<ActualChatInterface />);
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).not.toBeNull();
+
+    // First picker session – select file-a.txt
+    const fileA = new File(['hello'], 'file-a.txt', { type: 'text/plain' });
+    Object.defineProperty(fileInput, 'files', {
+      value: makeFileList([fileA]),
+      writable: false,
+      configurable: true,
+    });
+    await act(async () => { fireEvent.change(fileInput); });
+    await waitFor(() => expect(screen.getByTitle('file-a.txt')).toBeInTheDocument());
+
+    // Second picker session – select file-b.txt
+    const fileB = new File(['world'], 'file-b.txt', { type: 'text/plain' });
+    Object.defineProperty(fileInput, 'files', {
+      value: makeFileList([fileB]),
+      writable: false,
+      configurable: true,
+    });
+    await act(async () => { fireEvent.change(fileInput); });
+
+    // Both files must be present; file-a.txt must NOT have been replaced.
+    await waitFor(() => {
+      expect(screen.getByTitle('file-a.txt')).toBeInTheDocument();
+      expect(screen.getByTitle('file-b.txt')).toBeInTheDocument();
+    });
+  });
+
+  it('does not add a duplicate when the same file is selected a second time', async () => {
+    const { container } = render(<ActualChatInterface />);
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const fileA = new File(['hello'], 'file-a.txt', { type: 'text/plain' });
+
+    // Select file-a.txt twice in separate picker sessions.
+    for (let i = 0; i < 2; i++) {
+      Object.defineProperty(fileInput, 'files', {
+        value: makeFileList([fileA]),
+        writable: false,
+        configurable: true,
+      });
+      await act(async () => { fireEvent.change(fileInput); });
+    }
+
+    // Should appear exactly once.
+    await waitFor(() => {
+      expect(screen.getAllByTitle('file-a.txt')).toHaveLength(1);
+    });
   });
 });
