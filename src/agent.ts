@@ -15,7 +15,7 @@ export interface Agent {
      prompt: string,
      abortSignal?: AbortSignal,
      stream?: boolean,
-     imageData?: { base64: string; mimeType: string },
+     imageData?: { base64: string; mimeType: string }[],
      approvalCallback?: ToolApprovalCallback,
    ): Promise<ReadableStream<string> | string>;
    getSystemPrompt(): string;

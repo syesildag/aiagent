@@ -67,20 +67,24 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = 
             color: isUser ? 'primary.contrastText' : 'text.primary',
           }}
         >
-          {message.imageUrl && (
-            <Box
-              component="img"
-              src={message.imageUrl}
-              alt="attachment"
-              sx={{
-                display: 'block',
-                maxWidth: '100%',
-                maxHeight: 320,
-                borderRadius: 1,
-                mb: message.content ? 1 : 0,
-                objectFit: 'contain',
-              }}
-            />
+          {message.imageUrls && message.imageUrls.length > 0 && (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: message.content ? 1 : 0 }}>
+              {message.imageUrls.map((url, i) => (
+                <Box
+                  key={i}
+                  component="img"
+                  src={url}
+                  alt={`attachment ${i + 1}`}
+                  sx={{
+                    display: 'block',
+                    maxWidth: '100%',
+                    maxHeight: 240,
+                    borderRadius: 1,
+                    objectFit: 'contain',
+                  }}
+                />
+              ))}
+            </Box>
           )}
           <Typography
             variant="body1"

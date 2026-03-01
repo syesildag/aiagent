@@ -39,7 +39,7 @@ export const ChatInterface: React.FC = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [attachedImage, setAttachedImage] = useState<{ dataUrl: string; base64: string; mimeType: string } | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<{ dataUrl: string; base64: string; mimeType: string; name: string }[]>([]);
   const [supportsVision, setSupportsVision] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [currentModel, setCurrentModel] = useState('');
@@ -114,54 +114,65 @@ export const ChatInterface: React.FC = () => {
       .then(() => {
         setCurrentModel(model);
         setSupportsVision(isVisionModel(model));
-        if (!isVisionModel(model)) setAttachedImage(null);
+        if (!isVisionModel(model)) setAttachedFiles([]);
       })
       .catch(() => setError('Failed to switch model'));
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
 
-    if (file.size > 15 * 1024 * 1024) {
-      setError('Image must be smaller than 15 MB');
+    const oversized = files.filter(f => f.size > 15 * 1024 * 1024);
+    if (oversized.length > 0) {
+      setError(`File(s) too large (max 15 MB each): ${oversized.map(f => f.name).join(', ')}`);
       e.target.value = '';
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      // dataUrl is "data:<mimeType>;base64,<data>"
-      const [header, base64] = dataUrl.split(',');
-      const mimeType = header.replace('data:', '').replace(';base64', '');
-      setAttachedImage({ dataUrl, base64, mimeType });
-    };
-    reader.readAsDataURL(file);
+    // Read each file as a data URL in parallel
+    Promise.all(
+      files.map(
+        f =>
+          new Promise<{ dataUrl: string; base64: string; mimeType: string; name: string }>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = ev => {
+              const dataUrl = ev.target?.result as string;
+              const [header, base64] = dataUrl.split(',');
+              const mimeType = header.replace('data:', '').replace(';base64', '');
+              resolve({ dataUrl, base64, mimeType, name: f.name });
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(f);
+          }),
+      ),
+    ).then(results => {
+      setAttachedFiles(prev => [...prev, ...results]);
+    }).catch(() => setError('Failed to read selected file(s)'));
 
-    // Reset file input so the same file can be re-selected if needed
+    // Reset so the same file can be re-selected
     e.target.value = '';
   };
 
-  const handleRemoveImage = () => {
-    setAttachedImage(null);
+  const handleRemoveFile = (index: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSendMessage = useCallback(async () => {
     if (!inputMessage.trim() || !session) return;
 
+    const filesCopy = attachedFiles;
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: inputMessage,
       timestamp: new Date(),
-      imageUrl: attachedImage?.dataUrl,
+      imageUrls: filesCopy.length > 0 ? filesCopy.map(f => f.dataUrl) : undefined,
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInputMessage('');
-    const imageCopy = attachedImage;
-    setAttachedImage(null);
+    setAttachedFiles([]);
     setLoading(true);
     setError('');
 
@@ -169,13 +180,12 @@ export const ChatInterface: React.FC = () => {
     abortControllerRef.current = abortController;
 
     try {
-      const body: Record<string, string> = {
+      const body: Record<string, unknown> = {
         session: session!,
         prompt: inputMessage,
       };
-      if (imageCopy) {
-        body.imageBase64 = imageCopy.base64;
-        body.imageMimeType = imageCopy.mimeType;
+      if (filesCopy.length > 0) {
+        body.files = filesCopy.map(f => ({ base64: f.base64, mimeType: f.mimeType }));
       }
 
       const response = await fetch(`/chat/${agentName}`, {
@@ -290,7 +300,7 @@ export const ChatInterface: React.FC = () => {
       abortControllerRef.current = null;
       setLoading(false);
     }
-  }, [inputMessage, session, agentName, attachedImage, speakMessage, autoSpeak]);
+  }, [inputMessage, session, agentName, attachedFiles, speakMessage, autoSpeak]);
 
   const handleCancel = () => {
     abortControllerRef.current?.abort();
@@ -444,58 +454,87 @@ export const ChatInterface: React.FC = () => {
         }}
       >
         <Container maxWidth="md">
-          {/* Image preview */}
-          {attachedImage && (
-            <Box sx={{ position: 'relative', display: 'inline-block', mb: 1 }}>
-              <Box
-                component="img"
-                src={attachedImage.dataUrl}
-                alt="attachment preview"
-                sx={{
-                  height: 72,
-                  borderRadius: 1,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  objectFit: 'cover',
-                }}
-              />
-              <IconButton
-                size="small"
-                onClick={handleRemoveImage}
-                sx={{
-                  position: 'absolute',
-                  top: -8,
-                  right: -8,
-                  bgcolor: 'background.paper',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  p: '2px',
-                  '&:hover': { bgcolor: 'error.light', color: 'white' },
-                }}
-              >
-                <CloseIcon fontSize="small" />
-              </IconButton>
+          {/* Attached file previews */}
+          {attachedFiles.length > 0 && (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+              {attachedFiles.map((file, index) => (
+                <Box key={index} sx={{ position: 'relative', display: 'inline-block' }}>
+                  {file.mimeType.startsWith('image/') ? (
+                    <Box
+                      component="img"
+                      src={file.dataUrl}
+                      alt={file.name}
+                      title={file.name}
+                      sx={{
+                        height: 72,
+                        maxWidth: 120,
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  ) : (
+                    <Box
+                      title={file.name}
+                      sx={{
+                        height: 72,
+                        maxWidth: 120,
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        p: 1,
+                        bgcolor: 'grey.100',
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ wordBreak: 'break-all', textAlign: 'center', lineHeight: 1.2 }}>
+                        {file.name}
+                      </Typography>
+                    </Box>
+                  )}
+                  <IconButton
+                    size="small"
+                    onClick={() => handleRemoveFile(index)}
+                    sx={{
+                      position: 'absolute',
+                      top: -8,
+                      right: -8,
+                      bgcolor: 'background.paper',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      p: '2px',
+                      '&:hover': { bgcolor: 'error.light', color: 'white' },
+                    }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              ))}
             </Box>
           )}
 
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
-            {/* Hidden file input */}
+            {/* Hidden file input — multiple files allowed */}
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
+              multiple
               style={{ display: 'none' }}
-              onChange={handleImageSelect}
+              onChange={handleFilesSelect}
             />
 
             {/* Attach button — only shown for vision-capable models */}
             {supportsVision && (
-              <Tooltip title="Attach image">
+              <Tooltip title="Attach images">
                 <span>
                   <IconButton
                     onClick={() => fileInputRef.current?.click()}
                     disabled={loading}
-                    color={attachedImage ? 'primary' : 'default'}
+                    color={attachedFiles.length > 0 ? 'primary' : 'default'}
                   >
                     <AttachFileIcon />
                   </IconButton>

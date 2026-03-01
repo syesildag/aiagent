@@ -116,7 +116,7 @@ export interface ChatWithLLMArgs {
   imageData?: {
     base64: string;
     mimeType: string;
-  };
+  }[];
   userLogin?: string;
   /**
    * Optional callback invoked before executing a dangerous MCP tool.
@@ -815,24 +815,25 @@ export class MCPServerManager {
       // Build messages; if an image was provided, replace the last user message with
       // a multimodal content array so vision models can process it.
       let historyMessages: LLMMessage[] = [...trimmedConversation];
-      if (imageData) {
+      if (imageData && imageData.length > 0) {
         const lastUserIdx = historyMessages.map(m => m.role).lastIndexOf('user');
         if (lastUserIdx !== -1) {
+          const imageContentBlocks = imageData.map(img => ({
+            type: 'image_url' as const,
+            image_url: {
+              url: `data:${img.mimeType};base64,${img.base64}`,
+              detail: 'auto' as const,
+            },
+          }));
           historyMessages[lastUserIdx] = {
             ...historyMessages[lastUserIdx],
             content: [
+              ...imageContentBlocks,
               {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${imageData.mimeType};base64,${imageData.base64}`,
-                  detail: 'auto'
-                }
+                type: 'text' as const,
+                text: message,
               },
-              {
-                type: 'text',
-                text: message
-              }
-            ]
+            ],
           };
         }
       }

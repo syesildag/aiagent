@@ -48,8 +48,16 @@ const options: https.ServerOptions | null = isDevelopment() ? null : {
 const Query = z.object({
    session: z.string().optional().describe('The session id'),
    prompt: z.string().describe('user prompt'),
+   // Legacy single-image fields (kept for backward compatibility)
    imageBase64: z.string().optional().describe('base64-encoded image data'),
-   imageMimeType: z.string().optional().describe('MIME type of the image, e.g. image/png')
+   imageMimeType: z.string().optional().describe('MIME type of the image, e.g. image/png'),
+   // Multi-file support: array of {base64, mimeType} objects
+   files: z.array(
+     z.object({
+       base64: z.string(),
+       mimeType: z.string(),
+     })
+   ).optional().describe('Array of attached files'),
 });
 
 const app = express();
@@ -171,10 +179,18 @@ app.post("/logout", asyncHandler(async (req: Request, res: Response) => {
 }));
 
 app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
-   const { prompt, imageBase64, imageMimeType } = Query.parse(req.body);
+   const { prompt, imageBase64, imageMimeType, files } = Query.parse(req.body);
    const agent = await getAgentFromName(req.params.agent);
    agent.setSession(res.locals.session);
-   const imageData = imageBase64 && imageMimeType ? { base64: imageBase64, mimeType: imageMimeType } : undefined;
+
+   // Build the image-data array, merging legacy single-image fields and the new multi-file array
+   const imageDataArray: { base64: string; mimeType: string }[] = [];
+   if (files && files.length > 0) {
+     imageDataArray.push(...files);
+   } else if (imageBase64 && imageMimeType) {
+     imageDataArray.push({ base64: imageBase64, mimeType: imageMimeType });
+   }
+   const imageData = imageDataArray.length > 0 ? imageDataArray : undefined;
 
    // All responses use NDJSON so we can multiplex approval events and text chunks
    // on the same stream (MCP 2025-11-25 human-in-the-loop pattern).

@@ -11,8 +11,8 @@ export interface Message {
   role: 'user' | 'assistant' | 'system' | 'tool_approval';
   content: string;
   timestamp: Date;
-  /** base64 data URL of an attached image, e.g. "data:image/png;base64,..." */
-  imageUrl?: string;
+  /** base64 data URLs of attached images/files, e.g. "data:image/png;base64,..." */
+  imageUrls?: string[];
   /** Present when role === 'tool_approval' */
   approval?: ToolApproval;
 }
