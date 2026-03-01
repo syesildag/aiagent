@@ -43,7 +43,7 @@ export class ConsoleLogger implements Logger {
 export class FileLogger implements Logger {
    private logFile: string;
 
-   constructor(logFile: string = '/tmp/mcp-server.log') {
+   constructor(logFile: string = process.env.MCP_LOG_FILE ?? '/tmp/mcp-server.log') {
       this.logFile = logFile;
    }
 

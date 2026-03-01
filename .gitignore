@@ -141,3 +141,4 @@ memory.json
 # npm cache/logs redirected by systemd service
 .npm-cache/
 .npm-logs/
+logs/

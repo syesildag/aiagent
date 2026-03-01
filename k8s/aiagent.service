@@ -32,6 +32,10 @@ ExecStart=/usr/bin/node dist/src/index.js
 Environment=npm_config_cache=/home/freebox/workspace/aiagent/.npm-cache
 Environment=npm_config_logs_dir=/home/freebox/workspace/aiagent/.npm-logs
 
+# Redirect MCP server file logger away from /tmp (read-only under ProtectSystem=strict)
+Environment=MCP_LOG_FILE=/home/freebox/workspace/aiagent/logs/mcp-server.log
+ExecStartPre=/bin/mkdir -p /home/freebox/workspace/aiagent/logs
+
 # Graceful shutdown: send SIGTERM, wait 30 s, then SIGKILL
 KillSignal=SIGTERM
 TimeoutStopSec=30
@@ -47,6 +51,7 @@ StartLimitBurst=5
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
+PrivateTmp=true
 ReadWritePaths=/home/freebox/workspace/aiagent
 
 # Logging – output goes to journald (use: journalctl -u aiagent -f)
