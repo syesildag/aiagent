@@ -20,10 +20,11 @@ import { Message } from '../types';
 interface ChatMessageProps {
   message: Message;
   isSpeaking?: boolean;
+  onSpeak?: () => void;
   onStopSpeaking?: () => void;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = false, onStopSpeaking }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = false, onSpeak, onStopSpeaking }) => {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
 
@@ -103,7 +104,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = 
                 <Tooltip title={isSpeaking ? 'Stop' : 'Read aloud'} placement="top">
                   <IconButton
                     size="small"
-                    onClick={onStopSpeaking}
+                    onClick={isSpeaking ? onStopSpeaking : onSpeak}
                     sx={{
                       opacity: isSpeaking ? 1 : 0.5,
                       '&:hover': { opacity: 1 },

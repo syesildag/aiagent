@@ -418,6 +418,7 @@ export const ChatInterface: React.FC = () => {
                   key={message.id}
                   message={message}
                   isSpeaking={speakingMsgId === message.id}
+                  onSpeak={() => speakMessage(message.id, message.content)}
                   onStopSpeaking={stopSpeaking}
                 />
               )
