@@ -1,5 +1,7 @@
 import {
-    SmartToy as BotIcon
+    SmartToy as BotIcon,
+    Visibility,
+    VisibilityOff
 } from '@mui/icons-material';
 import {
     Alert,
@@ -8,6 +10,8 @@ import {
     Card,
     CardContent,
     CircularProgress,
+    IconButton,
+    InputAdornment,
     TextField,
     Typography
 } from '@mui/material';
@@ -19,6 +23,7 @@ export const LoginScreen: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { login, agentName } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,12 +84,28 @@ export const LoginScreen: React.FC = () => {
             <TextField
               fullWidth
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               margin="normal"
               required
               disabled={loading}
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        onClick={() => setShowPassword((s) => !s)}
+                        edge="end"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }
+              }}
             />
             <Button
               fullWidth
