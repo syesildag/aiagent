@@ -51,11 +51,12 @@ const Query = z.object({
    // Legacy single-image fields (kept for backward compatibility)
    imageBase64: z.string().optional().describe('base64-encoded image data'),
    imageMimeType: z.string().optional().describe('MIME type of the image, e.g. image/png'),
-   // Multi-file support: array of {base64, mimeType} objects
+   // Multi-file support: array of {base64, mimeType, name?} objects
    files: z.array(
      z.object({
        base64: z.string(),
        mimeType: z.string(),
+       name: z.string().optional(),
      })
    ).optional().describe('Array of attached files'),
 });
@@ -184,13 +185,13 @@ app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
    agent.setSession(res.locals.session);
 
    // Build the image-data array, merging legacy single-image fields and the new multi-file array
-   const imageDataArray: { base64: string; mimeType: string }[] = [];
+   const attachmentsArray: { base64: string; mimeType: string; name?: string }[] = [];
    if (files && files.length > 0) {
-     imageDataArray.push(...files);
+     attachmentsArray.push(...files);
    } else if (imageBase64 && imageMimeType) {
-     imageDataArray.push({ base64: imageBase64, mimeType: imageMimeType });
+     attachmentsArray.push({ base64: imageBase64, mimeType: imageMimeType });
    }
-   const imageData = imageDataArray.length > 0 ? imageDataArray : undefined;
+   const attachments = attachmentsArray.length > 0 ? attachmentsArray : undefined;
 
    // All responses use NDJSON so we can multiplex approval events and text chunks
    // on the same stream (MCP 2025-11-25 human-in-the-loop pattern).
@@ -221,7 +222,7 @@ app.post("/chat/:agent", asyncHandler(async (req: Request, res: Response) => {
      return decision;
    };
 
-   const answer = await agent.chat(prompt, undefined, true, imageData, approvalCallback);
+   const answer = await agent.chat(prompt, undefined, true, attachments, approvalCallback);
 
    if (answer instanceof ReadableStream) {
       await handleStreamingResponse(answer, res, agent.addAssistantMessageToHistory.bind(agent));

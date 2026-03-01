@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import { promises as fs } from 'fs';
 import Logger from '../utils/logger';
 import { config } from '../utils/config';
-import { LLMMessage, LLMProvider, OllamaProvider, Tool } from './llmProviders';
+import { ContentPart, LLMMessage, LLMProvider, OllamaProvider, Tool } from './llmProviders';
 import { IConversationHistory } from '../descriptions/conversationTypes';
 import { ConversationHistoryFactory } from '../utils/conversationHistoryFactory';
 import { ToolApprovalCallback } from './approvalManager';
@@ -113,9 +113,10 @@ export interface ChatWithLLMArgs {
   abortSignal?: AbortSignal;
   serverNames?: string[];
   stream?: boolean;
-  imageData?: {
+  attachments?: {
     base64: string;
     mimeType: string;
+    name?: string;
   }[];
   userLogin?: string;
   /**
@@ -772,7 +773,7 @@ export class MCPServerManager {
   }
 
   async chatWithLLM(args: ChatWithLLMArgs): Promise<ReadableStream<string> | string> {
-    const { message, customSystemPrompt, abortSignal, serverNames, stream, imageData, userLogin, approvalCallback } = args;
+    const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, approvalCallback } = args;
     try {
       // Ensure MCP servers are initialized on first use
       await this.ensureInitialized();
@@ -815,23 +816,57 @@ export class MCPServerManager {
       // Build messages; if an image was provided, replace the last user message with
       // a multimodal content array so vision models can process it.
       let historyMessages: LLMMessage[] = [...trimmedConversation];
-      if (imageData && imageData.length > 0) {
+      if (attachments && attachments.length > 0) {
         const lastUserIdx = historyMessages.map(m => m.role).lastIndexOf('user');
         if (lastUserIdx !== -1) {
-          const imageContentBlocks = imageData.map(img => ({
-            type: 'image_url' as const,
-            image_url: {
-              url: `data:${img.mimeType};base64,${img.base64}`,
-              detail: 'auto' as const,
-            },
-          }));
+          const extraTextParts: string[] = [];
+          const imageContentBlocks: ContentPart[] = [];
+
+          for (const file of attachments) {
+            if (file.mimeType.startsWith('image/')) {
+              // Vision-capable image — attach as image_url block
+              imageContentBlocks.push({
+                type: 'image_url' as const,
+                image_url: {
+                  url: `data:${file.mimeType};base64,${file.base64}`,
+                  detail: 'auto' as const,
+                },
+              });
+            } else if (
+              file.mimeType.startsWith('text/') ||
+              file.mimeType === 'application/json' ||
+              file.mimeType === 'application/xml' ||
+              file.mimeType === 'application/javascript' ||
+              file.mimeType === 'application/typescript'
+            ) {
+              // Text-based file — decode and embed inline
+              const text = Buffer.from(file.base64, 'base64').toString('utf-8');
+              const label = file.name ? `[Attached file: ${file.name}]` : `[Attached ${file.mimeType} file]`;
+              extraTextParts.push(`${label}\n\`\`\`\n${text}\n\`\`\``);
+            } else {
+              // Other binary types (PDF, etc.) — pass as data URL; some providers (e.g. Anthropic) support this
+              imageContentBlocks.push({
+                type: 'image_url' as const,
+                image_url: {
+                  url: `data:${file.mimeType};base64,${file.base64}`,
+                  detail: 'auto' as const,
+                },
+              });
+            }
+          }
+
+          const textContent = [
+            ...extraTextParts,
+            message,
+          ].join('\n\n');
+
           historyMessages[lastUserIdx] = {
             ...historyMessages[lastUserIdx],
             content: [
               ...imageContentBlocks,
               {
                 type: 'text' as const,
-                text: message,
+                text: textContent,
               },
             ],
           };

@@ -114,7 +114,6 @@ export const ChatInterface: React.FC = () => {
       .then(() => {
         setCurrentModel(model);
         setSupportsVision(isVisionModel(model));
-        if (!isVisionModel(model)) setAttachedFiles([]);
       })
       .catch(() => setError('Failed to switch model'));
   };
@@ -185,7 +184,7 @@ export const ChatInterface: React.FC = () => {
         prompt: inputMessage,
       };
       if (filesCopy.length > 0) {
-        body.files = filesCopy.map(f => ({ base64: f.base64, mimeType: f.mimeType }));
+        body.files = filesCopy.map(f => ({ base64: f.base64, mimeType: f.mimeType, name: f.name }));
       }
 
       const response = await fetch(`/chat/${agentName}`, {
@@ -517,30 +516,27 @@ export const ChatInterface: React.FC = () => {
           )}
 
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
-            {/* Hidden file input — multiple files allowed */}
+            {/* Hidden file input — multiple files allowed, all types accepted */}
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
               multiple
               style={{ display: 'none' }}
               onChange={handleFilesSelect}
             />
 
-            {/* Attach button — only shown for vision-capable models */}
-            {supportsVision && (
-              <Tooltip title="Attach images">
-                <span>
-                  <IconButton
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={loading}
-                    color={attachedFiles.length > 0 ? 'primary' : 'default'}
-                  >
-                    <AttachFileIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            )}
+            {/* Attach button */}
+            <Tooltip title="Attach files">
+              <span>
+                <IconButton
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={loading}
+                  color={attachedFiles.length > 0 ? 'primary' : 'default'}
+                >
+                  <AttachFileIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
 
             <TextField
               fullWidth
