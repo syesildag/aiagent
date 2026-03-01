@@ -119,17 +119,21 @@ export const ChatInterface: React.FC = () => {
   };
 
   const handleFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+    const inputEl = e.target;
+    const files = Array.from(inputEl.files ?? []);
     if (files.length === 0) return;
 
     const oversized = files.filter(f => f.size > 15 * 1024 * 1024);
     if (oversized.length > 0) {
       setError(`File(s) too large (max 15 MB each): ${oversized.map(f => f.name).join(', ')}`);
-      e.target.value = '';
+      inputEl.value = '';
       return;
     }
 
-    // Read each file as a data URL in parallel
+    // Read each file as a data URL in parallel.
+    // NOTE: reset the input ONLY after reading so that File objects remain valid
+    // throughout the async read; resetting early can invalidate FileList entries
+    // in some browsers, resulting in only the last-read file being retained.
     Promise.all(
       files.map(
         f =>
@@ -146,11 +150,17 @@ export const ChatInterface: React.FC = () => {
           }),
       ),
     ).then(results => {
-      setAttachedFiles(prev => [...prev, ...results]);
-    }).catch(() => setError('Failed to read selected file(s)'));
-
-    // Reset so the same file can be re-selected
-    e.target.value = '';
+      setAttachedFiles(prev => {
+        // Deduplicate by name so reopening the same file doesn't add a duplicate
+        const existingNames = new Set(prev.map(f => f.name));
+        const fresh = results.filter(r => !existingNames.has(r.name));
+        return [...prev, ...fresh];
+      });
+      inputEl.value = ''; // Reset after reading so the same file can be re-selected
+    }).catch(() => {
+      setError('Failed to read selected file(s)');
+      inputEl.value = '';
+    });
   };
 
   const handleRemoveFile = (index: number) => {
