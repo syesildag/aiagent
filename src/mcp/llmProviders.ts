@@ -131,7 +131,9 @@ export function getModelMaxTokens(model: string): number {
     'gpt-4-turbo': 128000,
     'gpt-4-turbo-preview': 128000,
     'gpt-4-vision-preview': 128000,
-    'gpt-4.1': 128000,
+    'gpt-4.1': 1047576,
+    'gpt-4.1-mini': 1047576,
+    'gpt-4.1-nano': 1047576,
     'gpt-5': 128000,
     'gpt-5-mini': 128000,
     
@@ -290,11 +292,22 @@ function estimateTokens(text: string): number {
 
 /**
  * Estimate tokens for a full message, including binary (image_url) content parts.
- * getContentText() only returns text parts, which causes huge base64 payloads to go
- * undetected and exceed the per-request token budget.
+ *
+ * For text we use the 4-chars-per-token heuristic.
+ * For image_url parts we use OpenAI's tile-based formula rather than measuring
+ * the raw base64 string (which would massively over-count):
+ *   low-detail  → 85 tokens flat
+ *   high-detail → 85 + 170 × ⌈W/512⌉ × ⌈H/512⌉   (max ~1275 for 1920px)
+ * Because we don't know the image dimensions at this point we use a conservative
+ * upper-bound of 1275 tokens per image.  That is still orders of magnitude more
+ * accurate than counting base64 characters and prevents the truncation logic
+ * from falsely stripping images that are well within model token limits.
  */
+const IMAGE_TOKEN_ESTIMATE = 1275; // worst-case high-detail 1024×1024 OpenAI tile cost
+
 function estimateFullMessageTokens(msg: LLMMessage): number {
   let text = '';
+  let imageCount = 0;
   if (typeof msg.content === 'string') {
     text = msg.content;
   } else if (Array.isArray(msg.content)) {
@@ -302,15 +315,15 @@ function estimateFullMessageTokens(msg: LLMMessage): number {
       if (part.type === 'text') {
         text += part.text;
       } else if (part.type === 'image_url') {
-        // Include the full data URL (base64 payload) in the size estimate
-        text += part.image_url.url;
+        // Count images by their API token cost, not by base64 byte length
+        imageCount += 1;
       }
     }
   }
   if (msg.tool_calls) {
     text += JSON.stringify(msg.tool_calls);
   }
-  return estimateTokens(text);
+  return estimateTokens(text) + imageCount * IMAGE_TOKEN_ESTIMATE;
 }
 
 /**
