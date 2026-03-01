@@ -21,11 +21,8 @@ export default class WorkerPoolManager<T, R, This = any> {
          return Promise.resolve();
 
       return new Promise((resolve, reject) => {
-         // Reuse the existing pool instead of creating a new one each time
-         this.pool.setMaxListeners(Math.max(this.pool.getMaxListeners(), tasks.length));
-         
          const errorHandler = (error: Error) => {
-            this.pool.removeListener('error', errorHandler);
+            this.pool.offError(errorHandler);
             reject(error);
          };
          this.pool.onError(errorHandler);
@@ -36,7 +33,7 @@ export default class WorkerPoolManager<T, R, This = any> {
                callback.call(this as unknown as This, err, result, i);
                if (++finished === tasks.length) {
                   // Don't close the pool - keep it alive for reuse
-                  this.pool.removeListener('error', errorHandler);
+                  this.pool.offError(errorHandler);
                   resolve();
                }
             });
