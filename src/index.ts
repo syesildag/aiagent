@@ -22,6 +22,7 @@ import { closeDatabase, queryDatabase } from "./utils/pgClient";
 import randomAlphaNumeric from './utils/randomAlphaNumeric';
 import { handleStreamingResponse } from './utils/streamUtils';
 import { generateFrontendHTML } from './utils/frontendTemplate';
+import { generateManifest } from './utils/pwaManifest';
 import { approvalManager } from './mcp/approvalManager';
 import path from 'path';
 
@@ -272,28 +273,8 @@ app.get('/sw.js', (req: Request, res: Response) => {
 
 // Web app manifest – dynamically generated per agent
 app.get('/front/:agent/manifest.json', (req: Request, res: Response) => {
-   const agentName = req.params.agent;
-   const manifest = {
-      name: `AI Agent Chat – ${agentName}`,
-      short_name: 'AI Chat',
-      description: `Chat with AI Agent: ${agentName}`,
-      display: 'standalone',
-      orientation: 'portrait',
-      background_color: '#ffffff',
-      theme_color: '#1976d2',
-      start_url: `/front/${agentName}`,
-      scope: '/',
-      icons: [
-         {
-            src: '/static/icons/icon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any maskable',
-         },
-      ],
-   };
    res.setHeader('Cache-Control', 'no-cache');
-   res.json(manifest);
+   res.json(generateManifest(req.params.agent));
 });
 
 // Frontend endpoint - serves React chat interface
