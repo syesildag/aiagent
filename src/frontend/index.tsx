@@ -21,3 +21,13 @@ root.render(
     <ChatApp agentName={agentName} />
   </React.StrictMode>
 );
+
+// Register service worker for PWA support
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js', { scope: '/' })
+      .then((reg) => console.info('[PWA] Service worker registered, scope:', reg.scope))
+      .catch((err) => console.warn('[PWA] Service worker registration failed:', err));
+  });
+}

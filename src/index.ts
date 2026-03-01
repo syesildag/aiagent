@@ -28,6 +28,9 @@ import path from 'path';
 // This array will hold references to the job factories, preventing them from being garbage collected.
 const activeJobs: JobFactory[] = [];
 
+// Cached service worker content (read from disk once on first request)
+let cachedSwJs: string | null = null;
+
 // Async handler utility for error handling
 function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) {
    return (req: Request, res: Response, next: NextFunction) => {
@@ -251,6 +254,47 @@ app.post("/model/:agent", asyncHandler(async (req: Request, res: Response) => {
    Logger.info(`Model switched to: ${model}`);
    res.json({ model });
 }));
+
+// ---------------------------------------------------------------------------
+// PWA routes
+// ---------------------------------------------------------------------------
+
+// Service worker – must be served from root scope
+app.get('/sw.js', (req: Request, res: Response) => {
+   if (!cachedSwJs) {
+      cachedSwJs = fs.readFileSync(path.join(__dirname, 'frontend/pwa/sw.js'), 'utf-8');
+   }
+   res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+   res.setHeader('Service-Worker-Allowed', '/');
+   res.setHeader('Cache-Control', 'no-cache');
+   res.send(cachedSwJs);
+});
+
+// Web app manifest – dynamically generated per agent
+app.get('/front/:agent/manifest.json', (req: Request, res: Response) => {
+   const agentName = req.params.agent;
+   const manifest = {
+      name: `AI Agent Chat – ${agentName}`,
+      short_name: 'AI Chat',
+      description: `Chat with AI Agent: ${agentName}`,
+      display: 'standalone',
+      orientation: 'portrait',
+      background_color: '#ffffff',
+      theme_color: '#1976d2',
+      start_url: `/front/${agentName}`,
+      scope: '/',
+      icons: [
+         {
+            src: '/static/icons/icon.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'any maskable',
+         },
+      ],
+   };
+   res.setHeader('Cache-Control', 'no-cache');
+   res.json(manifest);
+});
 
 // Frontend endpoint - serves React chat interface
 app.get("/front/:agent", asyncHandler(async (req: Request, res: Response) => {
