@@ -14,45 +14,24 @@ import {
     Tooltip,
     Typography
 } from '@mui/material';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Message } from '../types';
 
 interface ChatMessageProps {
   message: Message;
+  isSpeaking?: boolean;
+  onStopSpeaking?: () => void;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = false, onStopSpeaking }) => {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
-
-  // Stop speech if this message is unmounted mid-playback
-  useEffect(() => {
-    return () => {
-      if (speaking) window.speechSynthesis.cancel();
-    };
-  }, [speaking]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  };
-
-  const handleSpeak = () => {
-    if (speaking) {
-      window.speechSynthesis.cancel();
-      setSpeaking(false);
-      return;
-    }
-    const utterance = new SpeechSynthesisUtterance(message.content);
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
-    // Cancel any ongoing speech from other messages before starting
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-    setSpeaking(true);
   };
 
   return (
@@ -121,18 +100,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
           {message.content && (
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 0.5, gap: 0.5 }}>
               {!isUser && (
-                <Tooltip title={speaking ? 'Stop' : 'Read aloud'} placement="top">
+                <Tooltip title={isSpeaking ? 'Stop' : 'Read aloud'} placement="top">
                   <IconButton
                     size="small"
-                    onClick={handleSpeak}
+                    onClick={onStopSpeaking}
                     sx={{
-                      opacity: speaking ? 1 : 0.5,
+                      opacity: isSpeaking ? 1 : 0.5,
                       '&:hover': { opacity: 1 },
                       p: '2px',
-                      color: speaking ? 'primary.main' : 'text.secondary',
+                      color: isSpeaking ? 'primary.main' : 'text.secondary',
                     }}
                   >
-                    {speaking ? <VolumeOffIcon fontSize="inherit" /> : <VolumeUpIcon fontSize="inherit" />}
+                    {isSpeaking ? <VolumeOffIcon fontSize="inherit" /> : <VolumeUpIcon fontSize="inherit" />}
                   </IconButton>
                 </Tooltip>
               )}

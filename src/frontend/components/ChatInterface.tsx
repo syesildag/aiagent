@@ -4,7 +4,9 @@ import {
     Send as SendIcon,
     AttachFile as AttachFileIcon,
     Close as CloseIcon,
-    StopCircle as StopIcon
+    StopCircle as StopIcon,
+    VolumeOff as VolumeOffIcon,
+    VolumeUp as VolumeUpIcon
 } from '@mui/icons-material';
 import {
     Alert,
@@ -45,6 +47,39 @@ export const ChatInterface: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { session, username, agentName, logout } = useAuth();
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
+  const [autoSpeak, setAutoSpeak] = useState<boolean>(
+    () => localStorage.getItem('autoSpeak') !== 'false'
+  );
+
+  const toggleAutoSpeak = () => {
+    setAutoSpeak(prev => {
+      const next = !prev;
+      localStorage.setItem('autoSpeak', String(next));
+      if (!next) {
+        window.speechSynthesis.cancel();
+        setSpeakingMsgId(null);
+      }
+      return next;
+    });
+  };
+
+  /** Start reading a message aloud, cancelling any previous utterance. */
+  const speakMessage = useCallback((msgId: string, text: string) => {
+    window.speechSynthesis.cancel();
+    if (!text.trim()) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onend = () => setSpeakingMsgId(null);
+    utterance.onerror = () => setSpeakingMsgId(null);
+    window.speechSynthesis.speak(utterance);
+    setSpeakingMsgId(msgId);
+  }, []);
+
+  /** Stop any ongoing speech. */
+  const stopSpeaking = useCallback(() => {
+    window.speechSynthesis.cancel();
+    setSpeakingMsgId(null);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -217,6 +252,10 @@ export const ChatInterface: React.FC = () => {
             }
           }
         }
+        // Auto-read the completed assistant response aloud
+        if (autoSpeak && assistantMsgId && assistantContent) {
+          speakMessage(assistantMsgId, assistantContent);
+        }
       } else {
         // Non-streaming fallback: parse NDJSON body
         const rawBody = await response.text();
@@ -238,6 +277,8 @@ export const ChatInterface: React.FC = () => {
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, assistantMessage]);
+        // Auto-read the completed assistant response aloud
+        if (autoSpeak && content) speakMessage(assistantMessage.id, content);
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
@@ -249,7 +290,7 @@ export const ChatInterface: React.FC = () => {
       abortControllerRef.current = null;
       setLoading(false);
     }
-  }, [inputMessage, session, agentName, attachedImage]);
+  }, [inputMessage, session, agentName, attachedImage, speakMessage, autoSpeak]);
 
   const handleCancel = () => {
     abortControllerRef.current?.abort();
@@ -328,6 +369,11 @@ export const ChatInterface: React.FC = () => {
           <Typography variant="body2" sx={{ mr: 0.5, display: { xs: 'none', sm: 'block' }, flexShrink: 0 }}>
             {username}
           </Typography>
+          <Tooltip title={autoSpeak ? 'Auto read-aloud on' : 'Auto read-aloud off'}>
+            <IconButton color="inherit" onClick={toggleAutoSpeak} size="small" sx={{ flexShrink: 0 }}>
+              {autoSpeak ? <VolumeUpIcon /> : <VolumeOffIcon />}
+            </IconButton>
+          </Tooltip>
           <IconButton color="inherit" onClick={logout} size="small" sx={{ flexShrink: 0 }}>
             <LogoutIcon />
           </IconButton>
@@ -368,7 +414,12 @@ export const ChatInterface: React.FC = () => {
                   onDeny={() => handleApproval(message.approval!.id, false)}
                 />
               ) : (
-                <ChatMessage key={message.id} message={message} />
+                <ChatMessage
+                  key={message.id}
+                  message={message}
+                  isSpeaking={speakingMsgId === message.id}
+                  onStopSpeaking={stopSpeaking}
+                />
               )
             )}
             {loading && (
