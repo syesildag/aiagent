@@ -1,0 +1,53 @@
+# 1. Copy the unit file
+#sudo cp k8s/aiagent.service /etc/systemd/system/aiagent.service
+# 2. Reload systemd and enable
+#sudo systemctl daemon-reload
+#sudo systemctl enable aiagent
+# 3. Start it
+#sudo systemctl start aiagent
+# 4. Check status / live logs
+#sudo systemctl status aiagent
+#journalctl -u aiagent -f
+
+[Unit]
+Description=AI Agent Chat Server
+Documentation=https://github.com/syesildag/aiagent
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=freebox
+Group=freebox
+WorkingDirectory=/home/freebox/workspace/aiagent
+
+# Load environment variables from .env file
+EnvironmentFile=/home/freebox/workspace/aiagent/.env
+
+# Use the node binary from nvm/system – adjust path if needed
+ExecStart=/usr/bin/node dist/src/index.js
+
+# Graceful shutdown: send SIGTERM, wait 30 s, then SIGKILL
+KillSignal=SIGTERM
+TimeoutStopSec=30
+KillMode=mixed
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+StartLimitIntervalSec=120s
+StartLimitBurst=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/freebox/workspace/aiagent
+
+# Logging – output goes to journald (use: journalctl -u aiagent -f)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aiagent
+
+[Install]
+WantedBy=multi-user.target
