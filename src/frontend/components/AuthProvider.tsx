@@ -36,6 +36,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     setUsername(username);
     sessionStorage.setItem('session', data.session);
     sessionStorage.setItem('username', username);
+    // Hard-reload so the new window never contains the password field.
+    // Android Chrome sets FLAG_SECURE for any window that rendered
+    // <input type="password">, which blocks screenshots for the session.
+    // A reload lands directly on ChatInterface (session is in sessionStorage),
+    // so FLAG_SECURE is never applied to the post-login window.
+    window.location.reload();
   }, []);
 
   const logout = useCallback(async () => {

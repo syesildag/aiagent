@@ -115,6 +115,61 @@ export const ChatInterface: React.FC = () => {
       .catch(() => setError('Failed to switch model'));
   };
 
+  /**
+   * Resize an image File to at most MAX_DIM×MAX_DIM pixels and re-encode as
+   * JPEG at JPEG_QUALITY, keeping the original data URL format expected by the
+   * rest of the component. Non-image files are passed through unchanged.
+   */
+  const processFile = (
+    f: File,
+  ): Promise<{ dataUrl: string; base64: string; mimeType: string; name: string }> => {
+    const MAX_DIM = 1920;
+    const JPEG_QUALITY = 0.85;
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = ev => {
+        const rawDataUrl = ev.target?.result as string;
+
+        // Non-image: return as-is
+        if (!f.type.startsWith('image/')) {
+          const [header, base64] = rawDataUrl.split(',');
+          const mimeType = header.replace('data:', '').replace(';base64', '');
+          return resolve({ dataUrl: rawDataUrl, base64, mimeType, name: f.name });
+        }
+
+        // Image: resize via canvas if needed
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > MAX_DIM || height > MAX_DIM) {
+            if (width >= height) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            } else {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return reject(new Error('Canvas context unavailable'));
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+          const [header, base64] = dataUrl.split(',');
+          const mimeType = header.replace('data:', '').replace(';base64', '');
+          resolve({ dataUrl, base64, mimeType, name: f.name });
+        };
+        img.src = rawDataUrl;
+      };
+      reader.readAsDataURL(f);
+    });
+  };
+
   const handleFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputEl = e.target;
     const files = Array.from(inputEl.files ?? []);
@@ -134,23 +189,8 @@ export const ChatInterface: React.FC = () => {
     // remain valid for FileReader regardless of the input being cleared.
     inputEl.value = '';
 
-    // Read each file as a data URL in parallel.
-    Promise.all(
-      files.map(
-        f =>
-          new Promise<{ dataUrl: string; base64: string; mimeType: string; name: string }>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = ev => {
-              const dataUrl = ev.target?.result as string;
-              const [header, base64] = dataUrl.split(',');
-              const mimeType = header.replace('data:', '').replace(';base64', '');
-              resolve({ dataUrl, base64, mimeType, name: f.name });
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(f);
-          }),
-      ),
-    ).then(results => {
+    // Read (and resize/compress images) in parallel.
+    Promise.all(files.map(f => processFile(f))).then(results => {
       setAttachedFiles(prev => {
         // Deduplicate by name so reopening the same file doesn't add a duplicate
         const existingNames = new Set(prev.map(f => f.name));
