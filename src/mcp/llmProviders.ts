@@ -801,13 +801,21 @@ export class GitHubCopilotProvider implements LLMProvider {
     }
   }
 
+  // GitHub Copilot API enforces a hard request-body limit of 8000 tokens,
+  // regardless of the model's theoretical context window size.
+  private static readonly COPILOT_REQUEST_TOKEN_LIMIT = 7500;
+
   async chat(request: LLMChatRequest, abortSignal?: AbortSignal): Promise<LLMChatResponse> {
     // Store the model for this request
     this.model = request.model;
 
     // Handle token limits for GitHub Copilot API
-    // Use the model's actual max token limit if maxTokens is not specified
-    const modelMaxTokens = getModelMaxTokens(request.model);
+    // GitHub Copilot enforces a hard 8000-token cap per request regardless of what the
+    // model's theoretical context window is, so we always cap at COPILOT_REQUEST_TOKEN_LIMIT.
+    const modelMaxTokens = Math.min(
+      getModelMaxTokens(request.model),
+      GitHubCopilotProvider.COPILOT_REQUEST_TOKEN_LIMIT
+    );
     const adjustedRequest = handleTokenLimits(request, modelMaxTokens);
 
     const requestBody: any = {
@@ -846,10 +854,10 @@ export class GitHubCopilotProvider implements LLMProvider {
         Logger.warn('Payload too large (413), retrying with more aggressive truncation');
         
         try {
-          const errorData = JSON.parse(errorText);
-          if (errorData.error?.code === 'tokens_limit_reached') {
-            // Extract the actual token limit from the error message if available
-            const maxTokens = 6000; // Use more conservative limit for retry
+          // Always retry unconditionally with a more conservative token budget
+          const maxTokens = 5000; // Use conservative limit for 413 retry
+          Logger.warn(`Retrying with ${maxTokens} token limit after 413 from model ${adjustedRequest.model}`);
+          {
             const retryRequest = handleTokenLimits(request, maxTokens);
             
             // Try again with more aggressive truncation
@@ -892,10 +900,13 @@ export class GitHubCopilotProvider implements LLMProvider {
                   done: true
                 };
               }
+            } else {
+              const retryErrorText = await retryResponse.text();
+              Logger.error(`413 retry also failed (${retryResponse.status}): ${retryErrorText}`);
             }
           }
         } catch (parseError) {
-          Logger.error(`Failed to parse error response for retry: ${parseError}`);
+          Logger.error(`Failed during 413 retry attempt: ${parseError}`);
         }
         
         throw new Error(`GitHub Copilot API error: 413 Payload Too Large. Request body too large for ${adjustedRequest.model} model. Max size: 8000 tokens.`);
