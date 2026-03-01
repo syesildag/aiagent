@@ -43,7 +43,7 @@ export class ConsoleLogger implements Logger {
 export class FileLogger implements Logger {
    private logFile: string;
 
-   constructor(logFile: string = process.env.MCP_LOG_FILE ?? '/tmp/mcp-server.log') {
+   constructor(logFile: string = process.env.MCP_LOG_FILE ?? '') {
       this.logFile = logFile;
    }
 
@@ -55,6 +55,7 @@ export class FileLogger implements Logger {
    }
 
    private writeToFile(level: string, message: any, ...optionalParams: any[]) {
+      if (!this.logFile) return;
       const fs = require('fs');
       const logEntry = `[${level}] ${JSON.stringify(this.createLogMessage(message))}\n`;
       fs.appendFileSync(this.logFile, logEntry);

@@ -32,9 +32,8 @@ ExecStart=/usr/bin/node dist/src/index.js
 Environment=npm_config_cache=/home/freebox/workspace/aiagent/.npm-cache
 Environment=npm_config_logs_dir=/home/freebox/workspace/aiagent/.npm-logs
 
-# Redirect MCP server file logger away from /tmp (read-only under ProtectSystem=strict)
-Environment=MCP_LOG_FILE=/home/freebox/workspace/aiagent/logs/mcp-server.log
-ExecStartPre=/bin/mkdir -p /home/freebox/workspace/aiagent/logs
+# MCP server file logger – set to a path to enable, leave empty to disable (no file logging in production).
+Environment=MCP_LOG_FILE=
 
 # Graceful shutdown: send SIGTERM, wait 30 s, then SIGKILL
 KillSignal=SIGTERM
