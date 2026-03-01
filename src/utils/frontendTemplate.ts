@@ -13,6 +13,6 @@ export function generateFrontendHTML(_bundleJs: string, agentName: string): stri
     cachedTemplate = fs.readFileSync(templatePath, 'utf-8');
   }
   
-  // Replace placeholder with actual agent name
-  return cachedTemplate.replace('{{AGENT_NAME}}', agentName);
+  // Replace all occurrences of the placeholder with the actual agent name
+  return cachedTemplate.replaceAll('{{AGENT_NAME}}', agentName);
 }
