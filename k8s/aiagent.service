@@ -27,6 +27,11 @@ EnvironmentFile=/home/freebox/workspace/aiagent/.env
 # Use the node binary from nvm/system – adjust path if needed
 ExecStart=/usr/bin/node dist/src/index.js
 
+# Redirect npm cache and logs away from ~/.npm (blocked by ProtectHome=read-only).
+# MCP servers launched via `npm exec` need a writable cache directory.
+Environment=npm_config_cache=/home/freebox/workspace/aiagent/.npm-cache
+Environment=npm_config_logs_dir=/home/freebox/workspace/aiagent/.npm-logs
+
 # Graceful shutdown: send SIGTERM, wait 30 s, then SIGKILL
 KillSignal=SIGTERM
 TimeoutStopSec=30
