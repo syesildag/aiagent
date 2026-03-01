@@ -30,7 +30,7 @@ import {
 } from '@mui/material';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { isVisionModel, Message, ToolApproval } from '../types';
+import { Message, ToolApproval } from '../types';
 import { ChatMessage } from './ChatMessage';
 import { ToolApprovalCard } from './ToolApprovalCard';
 
@@ -40,7 +40,6 @@ export const ChatInterface: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<{ dataUrl: string; base64: string; mimeType: string; name: string }[]>([]);
-  const [supportsVision, setSupportsVision] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [currentModel, setCurrentModel] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -97,7 +96,6 @@ export const ChatInterface: React.FC = () => {
         if (data) {
           setAvailableModels(data.models ?? []);
           setCurrentModel(data.model ?? '');
-          setSupportsVision(isVisionModel(data.model ?? ''));
         }
       })
       .catch(() => {/* non-critical */});
@@ -113,7 +111,6 @@ export const ChatInterface: React.FC = () => {
       .then(res => res.ok ? res.json() : Promise.reject())
       .then(() => {
         setCurrentModel(model);
-        setSupportsVision(isVisionModel(model));
       })
       .catch(() => setError('Failed to switch model'));
   };
