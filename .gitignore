@@ -137,3 +137,7 @@ memory.json
 .env.k8s
 # Ignore all of .transformers-cache
 .transformers-cache/
+
+# npm cache/logs redirected by systemd service
+.npm-cache/
+.npm-logs/
