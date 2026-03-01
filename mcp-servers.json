@@ -2,21 +2,15 @@
   "servers": [
     {
       "name": "context7",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@upstash/context7-mcp"
-      ],
+      "command": "./node_modules/.bin/context7-mcp",
+      "args": [],
       "env": {},
       "enabled": true
     },
     {
       "name": "tavily-search",
-      "command": "npx",
-      "args": [
-        "-y",
-        "tavily-mcp"
-      ],
+      "command": "./node_modules/.bin/tavily-mcp",
+      "args": [],
       "env": {
         "TAVILY_API_KEY": "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"
       },
