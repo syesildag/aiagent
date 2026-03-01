@@ -470,7 +470,11 @@ export function handleTokenLimits(request: LLMChatRequest, maxTokens?: number): 
     };
 
     if (lastUserMessage) {
-      let userContent = getContentText(lastUserMessage.content);
+      // Strip binary (image/file) content parts before truncating — they are the most
+      // likely reason we ended up here and getContentText() would silently skip them,
+      // letting huge base64 payloads pass through to the API.
+      const [strippedUserMsg] = stripBinaryContent([lastUserMessage]);
+      let userContent = getContentText(strippedUserMsg.content);
       let userTokens = estimateTokens(userContent);
       
       // Truncate user message if too long
@@ -480,7 +484,7 @@ export function handleTokenLimits(request: LLMChatRequest, maxTokens?: number): 
       }
       
       truncatedRequest.messages.push({
-        ...lastUserMessage,
+        ...strippedUserMsg,
         content: userContent
       });
     }
