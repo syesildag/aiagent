@@ -359,6 +359,21 @@ app.get("/conversations", asyncHandler(async (req: Request, res: Response) => {
    res.json({ conversations });
 }));
 
+// Delete a conversation
+app.delete("/conversations/:id", asyncHandler(async (req: Request, res: Response) => {
+   const session = req.query.session as string | undefined;
+   if (!session) { res.status(401).json({ error: 'No session' }); return; }
+   const sessionEntity = await aiagentsessionRepository.findByName(session);
+   if (!sessionEntity) { res.status(401).json({ error: 'Invalid session' }); return; }
+   const convId = parseInt(req.params.id, 10);
+   const conv = await aiagentconversationsRepository.getById(convId);
+   if (!conv || (conv.getMetadata() as Record<string, unknown>)?.userLogin !== sessionEntity.getUserLogin()) {
+      res.status(404).json({ error: 'Conversation not found' }); return;
+   }
+   await conv.delete();
+   res.json({ ok: true });
+}));
+
 // Get messages for a conversation
 app.get("/conversations/:id/messages", asyncHandler(async (req: Request, res: Response) => {
    const session = req.query.session as string | undefined;

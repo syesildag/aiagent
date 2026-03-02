@@ -468,6 +468,7 @@ export const ChatInterface: React.FC = () => {
         activeConversationId={activeConversationId}
         onSelectConversation={handleLoadConversation}
         onNewConversation={handleNewConversation}
+        onConversationDeleted={(id) => { if (id === activeConversationId) handleNewConversation(); }}
       />
       <AppBar position="static">
         <Toolbar sx={{ gap: 0.5 }}>

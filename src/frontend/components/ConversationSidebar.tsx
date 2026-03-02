@@ -3,6 +3,7 @@ import {
     Chat as ChatIcon,
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
+    DeleteOutline as DeleteIcon,
 } from '@mui/icons-material';
 import {
     Box,
@@ -28,12 +29,14 @@ interface ConversationSidebarProps {
     activeConversationId: number | null;
     onSelectConversation: (id: number) => void;
     onNewConversation: () => void;
+    onConversationDeleted?: (id: number) => void;
 }
 
 export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
     activeConversationId,
     onSelectConversation,
     onNewConversation,
+    onConversationDeleted,
 }) => {
     const { session } = useAuth();
     const [open, setOpen] = useState(false);
@@ -50,6 +53,20 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
     useEffect(() => {
         if (open) refresh();
     }, [open, refresh, activeConversationId]);
+
+    const handleDelete = useCallback((e: React.MouseEvent, id: number) => {
+        e.stopPropagation();
+        if (!session) return;
+        fetch(`/conversations/${id}?session=${encodeURIComponent(session)}`, { method: 'DELETE' })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (data?.ok) {
+                    setConversations(prev => prev.filter(c => c.id !== id));
+                    onConversationDeleted?.(id);
+                }
+            })
+            .catch(() => {});
+    }, [session, onConversationDeleted]);
 
     const drawerWidth = 260;
 
@@ -115,14 +132,30 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                             key={conv.id}
                             selected={conv.id === activeConversationId}
                             onClick={() => onSelectConversation(conv.id)}
-                            sx={{ borderRadius: 1, mx: 0.5, my: 0.25 }}
+                            sx={{
+                                borderRadius: 1, mx: 0.5, my: 0.25,
+                                '& .delete-btn': { opacity: 0 },
+                                '&:hover .delete-btn': { opacity: 1 },
+                            }}
                         >
                             <ListItemText
                                 primary={conv.title}
                                 secondary={new Date(conv.updatedAt).toLocaleDateString()}
-                                primaryTypographyProps={{ noWrap: true, variant: 'body2' }}
-                                secondaryTypographyProps={{ variant: 'caption' }}
+                                slotProps={{
+                                    primary: { noWrap: true, variant: 'body2' },
+                                    secondary: { variant: 'caption' },
+                                }}
                             />
+                            <Tooltip title="Delete" placement="right">
+                                <IconButton
+                                    className="delete-btn"
+                                    size="small"
+                                    onClick={e => handleDelete(e, conv.id)}
+                                    sx={{ p: '2px', color: 'error.main', flexShrink: 0 }}
+                                >
+                                    <DeleteIcon fontSize="inherit" />
+                                </IconButton>
+                            </Tooltip>
                         </ListItemButton>
                     ))}
                 </List>
