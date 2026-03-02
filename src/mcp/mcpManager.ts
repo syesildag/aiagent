@@ -424,7 +424,20 @@ export class MCPServerManager {
     try {
       const configData = await fs.readFile(this.configPath, 'utf-8');
       const config: MCPConfig = JSON.parse(configData);
-      this.servers = config.servers.filter(server => server.enabled);
+      // Expand ${VAR_NAME} placeholders in server env values from process.env
+      this.servers = config.servers
+        .filter(server => server.enabled)
+        .map(server => ({
+          ...server,
+          env: server.env
+            ? Object.fromEntries(
+                Object.entries(server.env).map(([k, v]) => [
+                  k,
+                  v.replace(/\$\{([^}]+)\}/g, (_, name) => process.env[name] ?? ''),
+                ]),
+              )
+            : server.env,
+        }));
       Logger.info(`Loaded ${this.servers.length} enabled MCP servers`);
     } catch (error) {
       Logger.error(`Error loading MCP servers config: ${error}`);

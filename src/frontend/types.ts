@@ -42,6 +42,8 @@ export interface AuthContextValue {
   session: string | null;
   username: string | null;
   agentName: string;
+  darkMode: boolean;
+  toggleDarkMode: () => void;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;

@@ -7,10 +7,10 @@ import Logger from "./logger";
  * Handles streaming responses by capturing content while streaming to client
  */
 export async function handleStreamingResponse(
-   stream: ReadableStream<string>, 
+   stream: ReadableStream<string>,
    res: Response,
    consumer?: (content: string) => void
-): Promise<void> {
+): Promise<string> {
    let capturedContent = '';
    
    // Create transform stream to capture content while passing through
@@ -53,6 +53,7 @@ export async function handleStreamingResponse(
    
    // Pipeline: WebStream -> NodeStream -> CaptureTransform -> Response
    await pipeline(nodeStream, captureTransform, res);
+   return capturedContent;
 }
 
 /**

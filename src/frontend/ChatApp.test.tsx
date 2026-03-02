@@ -207,6 +207,8 @@ describe('ChatInterface – multiple file attachments', () => {
       session: 'test-session',
       username: 'testuser',
       agentName: 'TestAgent',
+      darkMode: false,
+      toggleDarkMode: jest.fn(),
       logout: jest.fn(),
     });
 

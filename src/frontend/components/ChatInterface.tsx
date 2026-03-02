@@ -6,14 +6,17 @@ import {
     Close as CloseIcon,
     StopCircle as StopIcon,
     VolumeOff as VolumeOffIcon,
-    VolumeUp as VolumeUpIcon
+    VolumeUp as VolumeUpIcon,
+    DarkMode as DarkModeIcon,
+    LightMode as LightModeIcon,
+    Download as DownloadIcon,
 } from '@mui/icons-material';
 import {
     Alert,
     AppBar,
+    Avatar,
     Box,
     Button,
-    CircularProgress,
     Container,
     FormControl,
     IconButton,
@@ -32,6 +35,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Message, ToolApproval } from '../types';
 import { ChatMessage } from './ChatMessage';
+import { ConversationSidebar } from './ConversationSidebar';
 import { ToolApprovalCard } from './ToolApprovalCard';
 
 export const ChatInterface: React.FC = () => {
@@ -42,14 +46,17 @@ export const ChatInterface: React.FC = () => {
   const [attachedFiles, setAttachedFiles] = useState<{ dataUrl: string; base64: string; mimeType: string; name: string }[]>([]);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [currentModel, setCurrentModel] = useState('');
+  const [availableAgents, setAvailableAgents] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const { session, username, agentName, logout } = useAuth();
+  const { session, username, agentName, darkMode, toggleDarkMode, logout } = useAuth();
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
   const [autoSpeak, setAutoSpeak] = useState<boolean>(
     () => localStorage.getItem('autoSpeak') !== 'false'
   );
+  const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
 
   const toggleAutoSpeak = () => {
     setAutoSpeak(prev => {
@@ -88,7 +95,7 @@ export const ChatInterface: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Fetch model info to determine if vision/image attachment is supported
+  // Fetch model info and available agents on mount
   useEffect(() => {
     fetch(`/info/${agentName}`)
       .then(res => res.ok ? res.json() : null)
@@ -99,7 +106,31 @@ export const ChatInterface: React.FC = () => {
         }
       })
       .catch(() => {/* non-critical */});
+
+    fetch('/agents')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data) setAvailableAgents(data.agents ?? []); })
+      .catch(() => {/* non-critical */});
   }, [agentName]);
+
+  // Global paste handler: captures images pasted from clipboard
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = Array.from(e.clipboardData?.items ?? []);
+      const imageItems = items.filter(item => item.type.startsWith('image/'));
+      if (imageItems.length === 0) return;
+      e.preventDefault();
+      const files = imageItems.map(item => item.getAsFile()).filter(Boolean) as File[];
+      Promise.all(files.map(f => processFile(f))).then(results => {
+        setAttachedFiles(prev => {
+          const existingNames = new Set(prev.map(f => f.name));
+          return [...prev, ...results.filter(r => !existingNames.has(r.name))];
+        });
+      });
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, []);
 
   const handleModelChange = (e: SelectChangeEvent<string>) => {
     const model = e.target.value;
@@ -223,6 +254,7 @@ export const ChatInterface: React.FC = () => {
     setAttachedFiles([]);
     setLoading(true);
     setError('');
+    setLastFailedPrompt(null);
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -231,6 +263,7 @@ export const ChatInterface: React.FC = () => {
       const body: Record<string, unknown> = {
         session: session!,
         prompt: inputMessage,
+        ...(activeConversationId ? { conversationId: activeConversationId } : {}),
       };
       if (filesCopy.length > 0) {
         body.files = filesCopy.map(f => ({ base64: f.base64, mimeType: f.mimeType, name: f.name }));
@@ -281,7 +314,9 @@ export const ChatInterface: React.FC = () => {
             if (!trimmed) continue;
             try {
               const event = JSON.parse(trimmed) as { t: string; v?: string; id?: string; tool?: string; args?: Record<string, unknown>; desc?: string };
-              if (event.t === 'text' && event.v !== undefined) {
+              if (event.t === 'conversation' && event.id) {
+                setActiveConversationId(Number(event.id));
+              } else if (event.t === 'text' && event.v !== undefined) {
                 const msgId = ensureAssistantMsg();
                 assistantContent += event.v;
                 setMessages(prev =>
@@ -343,6 +378,7 @@ export const ChatInterface: React.FC = () => {
         // User cancelled — not an error
       } else {
         setError(err instanceof Error ? err.message : 'An error occurred');
+        setLastFailedPrompt(userMessage.content);
       }
     } finally {
       abortControllerRef.current = null;
@@ -352,6 +388,50 @@ export const ChatInterface: React.FC = () => {
 
   const handleCancel = () => {
     abortControllerRef.current?.abort();
+  };
+
+  const handleRetry = () => {
+    if (!lastFailedPrompt) return;
+    setInputMessage(lastFailedPrompt);
+    setLastFailedPrompt(null);
+    setError('');
+  };
+
+  const handleNewConversation = () => {
+    setMessages([]);
+    setActiveConversationId(null);
+    setError('');
+  };
+
+  const handleLoadConversation = useCallback(async (convId: number) => {
+    if (!session) return;
+    try {
+      const res = await fetch(`/conversations/${convId}/messages?session=${encodeURIComponent(session)}`);
+      if (!res.ok) return;
+      const data = await res.json() as { messages: { id: number; role: string; content: string; timestamp: string }[] };
+      const loaded: Message[] = data.messages.map(m => ({
+        id: String(m.id),
+        role: m.role as Message['role'],
+        content: m.content,
+        timestamp: new Date(m.timestamp),
+      }));
+      setMessages(loaded);
+      setActiveConversationId(convId);
+    } catch { /* non-critical */ }
+  }, [session]);
+
+  const handleExport = () => {
+    const lines = messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => `**${m.role === 'user' ? 'You' : agentName}** _(${m.timestamp.toLocaleString()})_\n\n${m.content}`)
+      .join('\n\n---\n\n');
+    const blob = new Blob([lines], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `conversation-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   /** Send the user's approval/denial decision to the server. */
@@ -384,6 +464,11 @@ export const ChatInterface: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
+      <ConversationSidebar
+        activeConversationId={activeConversationId}
+        onSelectConversation={handleLoadConversation}
+        onNewConversation={handleNewConversation}
+      />
       <AppBar position="static">
         <Toolbar sx={{ gap: 0.5 }}>
           <BotIcon sx={{ mr: { xs: 0.5, sm: 1 }, flexShrink: 0 }} />
@@ -400,6 +485,26 @@ export const ChatInterface: React.FC = () => {
           >
             {agentName}
           </Typography>
+          {availableAgents.length > 1 && (
+            <FormControl size="small" sx={{ mr: 0.5, minWidth: { xs: 90, sm: 130 }, flexShrink: 0 }}>
+              <Select
+                value={agentName}
+                onChange={e => { window.location.href = `/front/${e.target.value}`; }}
+                disabled={loading}
+                sx={{
+                  color: 'inherit',
+                  '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
+                  '.MuiSvgIcon-root': { color: 'inherit' },
+                  fontSize: { xs: '0.7rem', sm: '0.85rem' },
+                }}
+              >
+                {availableAgents.map(a => (
+                  <MenuItem key={a} value={a} sx={{ fontSize: '0.85rem' }}>{a}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
           {availableModels.length > 0 && (
             <FormControl
               size="small"
@@ -432,6 +537,24 @@ export const ChatInterface: React.FC = () => {
               {autoSpeak ? <VolumeUpIcon /> : <VolumeOffIcon />}
             </IconButton>
           </Tooltip>
+          <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+            <IconButton color="inherit" onClick={toggleDarkMode} size="small" sx={{ flexShrink: 0 }}>
+              {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Export conversation">
+            <span>
+              <IconButton
+                color="inherit"
+                onClick={handleExport}
+                disabled={messages.length === 0}
+                size="small"
+                sx={{ flexShrink: 0 }}
+              >
+                <DownloadIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
           <IconButton color="inherit" onClick={logout} size="small" sx={{ flexShrink: 0 }}>
             <LogoutIcon />
           </IconButton>
@@ -439,7 +562,15 @@ export const ChatInterface: React.FC = () => {
       </AppBar>
 
       {error && (
-        <Alert severity="error" onClose={() => setError('')}>
+        <Alert
+          severity="error"
+          onClose={() => { setError(''); setLastFailedPrompt(null); }}
+          action={lastFailedPrompt ? (
+            <Button color="inherit" size="small" onClick={handleRetry}>
+              Retry
+            </Button>
+          ) : undefined}
+        >
           {error}
         </Alert>
       )}
@@ -482,8 +613,31 @@ export const ChatInterface: React.FC = () => {
               )
             )}
             {loading && (
-              <ListItem sx={{ justifyContent: 'center', py: 2 }}>
-                <CircularProgress size={24} />
+              <ListItem sx={{ justifyContent: 'flex-start', py: 1 }}>
+                <Avatar sx={{ bgcolor: 'secondary.main', mr: 1 }}>
+                  <BotIcon />
+                </Avatar>
+                <Paper elevation={1} sx={{ px: 2, py: 1.5, bgcolor: 'grey.100' }}>
+                  <Box sx={{ display: 'flex', gap: '5px', alignItems: 'center', height: 20 }}>
+                    {[0, 1, 2].map(i => (
+                      <Box
+                        key={i}
+                        sx={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          bgcolor: 'text.secondary',
+                          animation: 'bounce 1.2s infinite',
+                          animationDelay: `${i * 0.2}s`,
+                          '@keyframes bounce': {
+                            '0%, 80%, 100%': { transform: 'scale(0.6)', opacity: 0.4 },
+                            '40%': { transform: 'scale(1)', opacity: 1 },
+                          },
+                        }}
+                      />
+                    ))}
+                  </Box>
+                </Paper>
               </ListItem>
             )}
             <div ref={messagesEndRef} />

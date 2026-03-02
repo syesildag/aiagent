@@ -98,12 +98,10 @@ class AiAgentConversationMessagesRepository extends AbstractRepository<AiAgentCo
       super('ai_agent_conversation_messages', AiAgentConversationMessages);
    }
 
-   // Add custom finder methods here as needed
-   // Example:
-   // @Find()
-   // public async findByFieldName(fieldName: string): Promise<AiAgentConversationMessages | null> {
-   //    return null;
-   // }
+   public async findByConversationId(conversationId: number): Promise<AiAgentConversationMessages[]> {
+      const results = await this.getByFieldValues({ conversationId }, { orderBy: [{ field: 'timestamp', direction: 'ASC' }] });
+      return results ?? [];
+   }
 
 }
 

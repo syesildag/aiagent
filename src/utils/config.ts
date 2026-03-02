@@ -31,6 +31,7 @@ const envSchema = z.object({
   DEFAULT_USERNAME: z.string().min(1).default('default_username'),
   DEFAULT_PASSWORD: z.string().min(1).default('default_password'),
   OPENWEATHERMAP_API_KEY: z.string().min(1).optional(),
+  TAVILY_API_KEY: z.string().min(1).optional(),
   MCP_SERVERS_PATH: z.string().min(1).default('./mcp-servers.json'),
   MAX_LLM_ITERATIONS: z.string().transform(Number).pipe(z.number().min(1).max(10)).default('2'),
   CONVERSATION_HISTORY_WINDOW_SIZE: z.string().transform(Number).pipe(z.number().min(1)).default('10'),
@@ -81,6 +82,7 @@ function validateEnvironment(): Environment {
       EMBEDDING_CACHE_TTL: 3600000,
       USE_DB_CONVERSATION_HISTORY: false,
       OPENWEATHERMAP_API_KEY: undefined,
+      TAVILY_API_KEY: undefined,
       GITHUB_COPILOT_CLIENT_ID: 'Ov23liwtwZwa1bIdrSWG',
     } as Environment;
   }

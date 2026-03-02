@@ -1,0 +1,132 @@
+import {
+    Add as AddIcon,
+    Chat as ChatIcon,
+    ChevronLeft as ChevronLeftIcon,
+    ChevronRight as ChevronRightIcon,
+} from '@mui/icons-material';
+import {
+    Box,
+    Divider,
+    Drawer,
+    IconButton,
+    List,
+    ListItemButton,
+    ListItemText,
+    Tooltip,
+    Typography,
+} from '@mui/material';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+
+interface Conversation {
+    id: number;
+    title: string;
+    updatedAt: string;
+}
+
+interface ConversationSidebarProps {
+    activeConversationId: number | null;
+    onSelectConversation: (id: number) => void;
+    onNewConversation: () => void;
+}
+
+export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
+    activeConversationId,
+    onSelectConversation,
+    onNewConversation,
+}) => {
+    const { session } = useAuth();
+    const [open, setOpen] = useState(false);
+    const [conversations, setConversations] = useState<Conversation[]>([]);
+
+    const refresh = useCallback(() => {
+        if (!session) return;
+        fetch(`/conversations?session=${encodeURIComponent(session)}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data) setConversations(data.conversations ?? []); })
+            .catch(() => {});
+    }, [session]);
+
+    useEffect(() => {
+        if (open) refresh();
+    }, [open, refresh, activeConversationId]);
+
+    const drawerWidth = 260;
+
+    return (
+        <>
+            {/* Toggle button always visible */}
+            <Tooltip title={open ? 'Hide history' : 'Show history'}>
+                <IconButton
+                    onClick={() => setOpen(o => !o)}
+                    size="small"
+                    sx={{
+                        position: 'fixed',
+                        left: open ? drawerWidth - 16 : 8,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        zIndex: theme => theme.zIndex.drawer + 1,
+                        bgcolor: 'background.paper',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        boxShadow: 1,
+                        transition: 'left 225ms',
+                    }}
+                >
+                    {open ? <ChevronLeftIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+                </IconButton>
+            </Tooltip>
+
+            <Drawer
+                variant="persistent"
+                anchor="left"
+                open={open}
+                sx={{
+                    width: drawerWidth,
+                    flexShrink: 0,
+                    '& .MuiDrawer-paper': {
+                        width: drawerWidth,
+                        boxSizing: 'border-box',
+                        top: 64, // below AppBar
+                        height: 'calc(100% - 64px)',
+                    },
+                }}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', px: 1.5, py: 1, gap: 1 }}>
+                    <ChatIcon fontSize="small" color="action" />
+                    <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
+                        History
+                    </Typography>
+                    <Tooltip title="New conversation">
+                        <IconButton size="small" onClick={onNewConversation}>
+                            <AddIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                </Box>
+                <Divider />
+                <List dense sx={{ overflow: 'auto', flexGrow: 1 }}>
+                    {conversations.length === 0 && (
+                        <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 1, display: 'block' }}>
+                            No past conversations
+                        </Typography>
+                    )}
+                    {conversations.map(conv => (
+                        <ListItemButton
+                            key={conv.id}
+                            selected={conv.id === activeConversationId}
+                            onClick={() => onSelectConversation(conv.id)}
+                            sx={{ borderRadius: 1, mx: 0.5, my: 0.25 }}
+                        >
+                            <ListItemText
+                                primary={conv.title}
+                                secondary={new Date(conv.updatedAt).toLocaleDateString()}
+                                primaryTypographyProps={{ noWrap: true, variant: 'body2' }}
+                                secondaryTypographyProps={{ variant: 'caption' }}
+                            />
+                        </ListItemButton>
+                    ))}
+                </List>
+            </Drawer>
+        </>
+    );
+};

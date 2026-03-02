@@ -63,7 +63,7 @@ const ChatApp: React.FC<{ agentName: string }> = ({ agentName }) => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider agentName={agentName}>
+      <AuthProvider agentName={agentName} darkMode={darkMode} toggleDarkMode={() => setDarkMode(d => !d)}>
         <AuthContent />
       </AuthProvider>
     </ThemeProvider>

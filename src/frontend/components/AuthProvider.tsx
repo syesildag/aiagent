@@ -4,11 +4,15 @@ import { AuthContext } from '../context/AuthContext';
 interface AuthProviderProps {
   children: React.ReactNode;
   agentName: string;
+  darkMode: boolean;
+  toggleDarkMode: () => void;
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ 
+export const AuthProvider: React.FC<AuthProviderProps> = ({
   children,
-  agentName 
+  agentName,
+  darkMode,
+  toggleDarkMode,
 }) => {
   const [session, setSession] = useState<string | null>(
     sessionStorage.getItem('session')
@@ -68,6 +72,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
         session,
         username,
         agentName,
+        darkMode,
+        toggleDarkMode,
         login,
         logout,
         isAuthenticated: !!session,

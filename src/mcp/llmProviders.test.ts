@@ -604,9 +604,8 @@ describe('LLM Providers', () => {
           })
         } as Response);
 
-        // Note: The specific error is caught by the catch block and falls through to generic error
         await expect(provider.chat(testRequest)).rejects.toThrow(
-          'GitHub Copilot API error: 400 Bad Request'
+          "Model 'gpt-4o' is not available. Available models:"
         );
       });
 

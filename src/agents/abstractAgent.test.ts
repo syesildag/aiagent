@@ -59,6 +59,7 @@ describe('AbstractAgent', () => {
     // Mock session
     mockSession = {
       getId: jest.fn().mockReturnValue(1),
+      getUserLogin: jest.fn().mockReturnValue('testuser'),
     } as any;
   });
 

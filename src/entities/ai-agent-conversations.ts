@@ -13,6 +13,7 @@ import { Id } from "../repository/annotations/Id";
 import { ManyToOne } from "../repository/annotations/ManyToOne";
 import { OneToMany } from "../repository/annotations/OneToMany";
 import { repository } from "../repository/repository";
+import { queryDatabase } from "../utils/pgClient";
 import { AiAgentConversationMessages } from './ai-agent-conversation-messages';
 import { AiAgentSession } from './ai-agent-session';
 export class AiAgentConversations extends Entity {
@@ -102,12 +103,13 @@ class AiAgentConversationsRepository extends AbstractRepository<AiAgentConversat
       super('ai_agent_conversations', AiAgentConversations);
    }
 
-   // Add custom finder methods here as needed
-   // Example:
-   // @Find()
-   // public async findByFieldName(fieldName: string): Promise<AiAgentConversations | null> {
-   //    return null;
-   // }
+   public async findByUserLogin(userLogin: string): Promise<{ id: number; title: string; updatedAt: Date }[]> {
+      const rows = await queryDatabase(
+         `SELECT id, metadata->>'title' AS title, updated_at FROM ai_agent_conversations WHERE metadata->>'userLogin' = $1 ORDER BY updated_at DESC LIMIT 50`,
+         [userLogin],
+      );
+      return rows.map((r: any) => ({ id: r.id, title: r.title ?? 'Untitled', updatedAt: r.updated_at }));
+   }
 
 }
 

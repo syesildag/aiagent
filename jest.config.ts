@@ -8,7 +8,12 @@ const config: Config = {
   testPathIgnorePatterns: ["<rootDir>/dist/", "<rootDir>/node_modules/"],
   collectCoverage: true,
   coverageReporters: ["json", "lcov", "text", "clover"],
-  coverageDirectory: "coverage",  globals: {
+  coverageDirectory: "coverage",
+  moduleNameMapper: {
+    '^react-markdown$': '<rootDir>/src/__mocks__/react-markdown.tsx',
+    '^remark-gfm$': '<rootDir>/src/__mocks__/remark-gfm.ts',
+  },
+  globals: {
     'ts-jest': {
       "tsconfig": "tsconfig.test.json"
     }

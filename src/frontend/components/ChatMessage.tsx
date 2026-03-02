@@ -15,6 +15,8 @@ import {
     Typography
 } from '@mui/material';
 import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Message } from '../types';
 
 interface ChatMessageProps {
@@ -86,12 +88,33 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = 
               ))}
             </Box>
           )}
-          <Typography
-            variant="body1"
-            sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-          >
-            {message.content}
-          </Typography>
+          {isUser ? (
+            <Typography
+              variant="body1"
+              sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+            >
+              {message.content}
+            </Typography>
+          ) : (
+            <Box sx={{
+              '& p': { my: 0.5, '&:first-of-type': { mt: 0 }, '&:last-of-type': { mb: 0 } },
+              '& pre': { bgcolor: 'grey.200', borderRadius: 1, p: 1, overflow: 'auto', my: 1 },
+              '& code': { fontFamily: 'monospace', fontSize: '0.875em' },
+              '& pre code': { bgcolor: 'transparent', p: 0 },
+              '& ul, & ol': { pl: 2.5, my: 0.5 },
+              '& li': { mb: 0.25 },
+              '& blockquote': { borderLeft: '3px solid', borderColor: 'divider', pl: 1.5, ml: 0, my: 0.5, color: 'text.secondary' },
+              '& h1, & h2, & h3, & h4': { my: 1, lineHeight: 1.3 },
+              '& table': { borderCollapse: 'collapse', width: '100%', my: 1 },
+              '& th, & td': { border: '1px solid', borderColor: 'divider', p: 0.75, textAlign: 'left' },
+              '& a': { color: 'primary.main' },
+              wordBreak: 'break-word',
+            }}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {message.content}
+              </ReactMarkdown>
+            </Box>
+          )}
           <Typography
             variant="caption"
             sx={{

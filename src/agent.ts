@@ -1,5 +1,6 @@
 import { Options } from 'ollama';
 import { GeneralAgent } from './agents/generalAgent';
+import { WeatherAgent } from './agents/weatherAgent';
 import { createLLMProvider, getLLMModel } from './mcp/llmFactory';
 import { MCPServerManager } from './mcp/mcpManager';
 import { ToolApprovalCallback } from './mcp/approvalManager';
@@ -54,6 +55,7 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
 
    [
       new GeneralAgent(),
+      new WeatherAgent(),
    ]
    .forEach(agent => {
       Agents[agent.getName()] = agent;
