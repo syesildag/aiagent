@@ -65,7 +65,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = 
           elevation={1}
           sx={{
             p: 2,
-            bgcolor: isUser ? 'primary.light' : 'grey.100',
+            bgcolor: isUser ? 'primary.light' : (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100',
             color: isUser ? 'primary.contrastText' : 'text.primary',
           }}
         >
@@ -98,7 +98,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = 
           ) : (
             <Box sx={{
               '& p': { my: 0.5, '&:first-of-type': { mt: 0 }, '&:last-of-type': { mb: 0 } },
-              '& pre': { bgcolor: 'grey.200', borderRadius: 1, p: 1, overflow: 'auto', my: 1 },
+              '& pre': { bgcolor: (theme: any) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.200', borderRadius: 1, p: 1, overflow: 'auto', my: 1 },
               '& code': { fontFamily: 'monospace', fontSize: '0.875em' },
               '& pre code': { bgcolor: 'transparent', p: 0 },
               '& ul, & ol': { pl: 2.5, my: 0.5 },
