@@ -986,12 +986,20 @@ export class GitHubCopilotProvider implements LLMProvider {
           if (errorData.error?.code === 'tokens_limit_reached') {
             throw new Error(`GitHub Copilot API error: ${errorData.error.message}`);
           }
+
+          // Surface other structured API errors with their message
+          if (errorData.error?.message) {
+            throw new Error(`GitHub Copilot API error: 400 - ${errorData.error.message} (code: ${errorData.error.code ?? 'unknown'})`);
+          }
         } catch (parseError) {
-          // If we can't parse the error, fall through to generic error
+          // Re-throw intentional errors; only swallow JSON parse failures
+          if (!(parseError instanceof SyntaxError)) {
+            throw parseError;
+          }
         }
       }
       
-      throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`);
+      throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     if (adjustedRequest.stream === true) {
