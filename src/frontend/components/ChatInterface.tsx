@@ -618,7 +618,7 @@ export const ChatInterface: React.FC = () => {
                 <Avatar sx={{ bgcolor: 'secondary.main', mr: 1 }}>
                   <BotIcon />
                 </Avatar>
-                <Paper elevation={1} sx={{ px: 2, py: 1.5, bgcolor: 'grey.100' }}>
+                <Paper elevation={1} sx={{ px: 2, py: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100' }}>
                   <Box sx={{ display: 'flex', gap: '5px', alignItems: 'center', height: 20 }}>
                     {[0, 1, 2].map(i => (
                       <Box
