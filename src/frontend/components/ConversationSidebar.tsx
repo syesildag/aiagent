@@ -15,6 +15,8 @@ import {
     ListItemText,
     Tooltip,
     Typography,
+    useMediaQuery,
+    useTheme,
 } from '@mui/material';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -39,6 +41,8 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
     onConversationDeleted,
 }) => {
     const { session } = useAuth();
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const [open, setOpen] = useState(false);
     const [conversations, setConversations] = useState<Conversation[]>([]);
 
@@ -95,9 +99,10 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
             </Tooltip>
 
             <Drawer
-                variant="persistent"
+                variant={isMobile ? 'temporary' : 'persistent'}
                 anchor="left"
                 open={open}
+                onClose={() => setOpen(false)}
                 sx={{
                     width: drawerWidth,
                     flexShrink: 0,
