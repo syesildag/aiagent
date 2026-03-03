@@ -63,6 +63,7 @@ export const ChatInterface: React.FC = () => {
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
+  const [modelMenuAnchor, setModelMenuAnchor] = useState<null | HTMLElement>(null);
 
   const toggleAutoSpeak = () => {
     setAutoSpeak(prev => {
@@ -538,16 +539,16 @@ export const ChatInterface: React.FC = () => {
             </IconButton>
           </Box>
 
-          {/* Mobile controls — dark mode toggle + overflow menu + logout */}
+          {/* Mobile controls — logout, theme, three dots */}
           <Box sx={{ display: { xs: 'flex', sm: 'none' }, alignItems: 'center' }}>
+            <IconButton color="inherit" onClick={logout} size="small">
+              <LogoutIcon />
+            </IconButton>
             <IconButton color="inherit" onClick={toggleDarkMode} size="small">
               {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
             </IconButton>
             <IconButton color="inherit" onClick={e => setMobileMenuAnchor(e.currentTarget)} size="small">
               <MoreVertIcon />
-            </IconButton>
-            <IconButton color="inherit" onClick={logout} size="small">
-              <LogoutIcon />
             </IconButton>
           </Box>
           <Menu
@@ -769,20 +770,54 @@ export const ChatInterface: React.FC = () => {
               </span>
             </Tooltip>
 
-            {/* Model selector */}
+            {/* Model selector — icon menu on mobile, Select on desktop */}
             {availableModels.length > 0 && (
-              <FormControl size="small" sx={{ minWidth: { xs: 110, sm: 160 }, flexShrink: 0 }}>
-                <Select
-                  value={currentModel}
-                  onChange={handleModelChange}
-                  disabled={loading}
-                  sx={{ fontSize: { xs: '0.7rem', sm: '0.8rem' } }}
+              <>
+                {/* Mobile: three-dot icon button */}
+                <Tooltip title={`Model: ${currentModel}`}>
+                  <span>
+                    <IconButton
+                      onClick={e => setModelMenuAnchor(e.currentTarget)}
+                      disabled={loading}
+                      size="small"
+                      sx={{ display: { xs: 'flex', sm: 'none' }, flexShrink: 0 }}
+                    >
+                      <MoreVertIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Menu
+                  anchorEl={modelMenuAnchor}
+                  open={Boolean(modelMenuAnchor)}
+                  onClose={() => setModelMenuAnchor(null)}
                 >
+                  <MenuItem disabled sx={{ fontSize: '0.7rem', opacity: 0.5, minHeight: 0, py: 0.25 }}>Model</MenuItem>
                   {availableModels.map(m => (
-                    <MenuItem key={m} value={m} sx={{ fontSize: '0.85rem' }}>{m}</MenuItem>
+                    <MenuItem
+                      key={m}
+                      selected={m === currentModel}
+                      onClick={() => { setModelMenuAnchor(null); handleModelChange({ target: { value: m } } as SelectChangeEvent); }}
+                      sx={{ fontSize: '0.85rem' }}
+                    >
+                      {m}
+                    </MenuItem>
                   ))}
-                </Select>
-              </FormControl>
+                </Menu>
+
+                {/* Desktop: Select dropdown */}
+                <FormControl size="small" sx={{ display: { xs: 'none', sm: 'block' }, minWidth: 160, flexShrink: 0 }}>
+                  <Select
+                    value={currentModel}
+                    onChange={handleModelChange}
+                    disabled={loading}
+                    sx={{ fontSize: '0.8rem' }}
+                  >
+                    {availableModels.map(m => (
+                      <MenuItem key={m} value={m} sx={{ fontSize: '0.85rem' }}>{m}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </>
             )}
 
             <TextField
