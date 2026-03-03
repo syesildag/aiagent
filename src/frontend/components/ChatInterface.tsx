@@ -515,26 +515,6 @@ export const ChatInterface: React.FC = () => {
                 </Select>
               </FormControl>
             )}
-            {availableModels.length > 0 && (
-              <FormControl size="small" sx={{ minWidth: 160 }}>
-                <Select
-                  value={currentModel}
-                  onChange={handleModelChange}
-                  disabled={loading}
-                  sx={{
-                    color: 'inherit',
-                    '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
-                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
-                    '.MuiSvgIcon-root': { color: 'inherit' },
-                    fontSize: '0.85rem',
-                  }}
-                >
-                  {availableModels.map(m => (
-                    <MenuItem key={m} value={m} sx={{ fontSize: '0.85rem' }}>{m}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            )}
             <Typography variant="body2" sx={{ mx: 0.5 }}>{username}</Typography>
             <Tooltip title={autoSpeak ? 'Auto read-aloud on' : 'Auto read-aloud off'}>
               <IconButton color="inherit" onClick={toggleAutoSpeak} size="small">
@@ -592,20 +572,6 @@ export const ChatInterface: React.FC = () => {
                 </MenuItem>
               )),
               <Divider key="agent-divider" />,
-            ]}
-            {availableModels.length > 0 && [
-              <MenuItem disabled key="model-label" sx={{ fontSize: '0.7rem', opacity: 0.5, minHeight: 0, py: 0.25 }}>Model</MenuItem>,
-              ...availableModels.map(m => (
-                <MenuItem
-                  key={m}
-                  selected={m === currentModel}
-                  onClick={() => { setMobileMenuAnchor(null); handleModelChange({ target: { value: m } } as SelectChangeEvent); }}
-                  sx={{ fontSize: '0.85rem' }}
-                >
-                  {m}
-                </MenuItem>
-              )),
-              <Divider key="model-divider" />,
             ]}
             <MenuItem onClick={() => { setMobileMenuAnchor(null); toggleAutoSpeak(); }} sx={{ fontSize: '0.85rem' }}>
               <ListItemIcon>{autoSpeak ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}</ListItemIcon>
@@ -802,6 +768,22 @@ export const ChatInterface: React.FC = () => {
                 </IconButton>
               </span>
             </Tooltip>
+
+            {/* Model selector */}
+            {availableModels.length > 0 && (
+              <FormControl size="small" sx={{ minWidth: { xs: 110, sm: 160 }, flexShrink: 0 }}>
+                <Select
+                  value={currentModel}
+                  onChange={handleModelChange}
+                  disabled={loading}
+                  sx={{ fontSize: { xs: '0.7rem', sm: '0.8rem' } }}
+                >
+                  {availableModels.map(m => (
+                    <MenuItem key={m} value={m} sx={{ fontSize: '0.85rem' }}>{m}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
 
             <TextField
               fullWidth
