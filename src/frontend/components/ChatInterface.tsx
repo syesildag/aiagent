@@ -10,6 +10,7 @@ import {
     DarkMode as DarkModeIcon,
     LightMode as LightModeIcon,
     Download as DownloadIcon,
+    MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import {
     Alert,
@@ -18,10 +19,14 @@ import {
     Box,
     Button,
     Container,
+    Divider,
     FormControl,
     IconButton,
     List,
     ListItem,
+    ListItemIcon,
+    ListItemText,
+    Menu,
     MenuItem,
     Paper,
     Select,
@@ -57,6 +62,7 @@ export const ChatInterface: React.FC = () => {
   );
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
 
   const toggleAutoSpeak = () => {
     setAutoSpeak(prev => {
@@ -471,13 +477,13 @@ export const ChatInterface: React.FC = () => {
         onConversationDeleted={(id) => { if (id === activeConversationId) handleNewConversation(); }}
       />
       <AppBar position="static">
-        <Toolbar sx={{ gap: 0.5 }}>
+        <Toolbar sx={{ gap: 0.5, minHeight: { xs: 56, sm: 64 } }}>
           <BotIcon sx={{ mr: { xs: 0.5, sm: 1 }, flexShrink: 0 }} />
           <Typography
             variant="h6"
             sx={{
               flexGrow: 1,
-              fontSize: { xs: '0.85rem', sm: '1.1rem', md: '1.25rem' },
+              fontSize: { xs: '0.9rem', sm: '1.1rem', md: '1.25rem' },
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -486,79 +492,134 @@ export const ChatInterface: React.FC = () => {
           >
             {agentName}
           </Typography>
-          {availableAgents.length > 1 && (
-            <FormControl size="small" sx={{ mr: 0.5, minWidth: { xs: 90, sm: 130 }, flexShrink: 0 }}>
-              <Select
-                value={agentName}
-                onChange={e => { window.location.href = `/front/${e.target.value}`; }}
-                disabled={loading}
-                sx={{
-                  color: 'inherit',
-                  '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
-                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
-                  '.MuiSvgIcon-root': { color: 'inherit' },
-                  fontSize: { xs: '0.7rem', sm: '0.85rem' },
-                }}
-              >
-                {availableAgents.map(a => (
-                  <MenuItem key={a} value={a} sx={{ fontSize: '0.85rem' }}>{a}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-          {availableModels.length > 0 && (
-            <FormControl
-              size="small"
-              sx={{ mr: 0.5, minWidth: { xs: 110, sm: 160 }, flexShrink: 0 }}
-            >
-              <Select
-                value={currentModel}
-                onChange={handleModelChange}
-                disabled={loading}
-                sx={{
-                  color: 'inherit',
-                  '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
-                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
-                  '.MuiSvgIcon-root': { color: 'inherit' },
-                  fontSize: { xs: '0.7rem', sm: '0.85rem' },
-                }}
-              >
-                {availableModels.map(m => (
-                  <MenuItem key={m} value={m} sx={{ fontSize: '0.85rem' }}>{m}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-          {/* Hide username on phones to save space */}
-          <Typography variant="body2" sx={{ mr: 0.5, display: { xs: 'none', sm: 'block' }, flexShrink: 0 }}>
-            {username}
-          </Typography>
-          <Tooltip title={autoSpeak ? 'Auto read-aloud on' : 'Auto read-aloud off'}>
-            <IconButton color="inherit" onClick={toggleAutoSpeak} size="small" sx={{ flexShrink: 0 }}>
-              {autoSpeak ? <VolumeUpIcon /> : <VolumeOffIcon />}
+
+          {/* Desktop controls — hidden on mobile */}
+          <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 0.5 }}>
+            {availableAgents.length > 1 && (
+              <FormControl size="small" sx={{ minWidth: 130 }}>
+                <Select
+                  value={agentName}
+                  onChange={e => { window.location.href = `/front/${e.target.value}`; }}
+                  disabled={loading}
+                  sx={{
+                    color: 'inherit',
+                    '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
+                    '.MuiSvgIcon-root': { color: 'inherit' },
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  {availableAgents.map(a => (
+                    <MenuItem key={a} value={a} sx={{ fontSize: '0.85rem' }}>{a}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+            {availableModels.length > 0 && (
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <Select
+                  value={currentModel}
+                  onChange={handleModelChange}
+                  disabled={loading}
+                  sx={{
+                    color: 'inherit',
+                    '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
+                    '.MuiSvgIcon-root': { color: 'inherit' },
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  {availableModels.map(m => (
+                    <MenuItem key={m} value={m} sx={{ fontSize: '0.85rem' }}>{m}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+            <Typography variant="body2" sx={{ mx: 0.5 }}>{username}</Typography>
+            <Tooltip title={autoSpeak ? 'Auto read-aloud on' : 'Auto read-aloud off'}>
+              <IconButton color="inherit" onClick={toggleAutoSpeak} size="small">
+                {autoSpeak ? <VolumeUpIcon /> : <VolumeOffIcon />}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+              <IconButton color="inherit" onClick={toggleDarkMode} size="small">
+                {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Export conversation">
+              <span>
+                <IconButton color="inherit" onClick={handleExport} disabled={messages.length === 0} size="small">
+                  <DownloadIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <IconButton color="inherit" onClick={logout} size="small">
+              <LogoutIcon />
             </IconButton>
-          </Tooltip>
-          <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
-            <IconButton color="inherit" onClick={toggleDarkMode} size="small" sx={{ flexShrink: 0 }}>
+          </Box>
+
+          {/* Mobile controls — dark mode toggle + overflow menu + logout */}
+          <Box sx={{ display: { xs: 'flex', sm: 'none' }, alignItems: 'center' }}>
+            <IconButton color="inherit" onClick={toggleDarkMode} size="small">
               {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
             </IconButton>
-          </Tooltip>
-          <Tooltip title="Export conversation">
-            <span>
-              <IconButton
-                color="inherit"
-                onClick={handleExport}
-                disabled={messages.length === 0}
-                size="small"
-                sx={{ flexShrink: 0 }}
-              >
-                <DownloadIcon />
-              </IconButton>
-            </span>
-          </Tooltip>
-          <IconButton color="inherit" onClick={logout} size="small" sx={{ flexShrink: 0 }}>
-            <LogoutIcon />
-          </IconButton>
+            <IconButton color="inherit" onClick={e => setMobileMenuAnchor(e.currentTarget)} size="small">
+              <MoreVertIcon />
+            </IconButton>
+            <IconButton color="inherit" onClick={logout} size="small">
+              <LogoutIcon />
+            </IconButton>
+          </Box>
+          <Menu
+            anchorEl={mobileMenuAnchor}
+            open={Boolean(mobileMenuAnchor)}
+            onClose={() => setMobileMenuAnchor(null)}
+          >
+            <MenuItem disabled sx={{ fontSize: '0.75rem', opacity: 0.6, minHeight: 0, py: 0.5 }}>
+              {username}
+            </MenuItem>
+            <Divider />
+            {availableAgents.length > 1 && [
+              <MenuItem disabled key="agent-label" sx={{ fontSize: '0.7rem', opacity: 0.5, minHeight: 0, py: 0.25 }}>Agent</MenuItem>,
+              ...availableAgents.map(a => (
+                <MenuItem
+                  key={a}
+                  selected={a === agentName}
+                  onClick={() => { setMobileMenuAnchor(null); window.location.href = `/front/${a}`; }}
+                  sx={{ fontSize: '0.85rem' }}
+                >
+                  {a}
+                </MenuItem>
+              )),
+              <Divider key="agent-divider" />,
+            ]}
+            {availableModels.length > 0 && [
+              <MenuItem disabled key="model-label" sx={{ fontSize: '0.7rem', opacity: 0.5, minHeight: 0, py: 0.25 }}>Model</MenuItem>,
+              ...availableModels.map(m => (
+                <MenuItem
+                  key={m}
+                  selected={m === currentModel}
+                  onClick={() => { setMobileMenuAnchor(null); handleModelChange({ target: { value: m } } as SelectChangeEvent); }}
+                  sx={{ fontSize: '0.85rem' }}
+                >
+                  {m}
+                </MenuItem>
+              )),
+              <Divider key="model-divider" />,
+            ]}
+            <MenuItem onClick={() => { setMobileMenuAnchor(null); toggleAutoSpeak(); }} sx={{ fontSize: '0.85rem' }}>
+              <ListItemIcon>{autoSpeak ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}</ListItemIcon>
+              <ListItemText>{autoSpeak ? 'Read aloud: on' : 'Read aloud: off'}</ListItemText>
+            </MenuItem>
+            <MenuItem
+              onClick={() => { setMobileMenuAnchor(null); handleExport(); }}
+              disabled={messages.length === 0}
+              sx={{ fontSize: '0.85rem' }}
+            >
+              <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>Export</ListItemText>
+            </MenuItem>
+          </Menu>
         </Toolbar>
       </AppBar>
 
