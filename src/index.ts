@@ -414,8 +414,8 @@ app.post("/model/:agent", asyncHandler(async (req: Request, res: Response) => {
 // PWA routes
 // ---------------------------------------------------------------------------
 
-// Service worker – must be served from root scope
-app.get('/sw.js', (req: Request, res: Response) => {
+// Service worker – served under /static but allowed to control root scope via header
+app.get('/static/sw.js', (req: Request, res: Response) => {
    if (!cachedSwJs) {
       cachedSwJs = fs.readFileSync(path.join(__dirname, 'frontend/pwa/sw.js'), 'utf-8');
    }
