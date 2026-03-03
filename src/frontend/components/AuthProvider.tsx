@@ -60,6 +60,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
         console.error('Logout error:', error);
       }
     }
+    window.speechSynthesis.cancel();
     setSession(null);
     setUsername(null);
     sessionStorage.removeItem('session');

@@ -77,9 +77,10 @@ export const ChatInterface: React.FC = () => {
     });
   };
 
-  /** Start reading a message aloud, cancelling any previous utterance. */
-  const speakMessage = useCallback((msgId: string, text: string) => {
-    window.speechSynthesis.cancel();
+  /** Start reading a message aloud. When interrupt=true (manual), cancels any ongoing speech first.
+   *  When interrupt=false (auto-speak), queues after the current utterance. */
+  const speakMessage = useCallback((msgId: string, text: string, interrupt = true) => {
+    if (interrupt) window.speechSynthesis.cancel();
     if (!text.trim()) return;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.onend = () => setSpeakingMsgId(null);
@@ -354,7 +355,7 @@ export const ChatInterface: React.FC = () => {
         }
         // Auto-read the completed assistant response aloud
         if (autoSpeak && assistantMsgId && assistantContent) {
-          speakMessage(assistantMsgId, assistantContent);
+          speakMessage(assistantMsgId, assistantContent, false);
         }
       } else {
         // Non-streaming fallback: parse NDJSON body
@@ -378,7 +379,7 @@ export const ChatInterface: React.FC = () => {
         };
         setMessages(prev => [...prev, assistantMessage]);
         // Auto-read the completed assistant response aloud
-        if (autoSpeak && content) speakMessage(assistantMessage.id, content);
+        if (autoSpeak && content) speakMessage(assistantMessage.id, content, false);
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {

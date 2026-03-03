@@ -11,7 +11,7 @@ import { useAuth } from './context/AuthContext';
 
 // Main App Component
 const ChatApp: React.FC<{ agentName: string }> = ({ agentName }) => {
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
 
   const theme = createTheme({
     palette: {
@@ -63,7 +63,7 @@ const ChatApp: React.FC<{ agentName: string }> = ({ agentName }) => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider agentName={agentName} darkMode={darkMode} toggleDarkMode={() => setDarkMode(d => !d)}>
+      <AuthProvider agentName={agentName} darkMode={darkMode} toggleDarkMode={() => setDarkMode(d => { const next = !d; localStorage.setItem('darkMode', String(next)); return next; })}>
         <AuthContent />
       </AuthProvider>
     </ThemeProvider>
