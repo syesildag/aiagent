@@ -63,7 +63,7 @@ export const ChatInterface: React.FC = () => {
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
-  const [modelMenuAnchor, setModelMenuAnchor] = useState<null | HTMLElement>(null);
+
 
   const toggleAutoSpeak = () => {
     setAutoSpeak(prev => {
@@ -519,46 +519,8 @@ export const ChatInterface: React.FC = () => {
           {/* Spacer */}
           <Box sx={{ flexGrow: 1 }} />
 
-          {/* Desktop controls — hidden on mobile */}
-          <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 0.5 }}>
-            {availableAgents.length > 1 && (
-              <FormControl size="small" sx={{ minWidth: 130 }}>
-                <Select
-                  value={agentName}
-                  onChange={e => { window.location.href = `/front/${e.target.value}`; }}
-                  disabled={loading}
-                  sx={{
-                    color: 'inherit',
-                    '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
-                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
-                    '.MuiSvgIcon-root': { color: 'inherit' },
-                    fontSize: '0.85rem',
-                  }}
-                >
-                  {availableAgents.map(a => (
-                    <MenuItem key={a} value={a} sx={{ fontSize: '0.85rem' }}>{a}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            )}
-            <Typography variant="body2" sx={{ mx: 0.5 }}>{username}</Typography>
-            <Tooltip title={autoSpeak ? 'Auto read-aloud on' : 'Auto read-aloud off'}>
-              <IconButton color="inherit" onClick={toggleAutoSpeak} size="small">
-                {autoSpeak ? <VolumeUpIcon /> : <VolumeOffIcon />}
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
-              <IconButton color="inherit" onClick={toggleDarkMode} size="small">
-                {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
-              </IconButton>
-            </Tooltip>
-            <IconButton color="inherit" onClick={e => setMobileMenuAnchor(e.currentTarget)} size="small">
-              <MoreVertIcon />
-            </IconButton>
-          </Box>
-
-          {/* Mobile controls — theme, three dots */}
-          <Box sx={{ display: { xs: 'flex', sm: 'none' }, alignItems: 'center' }}>
+          {/* AppBar right controls — theme toggle + overflow menu (all screen sizes) */}
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <IconButton color="inherit" onClick={toggleDarkMode} size="small">
               {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
             </IconButton>
