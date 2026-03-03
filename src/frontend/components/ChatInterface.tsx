@@ -198,7 +198,20 @@ export const ChatInterface: React.FC = () => {
           const ctx = canvas.getContext('2d');
           if (!ctx) return reject(new Error('Canvas context unavailable'));
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+
+          // Iteratively reduce quality until base64 payload fits within a safe
+          // size budget. LLM APIs often have hard HTTP body size limits unrelated
+          // to the model's token context window, so large iPhone photos can trigger
+          // 413 Payload Too Large errors even after dimension-based resizing.
+          const MAX_BASE64_BYTES = 500 * 1024; // 500 KB base64 string length
+          const MIN_QUALITY = 0.3;
+          let quality = JPEG_QUALITY;
+          let dataUrl = canvas.toDataURL('image/jpeg', quality);
+          while (dataUrl.length > MAX_BASE64_BYTES && quality > MIN_QUALITY) {
+            quality = Math.max(quality - 0.1, MIN_QUALITY);
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+
           const [header, base64] = dataUrl.split(',');
           const mimeType = header.replace('data:', '').replace(';base64', '');
           resolve({ dataUrl, base64, mimeType, name: f.name });
