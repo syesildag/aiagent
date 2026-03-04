@@ -5,29 +5,18 @@ import Logger from '../utils/logger';
 export default async function deleteExpiredSessions() {
   try {
     const timeoutSeconds = config.SESSION_TIMEOUT_SECONDS;
-    
-    // First, get the sessions that will be deleted for logging purposes
-    const selectQuery = `
-      SELECT id, name, ping FROM ai_agent_session
-       WHERE COALESCE(ping, created_at) < NOW() - INTERVAL '${timeoutSeconds} seconds'
-    `;
-  
-    const expiredSessions = await queryDatabase(selectQuery);
-    Logger.debug(`Expired sessions: ${JSON.stringify(expiredSessions)}`);
-    
-    if (expiredSessions.length === 0)
-      return;
-    
-    // Use a safer approach - delete sessions based on the timeout condition directly
-    // This avoids potential SQL injection and malformed queries
+
+    // Single parameterized DELETE — eliminates the prior SQL-injection risk of
+    // interpolating session IDs into the query string.
     const deleteQuery = `
-      DELETE FROM ai_agent_session 
-       WHERE id IN (${expiredSessions.map(s => s.id).join(', ')})
+      DELETE FROM ai_agent_session
+       WHERE COALESCE(ping, created_at) < NOW() - ($1 * INTERVAL '1 second')
+      RETURNING id, name, ping
     `;
-    
-    Logger.debug(`Executing delete query: ${deleteQuery}`);
-    await queryDatabase(deleteQuery);
-    
+    const deleted = await queryDatabase(deleteQuery, [timeoutSeconds]);
+    if (deleted.length > 0) {
+      Logger.debug(`Deleted ${deleted.length} expired sessions`);
+    }
   } catch (err) {
     Logger.error(`Failed to delete expired sessions: ${err}`);
     if (err instanceof Error) {

@@ -49,21 +49,29 @@ const options: https.ServerOptions | null = isDevelopment() ? null : {
    cert: fs.readFileSync('server.cert')
 };
 
+const ALLOWED_MIME_TYPES = [
+   'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+   'application/pdf', 'text/plain',
+] as const;
+
+// ~7.5 MB when decoded from base64
+const MAX_FILE_BASE64_LENGTH = 10 * 1024 * 1024;
+
 const Query = z.object({
    session: z.string().optional().describe('The session id'),
    prompt: z.string().describe('user prompt'),
    conversationId: z.number().optional().describe('Existing conversation id to continue'),
    // Legacy single-image fields (kept for backward compatibility)
-   imageBase64: z.string().optional().describe('base64-encoded image data'),
-   imageMimeType: z.string().optional().describe('MIME type of the image, e.g. image/png'),
+   imageBase64: z.string().max(MAX_FILE_BASE64_LENGTH).optional().describe('base64-encoded image data'),
+   imageMimeType: z.enum(ALLOWED_MIME_TYPES).optional().describe('MIME type of the image'),
    // Multi-file support: array of {base64, mimeType, name?} objects
    files: z.array(
      z.object({
-       base64: z.string(),
-       mimeType: z.string(),
+       base64: z.string().max(MAX_FILE_BASE64_LENGTH),
+       mimeType: z.enum(ALLOWED_MIME_TYPES),
        name: z.string().optional(),
      })
-   ).optional().describe('Array of attached files'),
+   ).max(5).optional().describe('Array of attached files (max 5)'),
 });
 
 const app = express();
@@ -72,7 +80,24 @@ app.use(helmet(isDevelopment() ? {
    contentSecurityPolicy: false,
    strictTransportSecurity: false,
 } : {}));
-app.use(cors());
+// CORS: restrict to origins listed in ALLOWED_ORIGINS (comma-separated).
+// Defaults to same-origin only when the env var is absent/empty.
+const buildCorsOptions = (): cors.CorsOptions => {
+   const raw = config.ALLOWED_ORIGINS?.trim() ?? '';
+   if (!raw) {
+      const proto = isDevelopment() ? 'http' : 'https';
+      return { origin: `${proto}://${config.HOST}:${config.PORT}`, credentials: false };
+   }
+   const whitelist = raw.split(',').map(o => o.trim()).filter(Boolean);
+   return {
+      origin: (origin, cb) => {
+         if (!origin || whitelist.includes(origin)) cb(null, true);
+         else cb(new Error('Not allowed by CORS policy'));
+      },
+      credentials: false,
+   };
+};
+app.use(cors(buildCorsOptions()));
 
 // Trust proxy headers (required for express-rate-limit behind Ingress)
 app.set('trust proxy', 1);
@@ -92,6 +117,16 @@ const chatRateLimit = rateLimit({
    standardHeaders: 'draft-8',
    legacyHeaders: false,
    keyGenerator: (req) => req.body?.session ?? req.ip ?? 'unknown',
+});
+
+// Separate rate limiter for the approval endpoint to prevent brute-forcing approval IDs
+const approvalRateLimit = rateLimit({
+   windowMs: 60 * 1000,
+   limit: 10,
+   standardHeaders: 'draft-8',
+   legacyHeaders: false,
+   keyGenerator: (req) => req.ip ?? 'unknown',
+   message: { error: 'Too many approval attempts' },
 });
 
 app.use(compression({ filter: shouldCompress }));
@@ -319,7 +354,7 @@ app.post("/chat/:agent", chatRateLimit, asyncHandler(async (req: Request, res: R
 }));
 
 // Approve / deny a pending tool execution (called by the browser when the user decides)
-app.post("/chat/approve/:approvalId", asyncHandler(async (req: Request, res: Response) => {
+app.post("/chat/approve/:approvalId", approvalRateLimit, asyncHandler(async (req: Request, res: Response) => {
    const { approvalId } = req.params;
    const { approved } = z.object({ approved: z.boolean() }).parse(req.body);
    const resolved = approvalManager.resolve(approvalId, approved);
@@ -398,8 +433,12 @@ app.get("/conversations/:id/messages", asyncHandler(async (req: Request, res: Re
 
 // Model switch endpoint - changes the active model
 app.post("/model/:agent", asyncHandler(async (req: Request, res: Response) => {
+   if (!res.locals.session) {
+      sendAuthenticationRequired(res);
+      return;
+   }
    await getAgentFromName(req.params.agent);
-   const { model } = z.object({ model: z.string() }).parse(req.body);
+   const { model } = z.object({ model: z.string().min(1).max(200) }).parse(req.body);
    const manager = getGlobalMCPManager();
    if (!manager) {
       res.status(503).json({ error: 'Agent not initialised' });

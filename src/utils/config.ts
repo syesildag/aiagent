@@ -28,8 +28,8 @@ const envSchema = z.object({
   GITHUB_COPILOT_BASE_URL: z.string().url().default('https://api.githubcopilot.com'),
   GITHUB_COPILOT_EMBEDDINGS_BASE_URL: z.string().url().default('https://copilot-proxy.githubusercontent.com'),
   AUTH_GITHUB_COPILOT: z.string().optional(),
-  DEFAULT_USERNAME: z.string().min(1).default('default_username'),
-  DEFAULT_PASSWORD: z.string().min(1).default('default_password'),
+  DEFAULT_USERNAME: z.string().min(1).optional(),
+  DEFAULT_PASSWORD: z.string().min(8).optional(),
   OPENWEATHERMAP_API_KEY: z.string().min(1).optional(),
   TAVILY_API_KEY: z.string().min(1).optional(),
   MCP_SERVERS_PATH: z.string().min(1).default('./mcp-servers.json'),
@@ -41,6 +41,8 @@ const envSchema = z.object({
   EMBEDDING_MODEL_OLLAMA: z.string().default('nomic-embed-text'),
   EMBEDDING_CACHE_ENABLED: z.string().transform((val) => val === 'true').default('true'),
   EMBEDDING_CACHE_TTL: z.string().transform(Number).pipe(z.number().positive()).default('3600000'), // 1 hour
+  // Comma-separated list of allowed CORS origins. Empty = same-origin only.
+  ALLOWED_ORIGINS: z.string().default(''),
 });
 type Environment = z.infer<typeof envSchema>;
 
@@ -69,8 +71,9 @@ function validateEnvironment(): Environment {
       GITHUB_COPILOT_BASE_URL: 'https://api.githubcopilot.com',
       GITHUB_COPILOT_EMBEDDINGS_BASE_URL: 'https://copilot-proxy.githubusercontent.com',
       AUTH_GITHUB_COPILOT: undefined,
-      DEFAULT_USERNAME: 'default_username',
-      DEFAULT_PASSWORD: 'default_password',
+      DEFAULT_USERNAME: undefined,
+      DEFAULT_PASSWORD: undefined,
+      ALLOWED_ORIGINS: '',
       REDIS_URL: 'redis://localhost:6379',
       MCP_SERVERS_PATH: './mcp-servers.json',
       MAX_LLM_ITERATIONS: 2,
