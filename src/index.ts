@@ -19,7 +19,7 @@ import aiagentconversationmessagesRepository from "./entities/ai-agent-conversat
 import aiagentsessionRepository from "./entities/ai-agent-session";
 import aiagentuserRepository from "./entities/ai-agent-user";
 import { repository } from "./repository/repository";
-import { hashPassword } from './utils/hashPassword';
+import { hashPassword, verifyPassword } from './utils/hashPassword';
 import { initFromPath } from "./utils/initFromPath";
 import JobFactory from "./utils/jobFactory";
 import Logger from "./utils/logger";
@@ -201,21 +201,26 @@ app.post("/login", asyncHandler(async (req: Request, res: Response) => {
       sendAuthenticationRequired(res);
       return;
    }
-   const hmacKey = config.HMAC_SECRET_KEY;
-   if (!hmacKey) {
-      Logger.error('HMAC_SECRET_KEY environment variable is not set');
-      res.status(500).send('Server configuration error');
-      return;
-   }
-   const passwordHash = hashPassword(password, hmacKey);
-
    // Use repository pattern to find user by login
    const user = await aiagentuserRepository.findByLogin(userLogin);
 
-   if (!user || user.getPassword() !== passwordHash) {
+   const { valid, needsRehash } = user
+      ? await verifyPassword(password, user.getPassword(), config.HMAC_SECRET_KEY)
+      : { valid: false, needsRehash: false };
+
+   if (!valid) {
       Logger.warn(`Authentication failed for user: ${userLogin}`);
       sendAuthenticationRequired(res); // custom message
       return;
+   }
+
+   // Lazy upgrade: re-hash with bcrypt if still using legacy HMAC
+   if (needsRehash) {
+      const newHash = await hashPassword(password, config.BCRYPT_ROUNDS);
+      user!.setPassword(newHash);
+      user!.setHashVersion('bcrypt');
+      await user!.save();
+      Logger.info(`Password re-hashed to bcrypt for user: ${userLogin}`);
    }
 
    //save session to database

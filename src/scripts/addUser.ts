@@ -6,25 +6,21 @@ import aiagentuserRepository from '../entities/ai-agent-user';
 import "dotenv/config";
 
 async function addUser(username: string, password: string) {
-  const hmacKey = process.env.HMAC_SECRET_KEY;
-  if (!hmacKey) {
-    Logger.error('HMAC_SECRET_KEY environment variable is not set');
-    process.exit(1);
-  }
-  const passwordHash = hashPassword(password, hmacKey);
+  const passwordHash = await hashPassword(password);
   try {
     const existing = await aiagentuserRepository.findByLogin(username);
     if (existing) {
-      // Update password hash on existing user using upsert (id present → DO UPDATE)
+      // Update password hash on existing user
       const updated = new AiAgentUser({
         id: existing.getId(),
         login: username,
         password: passwordHash,
+        hashVersion: 'bcrypt',
       });
       await updated.save();
       Logger.info(`User '${username}' password updated successfully.`);
     } else {
-      const user = new AiAgentUser({ login: username, password: passwordHash });
+      const user = new AiAgentUser({ login: username, password: passwordHash, hashVersion: 'bcrypt' });
       await user.save();
       Logger.info(`User '${username}' added successfully.`);
     }

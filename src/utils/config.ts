@@ -43,6 +43,10 @@ const envSchema = z.object({
   EMBEDDING_CACHE_TTL: z.string().transform(Number).pipe(z.number().positive()).default('3600000'), // 1 hour
   // Comma-separated list of allowed CORS origins. Empty = same-origin only.
   ALLOWED_ORIGINS: z.string().default(''),
+  // bcrypt cost factor for password hashing (default 12)
+  BCRYPT_ROUNDS: z.string().transform(Number).pipe(z.number().min(10).max(20)).default('12'),
+  // Milliseconds before a pending tool-approval request auto-denies (default 5 min)
+  APPROVAL_TIMEOUT_MS: z.string().transform(Number).pipe(z.number().positive()).default('300000'),
 });
 type Environment = z.infer<typeof envSchema>;
 
@@ -74,6 +78,8 @@ function validateEnvironment(): Environment {
       DEFAULT_USERNAME: undefined,
       DEFAULT_PASSWORD: undefined,
       ALLOWED_ORIGINS: '',
+      BCRYPT_ROUNDS: 10,
+      APPROVAL_TIMEOUT_MS: 300000,
       REDIS_URL: 'redis://localhost:6379',
       MCP_SERVERS_PATH: './mcp-servers.json',
       MAX_LLM_ITERATIONS: 2,
