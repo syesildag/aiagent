@@ -303,16 +303,21 @@ export class DbConversationHistory implements IConversationHistory {
         return existingSessions[0];
       }
 
-      // Get the user login to use - default to 'serkan' if not provided
-      let userLogin = userId || config.DEFAULT_USERNAME;
-      
+      // Get the user login to use
+      const userLogin: string = userId || config.DEFAULT_USERNAME || '';
+      if (!userLogin) {
+        throw new DatabaseError('Cannot create session: no userId provided and DEFAULT_USERNAME is not configured');
+      }
+
       // Verify the user exists in ai_agent_user table, create if it doesn't exist
       const userExists = await queryDatabase('SELECT id FROM ai_agent_user WHERE login = $1', [userLogin]);
       if (userExists.length === 0) {
-        // Create the default user if it doesn't exist (only login and password columns exist)
+        if (!config.DEFAULT_PASSWORD) {
+          throw new DatabaseError(`Cannot auto-create user '${userLogin}': DEFAULT_PASSWORD is not configured`);
+        }
         await queryDatabase(
           'INSERT INTO ai_agent_user (login, password) VALUES ($1, $2)',
-          [userLogin, config.DEFAULT_PASSWORD] // You might want to use a better default password or hash
+          [userLogin, config.DEFAULT_PASSWORD]
         );
         Logger.info(`Created default user: ${userLogin}`);
       }
