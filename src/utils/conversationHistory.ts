@@ -121,6 +121,10 @@ export class InMemoryConversationHistory implements IConversationHistory {
     return this._conversations.size;
   }
 
+  hasActiveConversation(): boolean {
+    return this._currentConversationId !== null;
+  }
+
   /**
    * Switch to a specific conversation
    */

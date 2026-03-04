@@ -804,6 +804,16 @@ export class MCPServerManager {
         ? serverNames.filter(name => this.connections.has(name))
         : Array.from(this.connections.keys());
       
+      // Ensure the conversation is initialised with the authenticated user's login
+      // before adding the first message. Without this, DbConversationHistory would
+      // call startNewConversation() internally with no userId, causing an anonymous
+      // session to be created even when a real user is logged in.
+      // We check hasActiveConversation() rather than convCount because old DB rows
+      // do not constitute an "active" conversation on a fresh server start.
+      if (!this.conversationHistory.hasActiveConversation() && userLogin) {
+        await this.conversationHistory.startNewConversation(undefined, userLogin);
+      }
+
       // Add user message to conversation history (text only — images are not persisted)
       await this.conversationHistory.addMessage({
         role: 'user',

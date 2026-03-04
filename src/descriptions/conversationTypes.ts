@@ -68,4 +68,10 @@ export interface IConversationHistory {
    * Get conversation count
    */
   getConversationCount(): Promise<number>;
+
+  /**
+   * Returns true if there is an active (in-memory) conversation loaded,
+   * i.e. messages can be added without auto-starting a new one.
+   */
+  hasActiveConversation(): boolean;
 }

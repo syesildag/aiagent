@@ -228,6 +228,10 @@ export class DbConversationHistory implements IConversationHistory {
     }
   }
 
+  hasActiveConversation(): boolean {
+    return this._currentConversationId !== null;
+  }
+
   /**
    * Switch to a specific conversation
    */
@@ -303,23 +307,21 @@ export class DbConversationHistory implements IConversationHistory {
         return existingSessions[0];
       }
 
-      // Get the user login to use
-      const userLogin: string = userId || config.DEFAULT_USERNAME || '';
-      if (!userLogin) {
-        throw new DatabaseError('Cannot create session: no userId provided and DEFAULT_USERNAME is not configured');
-      }
+      // Get the user login to use; fall back to DEFAULT_USERNAME, then 'anonymous'
+      const userLogin: string = userId || config.DEFAULT_USERNAME || 'anonymous';
+      Logger.debug(`_getOrCreateSession: using userLogin='${userLogin}'`);
 
-      // Verify the user exists in ai_agent_user table, create if it doesn't exist
+      // Verify the user exists in ai_agent_user table, create if it doesn't exist.
+      // When DEFAULT_PASSWORD is not configured (e.g. for the internal 'anonymous' placeholder),
+      // we still need a row for the foreign key; use a random UUID as a locked/unusable password.
       const userExists = await queryDatabase('SELECT id FROM ai_agent_user WHERE login = $1', [userLogin]);
       if (userExists.length === 0) {
-        if (!config.DEFAULT_PASSWORD) {
-          throw new DatabaseError(`Cannot auto-create user '${userLogin}': DEFAULT_PASSWORD is not configured`);
-        }
+        const placeholderPassword = config.DEFAULT_PASSWORD ?? randomUUID();
         await queryDatabase(
           'INSERT INTO ai_agent_user (login, password) VALUES ($1, $2)',
-          [userLogin, config.DEFAULT_PASSWORD]
+          [userLogin, placeholderPassword]
         );
-        Logger.info(`Created default user: ${userLogin}`);
+        Logger.info(`Created placeholder user for sessions: ${userLogin}`);
       }
 
       // Create new session
