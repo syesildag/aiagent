@@ -38,29 +38,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = 
   };
 
   return (
-    <ListItem
-      sx={{
-        flexDirection: 'column',
-        alignItems: isUser ? 'flex-end' : 'flex-start',
-        py: 1,
-      }}
-    >
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          flexDirection: isUser ? 'row-reverse' : 'row',
-          maxWidth: { xs: '92%', sm: '80%' },
-        }}
-      >
-        <Avatar
-          sx={{
-            bgcolor: isUser ? 'primary.main' : 'secondary.main',
-            mx: 1,
-          }}
-        >
-          {isUser ? <PersonIcon /> : <BotIcon />}
-        </Avatar>
+    <ListItem sx={{ py: 1, px: 0 }}>
+      <Box sx={{ width: '100%' }}>
         <Paper
           elevation={1}
           sx={{
@@ -69,6 +48,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = 
             color: isUser ? 'primary.contrastText' : 'text.primary',
           }}
         >
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 1 }}>
+            <Avatar
+              sx={{
+                bgcolor: isUser ? 'primary.main' : 'secondary.main',
+                width: 24,
+                height: 24,
+              }}
+            >
+              {isUser ? <PersonIcon sx={{ fontSize: 16 }} /> : <BotIcon sx={{ fontSize: 16 }} />}
+            </Avatar>
+            <Typography variant="caption" sx={{ fontWeight: 600, opacity: 0.8 }}>
+              {isUser ? 'You' : 'Assistant'}
+            </Typography>
+          </Box>
           {message.imageUrls && message.imageUrls.length > 0 && (
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: message.content ? 1 : 0 }}>
               {message.imageUrls.map((url, i) => (
