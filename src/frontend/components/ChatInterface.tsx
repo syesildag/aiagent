@@ -298,6 +298,11 @@ export const ChatInterface: React.FC = () => {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          // Session expired or invalid — clear local session and show login screen
+          await logout();
+          return;
+        }
         throw new Error('Failed to get response');
       }
 
@@ -335,7 +340,11 @@ export const ChatInterface: React.FC = () => {
             if (!trimmed) continue;
             try {
               const event = JSON.parse(trimmed) as { t: string; v?: string; id?: string; tool?: string; args?: Record<string, unknown>; desc?: string };
-              if (event.t === 'conversation' && event.id) {
+              if (event.t === 'error') {
+                // Server-side error surfaced over the NDJSON stream
+                setError(event.v ?? 'Server error');
+                setLastFailedPrompt(userMessage.content);
+              } else if (event.t === 'conversation' && event.id) {
                 setActiveConversationId(Number(event.id));
               } else if (event.t === 'text' && event.v !== undefined) {
                 const msgId = ensureAssistantMsg();

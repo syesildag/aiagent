@@ -475,34 +475,48 @@ export function handleTokenLimits(request: LLMChatRequest, maxTokens?: number): 
     
     // Use only 50% of limit for aggressive fallback
     const aggressiveBudget = Math.floor(maxTokens * 0.5);
-    
-    // Try to fit just system message and truncated user message
-    const truncatedRequest: LLMChatRequest = {
-      ...request,
-      messages: systemMessage ? [systemMessage] : []
-    };
 
     if (lastUserMessage) {
-      // Strip binary (image/file) content parts before truncating — they are the most
-      // likely reason we ended up here and getContentText() would silently skip them,
-      // letting huge base64 payloads pass through to the API.
+      // Key insight: the returned request always keeps request.tools regardless of this
+      // path, so tool tokens are sent to the API either way. If the overflow is caused
+      // by verbose MCP tool definitions (not the image), stripping the image is wrong —
+      // it degrades the request unnecessarily. Only strip images if the message content
+      // itself (system + last user, without tool tokens) exceeds the aggressive budget.
+      const msgOnlyTokens =
+        (systemMessage ? estimateFullMessageTokens(systemMessage) : 0) +
+        estimateFullMessageTokens(lastUserMessage);
+
+      if (msgOnlyTokens <= aggressiveBudget) {
+        // Overflow was caused by tool definitions, not message content.
+        // Preserve image — just drop conversation history.
+        Logger.warn(`Overflow caused by tool definitions (${toolTokens} tool tokens); preserving image in messages`);
+        return {
+          ...request,
+          messages: [...(systemMessage ? [systemMessage] : []), lastUserMessage],
+        };
+      }
+
+      // Message content itself is too large: strip images and truncate text.
       const [strippedUserMsg] = stripBinaryContent([lastUserMessage]);
       let userContent = getContentText(strippedUserMsg.content);
       let userTokens = estimateTokens(userContent);
       
-      // Truncate user message if too long
+      // Truncate user message text if too long
       if (userTokens > aggressiveBudget / 2) {
         const targetLength = Math.floor((aggressiveBudget / 2) * 4); // Convert back to characters
         userContent = userContent.substring(0, targetLength) + '... [truncated]';
       }
-      
-      truncatedRequest.messages.push({
-        ...strippedUserMsg,
-        content: userContent
-      });
+
+      return {
+        ...request,
+        messages: [
+          ...(systemMessage ? [systemMessage] : []),
+          { ...strippedUserMsg, content: userContent },
+        ],
+      };
     }
 
-    return truncatedRequest;
+    return { ...request, messages: systemMessage ? [systemMessage] : [] };
   }
 
   Logger.debug(`Message truncation successful: preserved ${preservedMessages.length} messages, ${preservedTokens} tokens`);

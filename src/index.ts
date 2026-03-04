@@ -106,8 +106,15 @@ function shouldCompress(req: express.Request, res: express.Response) {
 }
 
 // Error-handling middleware
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
    Logger.error(err.stack);
+   // If headers were already sent (e.g. streaming responses), we cannot write
+   // a new HTTP status. Just destroy the socket to avoid crashing the process.
+   if (res.headersSent) {
+      Logger.error('Headers already sent; destroying socket to avoid crash');
+      res.destroy();
+      return;
+   }
    if (isDevelopment()) {
       res.status(500).send(`<pre>${err.message}\n${err.stack}</pre>`);
    } else {
@@ -133,23 +140,23 @@ async function sessionMiddleware(req: Request, res: Response, next: NextFunction
       const session = req.body.session;
       if (session) {
          const sessionEntity = await repository.get(AiAgentSession)?.getByUniqueValues(session);
-         if (!sessionEntity) {
-            sendAuthenticationRequired(res);
-            return;
-         }
 
-         // Enforce session expiry — don't wait for the background cleanup job
-         const lastActive = sessionEntity.getPing() ?? sessionEntity.getCreatedAt();
-         const ageMs = Date.now() - (lastActive?.getTime() ?? 0);
-         if (ageMs > config.SESSION_TIMEOUT_SECONDS * 1000) {
-            await sessionEntity.delete();
-            sendAuthenticationRequired(res);
-            return;
+         if (sessionEntity) {
+            // Enforce session expiry — don't wait for the background cleanup job
+            const lastActive = sessionEntity.getPing() ?? sessionEntity.getCreatedAt();
+            const ageMs = Date.now() - (lastActive?.getTime() ?? 0);
+            if (ageMs > config.SESSION_TIMEOUT_SECONDS * 1000) {
+               // Session expired: clean up and proceed without setting res.locals.session.
+               // The route handler will decide whether auth is required.
+               await sessionEntity.delete();
+            } else {
+               res.locals.session = sessionEntity;
+               sessionEntity.setPing(new Date());
+               sessionEntity.save();
+            }
          }
-
-         res.locals.session = sessionEntity;
-         sessionEntity.setPing(new Date());
-         sessionEntity.save();
+         // If session token is not found or is expired, just fall through —
+         // do NOT return 401 here. Individual routes enforce their own auth.
       }
    }
    next();
@@ -193,13 +200,14 @@ app.post("/login", asyncHandler(async (req: Request, res: Response) => {
 
 // Logout endpoint: deletes session from database
 app.post("/logout", asyncHandler(async (req: Request, res: Response) => {
-   if (!res.locals.session) {
-      Logger.warn('Logout failed: Missing session');
-      res.status(400).send('Missing session');
-      return;
+   // If session is still set (valid), delete it. If it was already gone (expired
+   // or previously deleted), treat the logout as successful — the end state is
+   // the same either way and we must not trigger a 401 → logout loop.
+   if (res.locals.session) {
+      await (res.locals.session as AiAgentSession).delete();
+   } else {
+      Logger.debug('Logout: session not found (already expired or deleted) — treating as success');
    }
-   // Delete session from database
-   await (res.locals.session as AiAgentSession).delete();
    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }));
 }));
 
@@ -312,6 +320,16 @@ app.post("/chat/:agent", chatRateLimit, asyncHandler(async (req: Request, res: R
          } catch (err) {
             Logger.error(`Failed to persist assistant message: ${err}`);
          }
+      }
+   } catch (err) {
+      // Headers are already sent (flushHeaders was called), so we cannot send
+      // a standard HTTP error response. Write an NDJSON error event instead so
+      // the client can display the message, then close the stream cleanly.
+      Logger.error(`Chat error for agent '${req.params.agent}': ${err}`);
+      if (!res.writableEnded) {
+         const message = err instanceof Error ? err.message : String(err);
+         res.write(JSON.stringify({ t: 'error', v: message }) + '\n');
+         res.end();
       }
    } finally {
       clearTimeout(timeoutId);
@@ -511,6 +529,16 @@ server.on('connection', connection => {
    });
 });
 
+// Prevent unhandled rejections/exceptions from crashing the server process.
+// These are last-resort safety nets; individual handlers should catch their own errors.
+process.on('unhandledRejection', (reason: unknown) => {
+   Logger.error(`Unhandled promise rejection: ${reason instanceof Error ? reason.stack : String(reason)}`);
+});
+
+process.on('uncaughtException', (err: Error) => {
+   Logger.error(`Uncaught exception: ${err.stack}`);
+});
+
 process.on('SIGTERM', (signal) => {
    gracefulShutdown(signal).catch((error) => {
       Logger.error(`Error during graceful shutdown: ${error}`);
@@ -526,8 +554,9 @@ process.on('SIGINT', (signal) => {
 });
 
 function sendAuthenticationRequired(res: Response) {
-   res.set('WWW-Authenticate', 'Basic realm="401"'); // change this
-   res.status(401).send('Authentication required.');
+   // Do NOT set WWW-Authenticate: Basic — that triggers the browser's native
+   // login popup instead of letting the frontend handle the 401 itself.
+   res.status(401).json({ error: 'Authentication required.' });
 }
 
 async function gracefulShutdown(event: NodeJS.Signals) {
