@@ -19,15 +19,17 @@ export class AiAgentUser extends Entity<number> {
    private id?: number;
    private login: string;
    private password: string;
+   private hashVersion: string;
    private createdAt?: Date;
    private updatedAt?: Date;
    private sessions?: AiAgentSession[];
 
-   constructor({ id, login, password, createdAt, updatedAt, sessions }: { id?: number, login: string, password: string, createdAt?: Date, updatedAt?: Date, sessions?: AiAgentSession[] }) {
+   constructor({ id, login, password, hashVersion, createdAt, updatedAt, sessions }: { id?: number, login: string, password: string, hashVersion?: string, createdAt?: Date, updatedAt?: Date, sessions?: AiAgentSession[] }) {
       super();
       this.id = id;
       this.login = login;
       this.password = password;
+      this.hashVersion = hashVersion ?? 'hmac';
       this.createdAt = createdAt;
       this.updatedAt = updatedAt;
       this.sessions = sessions;
@@ -48,6 +50,11 @@ export class AiAgentUser extends Entity<number> {
       return this.password;
    }
 
+   @Column({ columnName: 'hash_version', notNull: true, hasDefault: true })
+   public getHashVersion(): string {
+      return this.hashVersion;
+   }
+
    @Column({ columnName: 'created_at', notNull: true, hasDefault: true })
    public getCreatedAt(): Date | undefined {
       return this.createdAt;
@@ -61,6 +68,14 @@ export class AiAgentUser extends Entity<number> {
    @OneToMany({ target: () => AiAgentSession, mappedBy: 'user_login' })
    public getSessions(): AiAgentSession[] | undefined {
       return this.sessions;
+   }
+
+   public setPassword(password: string): void {
+      this.password = password;
+   }
+
+   public setHashVersion(hashVersion: string): void {
+      this.hashVersion = hashVersion;
    }
 
    public setCreatedAt(createdAt?: Date) {
