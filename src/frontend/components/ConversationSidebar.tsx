@@ -6,6 +6,7 @@ import {
     DeleteOutline as DeleteIcon,
 } from '@mui/icons-material';
 import {
+    Backdrop,
     Box,
     Divider,
     Drawer,
@@ -178,15 +179,23 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                     {drawerContent}
                 </SwipeableDrawer>
             ) : (
-                <Drawer
-                    variant="persistent"
-                    anchor="left"
-                    open={open}
-                    onClose={() => setOpen(false)}
-                    sx={drawerSx}
-                >
-                    {drawerContent}
-                </Drawer>
+                <>
+                    <Backdrop
+                        open={open}
+                        invisible
+                        onClick={() => setOpen(false)}
+                        sx={{ zIndex: theme => theme.zIndex.drawer - 1 }}
+                    />
+                    <Drawer
+                        variant="persistent"
+                        anchor="left"
+                        open={open}
+                        onClose={() => setOpen(false)}
+                        sx={drawerSx}
+                    >
+                        {drawerContent}
+                    </Drawer>
+                </>
             )}
         </>
     );
