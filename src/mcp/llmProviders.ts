@@ -868,17 +868,20 @@ export class GitHubCopilotProvider implements LLMProvider {
     }
   }
 
-  // GitHub Copilot API enforces a hard request-body limit of 8000 tokens,
-  // regardless of the model's theoretical context window size.
-  private static readonly COPILOT_REQUEST_TOKEN_LIMIT = 7500;
+  // GitHub Copilot API supports the model's full context window for modern models.
+  // The previous 7500-token cap was written for old gpt-4 (8K context) and is no longer
+  // accurate — gpt-4.1 and other current Copilot models have 128K+ context windows.
+  // We leave a small headroom below the true per-model limit so we never hit a hard 413.
+  private static readonly COPILOT_REQUEST_TOKEN_LIMIT = 128000;
 
   async chat(request: LLMChatRequest, abortSignal?: AbortSignal): Promise<LLMChatResponse> {
     // Store the model for this request
     this.model = request.model;
 
-    // Handle token limits for GitHub Copilot API
-    // GitHub Copilot enforces a hard 8000-token cap per request regardless of what the
-    // model's theoretical context window is, so we always cap at COPILOT_REQUEST_TOKEN_LIMIT.
+    // Handle token limits for GitHub Copilot API.
+    // Use the smaller of the model's theoretical context window and the Copilot
+    // per-request limit so that ageing models (gpt-4, 8192 tokens) are still
+    // correctly capped while modern models (gpt-4.1, 1M tokens) get a realistic limit.
     const modelMaxTokens = Math.min(
       getModelMaxTokens(request.model),
       GitHubCopilotProvider.COPILOT_REQUEST_TOKEN_LIMIT
