@@ -5,13 +5,39 @@ import { SlashCommand } from './slashCommands';
 import { Skill } from './skillLoader';
 
 /**
+ * Evaluate $IF / $ELSE / $ENDIF blocks.
+ *
+ * Syntax (each keyword must be on its own line):
+ *
+ *   $IF <expr>
+ *   ...true branch...
+ *   $ELSE
+ *   ...false branch...
+ *   $ENDIF
+ *
+ * <expr> is truthy when it is a non-empty, non-whitespace string after
+ * argument substitution has already been applied.
+ */
+function evaluateConditionals(body: string): string {
+  // Match $IF ... $ENDIF blocks (with optional $ELSE), non-greedy
+  return body.replace(
+    /^\$IF ([^\n]*)\n([\s\S]*?)(?:^\$ELSE\n([\s\S]*?))?^\$ENDIF$/gm,
+    (_match, condition: string, trueBranch: string, falseBranch = '') => {
+      const isTruthy = condition.trim().length > 0;
+      return isTruthy ? trueBranch : falseBranch;
+    },
+  );
+}
+
+/**
  * Process a slash-command body, returning the final prompt to send to the LLM.
  *
  * Pipeline:
  *  1. Argument substitution — $1, $2, ... and $ARGUMENTS
- *  2. File inclusion     — @path/to/file replaced with file contents
- *  3. Bash execution     — !`command` replaced with stdout
- *  4. Skill injection    — "Use the <skill-name> skill" appends full skill body
+ *  2. Conditional blocks    — $IF / $ELSE / $ENDIF
+ *  3. File inclusion        — @path/to/file replaced with file contents
+ *  4. Bash execution        — !`command` replaced with stdout
+ *  5. Skill injection       — "Use the <skill-name> skill" appends full skill body
  */
 export function processCommand(
   command: SlashCommand,
@@ -28,7 +54,10 @@ export function processCommand(
     return args[idx] ?? '';
   });
 
-  // ── 2. File inclusion: @path/to/file ──────────────────────────────────────
+  // ── 2. Conditional blocks ─────────────────────────────────────────────────
+  body = evaluateConditionals(body);
+
+  // ── 3. File inclusion: @path/to/file ──────────────────────────────────────
   body = body.replace(/@([\S]+)/g, (_match, filePath: string) => {
     try {
       // Resolve relative to cwd
@@ -44,7 +73,7 @@ export function processCommand(
     return _match;
   });
 
-  // ── 3. Bash execution: !`command` ─────────────────────────────────────────
+  // ── 4. Bash execution: !`command` ─────────────────────────────────────────
   body = body.replace(/!`([^`]+)`/g, (_match, cmd: string) => {
     try {
       return execSync(cmd, { encoding: 'utf-8', timeout: 15_000 }).trim();
@@ -53,7 +82,7 @@ export function processCommand(
     }
   });
 
-  // ── 4. Skill injection ────────────────────────────────────────────────────
+  // ── 5. Skill injection ────────────────────────────────────────────────────
   // Pattern: "Use the <skill-name> skill" — case-insensitive
   const skillPattern = /Use the ([\w-]+) skill/gi;
   const referencedSkills: Skill[] = [];

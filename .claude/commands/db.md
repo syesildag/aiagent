@@ -4,74 +4,83 @@ argument-hint: [city or location]
 allowed-tools: memory, weather, time, tavily-search
 ---
 
-You are preparing a personalised daily briefing. Follow every step below in order, using your tools, then produce the final report.
+You must now produce a personalised daily briefing by calling tools in the exact sequence below. Do NOT describe what you will do — call each tool immediately and use its output.
 
-## Step 1 — Personal Context
-
-Retrieve the current user's memories to understand their interests, location, ongoing projects, and preferences. Use these to personalise the news selection and the tone of the briefing.
-
-## Step 2 — Time & Date
-
-Fetch the current date and local time so the briefing header is accurate.
-
-## Step 3 — Weather
-
-$IF $1
-Fetch the current weather for **$1**.
-$ELSE
-Fetch the current weather for the user's location (from memory, or default to their most recently known city).
-$ENDIF
-
-Include temperature, conditions, and any notable alerts.
-
-## Step 4 — Local News
-
-Search the web for today's top local news stories relevant to the user's location. Use a query like:
-- `"[city] local news today"`
-- `"[city] breaking news [current date]"`
-
-Summarise the 3–5 most relevant stories with a one-sentence description each and a source URL.
-
-## Step 5 — World News
-
-Search the web for today's top world headlines. Use queries such as:
-- `"top world news today [current date]"`
-- `"breaking international news today"`
-
-Summarise the 5 most important stories with a one-sentence description each and a source URL.
-
-## Step 6 — Personalised Topics
-
-Based on the user's interests discovered in Step 1, search for 2–3 additional topic-specific news items (e.g. technology, finance, sports) and include them under a "Your Topics" section.
+**IMPORTANT:** Call every tool listed. Do not skip any step.
 
 ---
 
-## Final Report Format
+### 1. Personal context — call memory_search NOW
+Query: `user context location interests projects preferences`
+Store the results; use them to personalise every subsequent step.
 
-Produce the briefing in this structure:
+### 2. Current time — call get_current_time NOW
+Use the result for the briefing header.
+
+### 3. Weather — call get_weather NOW
+$IF $1
+Location: **$1**
+$ELSE
+Location: use the city found in memory from step 1, or default to the user's most recently known city.
+$ENDIF
+Report temperature, conditions, and any alerts.
+
+### 4. Local news — call tavily_search NOW (query 1)
+Construct the query from the location determined in step 3, e.g.:
+`"[city] local news today"`
+Collect the top 3–5 results.
+
+### 5. World headlines — call tavily_search NOW (query 2)
+Query: `"top world news headlines today"`
+Collect the top 5 results.
+
+### 6. Topic news — call tavily_search NOW (query 3)
+Based on the user's interests from step 1, search for a relevant topic, e.g.:
+`"[interest] news today"`
+Collect 2–3 results.
+
+### 7. Recall active tasks — call memory_search NOW
+Query: `tasks goals reminders todos action items`
+Use these to inform the suggestions section.
+
+---
+
+### Final output
+
+After all tool calls are complete, write the briefing in this format:
 
 ```
 # 📅 Daily Briefing — [Day, Date] at [Time]
 
-## 👤 Good [morning/afternoon/evening], [user name if known]
+## 👤 Good [morning/afternoon/evening][, name if known from memory]
 
 ## 🌤 Weather — [Location]
 [Weather summary]
 
 ## 🗞 Local News — [Location]
-1. **[Headline]** — [one sentence summary] ([source])
+1. **[Headline]** — [one sentence] ([source URL])
 ...
 
 ## 🌍 World Headlines
-1. **[Headline]** — [one sentence summary] ([source])
+1. **[Headline]** — [one sentence] ([source URL])
 ...
 
-## 🎯 Your Topics
-1. **[Headline]** — [one sentence summary] ([source])
+## 🎯 Your Topics — [topic]
+1. **[Headline]** — [one sentence] ([source URL])
 ...
 
 ## 💡 Quick Thought
-A short, relevant observation tying together today's context and the user's current goals or projects from memory.
+One sentence connecting today's context with the user's current goals or projects.
+
+## 🤖 Suggested Actions
+Provide 3–5 concrete, actionable suggestions for the user's day. Base them on:
+- Pending tasks or goals found in memory
+- Anything time-sensitive in today's news that may affect their projects or interests
+- Weather conditions (e.g. reschedule outdoor plans)
+- Any opportunities or risks surfaced by the world/local/topic news
+
+Format as a numbered list. Each suggestion must be specific and immediately actionable — not generic advice.
+Example: "1. Review the new EU AI regulation draft (in today's world news) — it may affect the compliance work on Project X."
 ```
 
-Be concise. Each news item should be one sentence. The whole briefing should be readable in under two minutes.
+Be concise. The whole briefing should be readable in under two minutes.

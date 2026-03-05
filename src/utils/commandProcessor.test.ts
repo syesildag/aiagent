@@ -51,6 +51,47 @@ describe('processCommand — argument substitution', () => {
   });
 });
 
+// ── Conditional blocks ($IF / $ELSE / $ENDIF) ─────────────────────────────────
+
+describe('processCommand — conditional blocks', () => {
+  const skills = new Map<string, Skill>();
+
+  it('keeps true branch when $1 is provided', () => {
+    const body = 'Before\n$IF $1\nTrue branch\n$ELSE\nFalse branch\n$ENDIF\nAfter';
+    const cmd = makeCommand(body);
+    const result = processCommand(cmd, ['london'], skills);
+    expect(result).toContain('True branch');
+    expect(result).not.toContain('False branch');
+    expect(result).not.toContain('$IF');
+    expect(result).not.toContain('$ELSE');
+    expect(result).not.toContain('$ENDIF');
+  });
+
+  it('keeps false branch when $1 is empty', () => {
+    const body = 'Before\n$IF $1\nTrue branch\n$ELSE\nFalse branch\n$ENDIF\nAfter';
+    const cmd = makeCommand(body);
+    const result = processCommand(cmd, [], skills);
+    expect(result).toContain('False branch');
+    expect(result).not.toContain('True branch');
+  });
+
+  it('removes entire block when condition empty and no $ELSE', () => {
+    const body = 'Before\n$IF $1\nOnly if set\n$ENDIF\nAfter';
+    const cmd = makeCommand(body);
+    const result = processCommand(cmd, [], skills);
+    expect(result).not.toContain('Only if set');
+    expect(result).toContain('Before');
+    expect(result).toContain('After');
+  });
+
+  it('substitutes $1 inside true branch before evaluation', () => {
+    const body = '$IF $1\nLocation: $1\n$ELSE\nNo location\n$ENDIF';
+    const cmd = makeCommand(body);
+    const result = processCommand(cmd, ['paris'], skills);
+    expect(result).toContain('Location: paris');
+  });
+});
+
 // ── File inclusion ─────────────────────────────────────────────────────────────
 
 describe('processCommand — file inclusion', () => {
