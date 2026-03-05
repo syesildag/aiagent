@@ -28,6 +28,8 @@ import { handleStreamingResponse } from './utils/streamUtils';
 import { generateFrontendHTML } from './utils/frontendTemplate';
 import { generateManifest } from './utils/pwaManifest';
 import { approvalManager } from './mcp/approvalManager';
+import { slashCommandRegistry } from './utils/slashCommandRegistry';
+import { processCommand } from './utils/commandProcessor';
 import path from 'path';
 
 // This array will hold references to the job factories, preventing them from being garbage collected.
@@ -275,6 +277,30 @@ app.post("/chat/:agent", chatRateLimit, asyncHandler(async (req: Request, res: R
    res.setHeader('Cache-Control', 'no-cache');
    res.flushHeaders();  // open the connection now so early writes (approvals) reach the client
 
+   // ── Slash command processing ───────────────────────────────────────────────
+   slashCommandRegistry.initialize();
+   let effectivePrompt = prompt;
+   let toolNameFilter: string[] | undefined;
+
+   if (slashCommandRegistry.hasCommand(prompt)) {
+     const parsed = slashCommandRegistry.parseInput(prompt);
+     if (parsed) {
+       const cmd = slashCommandRegistry.getCommand(parsed.name)!;
+       toolNameFilter = cmd.allowedTools;
+
+       if (cmd.disableModelInvocation) {
+         // Return the processed body directly without calling the LLM
+         const body = processCommand(cmd, parsed.args, slashCommandRegistry.getSkills());
+         res.write(JSON.stringify({ t: 'text', v: body }) + '\n');
+         res.end();
+         return;
+       }
+
+       effectivePrompt = processCommand(cmd, parsed.args, slashCommandRegistry.getSkills());
+     }
+   }
+   // ── End slash command processing ──────────────────────────────────────────
+
    // Abort the request after timeout so slow LLMs/MCP servers don't hang forever
    const timeoutId = setTimeout(() => {
       if (!res.writableEnded) {
@@ -311,7 +337,7 @@ app.post("/chat/:agent", chatRateLimit, asyncHandler(async (req: Request, res: R
    if (userLogin) {
       try {
          if (!activeConversationId) {
-            const title = prompt.slice(0, 60);
+            const title = effectivePrompt.slice(0, 60);
             const conv = await new AiAgentConversations({
                sessionId: sessionEntity.getId()!,
                metadata: { title, userLogin },
@@ -333,7 +359,7 @@ app.post("/chat/:agent", chatRateLimit, asyncHandler(async (req: Request, res: R
    }
 
    try {
-      const answer = await agent.chat(prompt, undefined, true, attachments, approvalCallback);
+      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter);
       let finalContent: string | undefined;
 
       if (answer instanceof ReadableStream) {
@@ -387,6 +413,21 @@ app.post("/chat/approve/:approvalId", approvalRateLimit, asyncHandler(async (req
    }
    Logger.info(`Tool approval ${approvalId}: ${approved ? 'APPROVED' : 'DENIED'}`);
    res.json({ success: true });
+}));
+
+// List all loaded slash commands and skills (useful for frontend autocomplete)
+app.get("/commands", asyncHandler(async (_req: Request, res: Response) => {
+   slashCommandRegistry.initialize();
+   const commands = slashCommandRegistry.listCommands().map(cmd => ({
+      name: cmd.name,
+      description: cmd.description,
+      argumentHint: cmd.argumentHint,
+      model: cmd.model,
+      disableModelInvocation: cmd.disableModelInvocation,
+      allowedTools: cmd.allowedTools,
+   }));
+   const skills = Array.from(slashCommandRegistry.getSkills().keys());
+   res.json({ commands, skills });
 }));
 
 // Info endpoint - returns current model, provider and all available models for the agent

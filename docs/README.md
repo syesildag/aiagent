@@ -45,6 +45,7 @@ Welcome to the comprehensive documentation for the AI Agent system. This documen
 ### API Reference
 - **[API Reference](API_REFERENCE.md)**: Complete REST API documentation with examples
 - **[CLI Guide](CLI_GUIDE.md)**: Interactive command-line interface and automation
+- **[Slash Commands & Skills](SLASH_COMMANDS.md)**: Reusable AI workflows via `.claude/commands/` Markdown files and auto-injected skill documents
 
 ### Scripts & Utilities
 - **[Scripts Reference](SCRIPTS_REFERENCE.md)**: Database management scripts and custom script development

@@ -4,6 +4,7 @@ import { MCPServerManager } from "../mcp/mcpManager";
 import { ToolApprovalCallback } from "../mcp/approvalManager";
 import { AiAgentSession } from "../entities/ai-agent-session";
 import Logger from "../utils/logger";
+import { slashCommandRegistry } from "../utils/slashCommandRegistry";
 
 export default abstract class AbstractAgent implements Agent {
 
@@ -64,14 +65,22 @@ export default abstract class AbstractAgent implements Agent {
      stream?: boolean,
      attachments?: { base64: string; mimeType: string; name?: string }[],
      approvalCallback?: ToolApprovalCallback,
+     toolNameFilter?: string[],
    ): Promise<ReadableStream<string> | string> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');
       }
 
-      // Use MCP system for enhanced capabilities
       try {
-         const systemPrompt = this.getSystemPrompt();
+         // Initialize registry (no-op after first call) and inject all skills
+         // into the system prompt so the LLM is always aware of them.
+         slashCommandRegistry.initialize();
+         const skillsBlock = slashCommandRegistry.getSkillsSystemPromptBlock();
+         const baseSystemPrompt = this.getSystemPrompt();
+         const systemPrompt = skillsBlock
+           ? `${baseSystemPrompt}\n\n${skillsBlock}`
+           : baseSystemPrompt;
+
          const serverNames = this.getAllowedServerNames();
          const userLogin = this.session?.getUserLogin();
          return await this.mcpManager.chatWithLLM({
@@ -83,6 +92,7 @@ export default abstract class AbstractAgent implements Agent {
             attachments,
             userLogin,
             approvalCallback,
+            toolNameFilter,
          });
       } catch (error) {
          Logger.error(`MCP chat failed: ${error instanceof Error ? error.message : String(error)}`);

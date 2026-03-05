@@ -18,6 +18,7 @@ export interface Agent {
      stream?: boolean,
      attachments?: { base64: string; mimeType: string; name?: string }[],
      approvalCallback?: ToolApprovalCallback,
+     toolNameFilter?: string[],
    ): Promise<ReadableStream<string> | string>;
    getSystemPrompt(): string;
    getName(): AgentName;

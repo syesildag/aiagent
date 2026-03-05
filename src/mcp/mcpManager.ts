@@ -125,6 +125,13 @@ export interface ChatWithLLMArgs {
    * Follows the MCP 2025-11-25 human-in-the-loop recommendation.
    */
   approvalCallback?: ToolApprovalCallback;
+  /**
+   * Optional list of allowed tool name patterns from a slash command's
+   * `allowed-tools:` frontmatter.  Values are server-name prefixes (e.g.
+   * "memory", "weather") or exact tool names.  "*" allows everything.
+   * When undefined the full tool list is used.
+   */
+  toolNameFilter?: string[];
 }
 
 export class MCPServerConnection extends EventEmitter {
@@ -786,7 +793,7 @@ export class MCPServerManager {
   }
 
   async chatWithLLM(args: ChatWithLLMArgs): Promise<ReadableStream<string> | string> {
-    const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, approvalCallback } = args;
+    const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, approvalCallback, toolNameFilter } = args;
     try {
       // Ensure MCP servers are initialized on first use
       await this.ensureInitialized();
@@ -798,6 +805,16 @@ export class MCPServerManager {
         tools = tools.filter(tool => 
           tool.serverName && serverNames.includes(tool.serverName)
         );
+      }
+
+      // Further filter by toolNameFilter from slash-command allowed-tools
+      if (toolNameFilter && toolNameFilter.length > 0 && !toolNameFilter.includes('*')) {
+        tools = tools.filter(tool => {
+          const name = tool.function.name;
+          return toolNameFilter.some(pattern =>
+            name === pattern || name.startsWith(pattern + '_')
+          );
+        });
       }
       
       const availableServers = serverNames && serverNames.length > 0 

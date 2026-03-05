@@ -7,6 +7,12 @@ import { Options } from 'ollama';
 
 // Mock dependencies
 jest.mock('../utils/logger');
+jest.mock('../utils/slashCommandRegistry', () => ({
+  slashCommandRegistry: {
+    initialize: jest.fn(),
+    getSkillsSystemPromptBlock: jest.fn().mockReturnValue(''),
+  },
+}));
 
 // Concrete test implementation of AbstractAgent
 class TestAgent extends AbstractAgent {
@@ -205,6 +211,10 @@ describe('AbstractAgent', () => {
         abortSignal: undefined,
         serverNames: undefined,
         stream: undefined,
+        attachments: undefined,
+        approvalCallback: undefined,
+        toolNameFilter: undefined,
+        userLogin: undefined,
       });
       expect(response).toBe('Response');
     });
@@ -222,6 +232,10 @@ describe('AbstractAgent', () => {
         abortSignal: abortController.signal,
         serverNames: undefined,
         stream: undefined,
+        attachments: undefined,
+        approvalCallback: undefined,
+        toolNameFilter: undefined,
+        userLogin: undefined,
       });
     });
 
@@ -237,6 +251,10 @@ describe('AbstractAgent', () => {
         abortSignal: undefined,
         serverNames: undefined,
         stream: true,
+        attachments: undefined,
+        approvalCallback: undefined,
+        toolNameFilter: undefined,
+        userLogin: undefined,
       });
     });
 
@@ -253,6 +271,10 @@ describe('AbstractAgent', () => {
         abortSignal: undefined,
         serverNames: ['server1', 'server2'],
         stream: undefined,
+        attachments: undefined,
+        approvalCallback: undefined,
+        toolNameFilter: undefined,
+        userLogin: undefined,
       });
     });
 

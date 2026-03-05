@@ -14,6 +14,8 @@ import {
 } from './mcp/llmProviders';
 import { MCPConfig, MCPServer, MCPServerManager } from './mcp/mcpManager';
 import { GENERAL_ASSISTANT_SYSTEM_PROMPT } from './constants/systemPrompts';
+import { slashCommandRegistry } from './utils/slashCommandRegistry';
+import { processCommand } from './utils/commandProcessor';
 
 /**
  * Handle the login command - list providers and configure authentication
@@ -374,6 +376,14 @@ async function main() {
     console.log('\nMCP servers will be initialized on first use.');
     console.log('');
 
+    // Load slash commands and skills from .claude/ directory
+    slashCommandRegistry.initialize();
+    const loadedCommands = slashCommandRegistry.listCommands();
+    if (loadedCommands.length > 0) {
+      console.log(`Loaded ${loadedCommands.length} slash command(s) from .claude/commands/. Type /help for list.`);
+      console.log('');
+    }
+
     // Create readline interface for interactive input
     const rl = readline.createInterface({
       input: process.stdin,
@@ -432,6 +442,18 @@ async function main() {
           console.log('  - clearchat: Clear all conversation history');
           console.log('  - cancel: Cancel current operation');
           console.log('  - exit/quit: Exit the program');
+
+          // Show loaded slash commands
+          const cmds = slashCommandRegistry.listCommands();
+          if (cmds.length > 0) {
+            console.log('\nSlash commands (from .claude/commands/):');
+            for (const cmd of cmds) {
+              const hint = cmd.argumentHint ? ` ${cmd.argumentHint}` : '';
+              const desc = cmd.description ? ` — ${cmd.description}` : '';
+              console.log(`  /${cmd.name}${hint}${desc}`);
+            }
+          }
+
           console.log('\nOr ask any question to chat with the AI assistant using MCP tools.');
           console.log('While processing, you can press Ctrl+C to cancel the current operation.\n');
           rl.prompt();
@@ -554,6 +576,68 @@ async function main() {
           rl.prompt();
           return;
         }
+
+        // ── Slash command handling ────────────────────────────────────────────
+        if (slashCommandRegistry.hasCommand(query)) {
+          const parsed = slashCommandRegistry.parseInput(query)!;
+          const cmd = slashCommandRegistry.getCommand(parsed.name)!;
+
+          if (cmd.disableModelInvocation) {
+            // Print the raw body without calling the LLM
+            const processed = processCommand(cmd, parsed.args, slashCommandRegistry.getSkills());
+            console.log(`\n${processed}\n`);
+            rl.prompt();
+            return;
+          }
+
+          try {
+            currentAbortController = new AbortController();
+            const processedPrompt = processCommand(cmd, parsed.args, slashCommandRegistry.getSkills());
+            console.log(`Assistant: Thinking... (/${cmd.name})`);
+
+            const response = await currentManager.chatWithLLM({
+              message: processedPrompt,
+              customSystemPrompt: GENERAL_ASSISTANT_SYSTEM_PROMPT,
+              abortSignal: currentAbortController.signal,
+              stream: true,
+              toolNameFilter: cmd.allowedTools,
+            });
+
+            currentAbortController = null;
+
+            if (response instanceof ReadableStream) {
+              process.stdout.write('Assistant: ');
+              const reader = response.getReader();
+              try {
+                let assistantMessage = '';
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  process.stdout.write(value);
+                  assistantMessage += value;
+                }
+                console.log('\n');
+                currentManager.addAssistantMessageToHistory(assistantMessage);
+              } finally {
+                reader.releaseLock();
+              }
+            } else {
+              console.log(`Assistant: ${response}\n`);
+              currentManager.addAssistantMessageToHistory(response);
+            }
+          } catch (error) {
+            currentAbortController = null;
+            if (error instanceof Error && error.message === 'Operation cancelled by user') {
+              console.log('Operation was cancelled.\n');
+            } else {
+              console.error(`Error: ${error}\n`);
+            }
+          }
+
+          rl.prompt();
+          return;
+        }
+        // ── End slash command handling ────────────────────────────────────────
 
         try {
           // Create new AbortController for this operation
