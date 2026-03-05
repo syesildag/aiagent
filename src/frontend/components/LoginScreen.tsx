@@ -1,4 +1,6 @@
 import {
+    DarkMode as DarkModeIcon,
+    LightMode as LightModeIcon,
     SmartToy as BotIcon,
     Visibility,
     VisibilityOff
@@ -13,6 +15,7 @@ import {
     IconButton,
     InputAdornment,
     TextField,
+    Tooltip,
     Typography
 } from '@mui/material';
 import React, { useState } from 'react';
@@ -24,7 +27,7 @@ export const LoginScreen: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { login, agentName } = useAuth();
+  const { login, agentName, darkMode, toggleDarkMode } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +55,15 @@ export const LoginScreen: React.FC = () => {
         px: { xs: 2, sm: 3 },
       }}
     >
+      <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+        <IconButton
+          onClick={toggleDarkMode}
+          sx={{ position: 'absolute', top: 16, right: 16 }}
+          aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
+        </IconButton>
+      </Tooltip>
       <Card sx={{ width: '100%', maxWidth: 400 }}>
         <CardContent sx={{ p: { xs: 2, sm: 4 } }}>
           <Box sx={{ mb: { xs: 1.5, sm: 3 }, textAlign: 'center' }}>
