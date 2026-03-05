@@ -67,6 +67,7 @@ export default abstract class AbstractAgent implements Agent {
      approvalCallback?: ToolApprovalCallback,
      toolNameFilter?: string[],
      maxIterations?: number,
+     freshContext?: boolean,
    ): Promise<ReadableStream<string> | string> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');
@@ -95,6 +96,7 @@ export default abstract class AbstractAgent implements Agent {
             approvalCallback,
             toolNameFilter,
             maxIterations,
+            freshContext,
          });
       } catch (error) {
          Logger.error(`MCP chat failed: ${error instanceof Error ? error.message : String(error)}`);

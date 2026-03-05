@@ -27,6 +27,13 @@ export interface SlashCommand {
    * Useful for commands that require many sequential tool calls (e.g. daily briefings).
    */
   maxIterations?: number;
+  /**
+   * From `fresh-context:` frontmatter.
+   * When true, the LLM call uses only the current message — prior conversation
+   * history is not injected. Useful for stateless commands (e.g. daily briefings)
+   * that don't need earlier chat context and would otherwise overflow the token budget.
+   */
+  freshContext?: boolean;
   /** Raw Markdown body after the YAML frontmatter */
   body: string;
 }
@@ -103,6 +110,7 @@ export function loadSlashCommands(commandsDir: string): Map<string, SlashCommand
         model: data.model ? String(data.model) : undefined,
         disableModelInvocation: data['disable-model-invocation'] === true,
         maxIterations,
+        freshContext: data['fresh-context'] === true,
         body: content.trim(),
       });
     } catch (err) {

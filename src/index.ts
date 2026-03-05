@@ -282,6 +282,7 @@ app.post("/chat/:agent", chatRateLimit, asyncHandler(async (req: Request, res: R
    let effectivePrompt = prompt;
    let toolNameFilter: string[] | undefined;
    let cmdMaxIterations: number | undefined;
+   let cmdFreshContext: boolean | undefined;
 
    if (slashCommandRegistry.hasCommand(prompt)) {
      const parsed = slashCommandRegistry.parseInput(prompt);
@@ -289,6 +290,7 @@ app.post("/chat/:agent", chatRateLimit, asyncHandler(async (req: Request, res: R
        const cmd = slashCommandRegistry.getCommand(parsed.name)!;
        toolNameFilter = cmd.allowedTools;
        cmdMaxIterations = cmd.maxIterations;
+       cmdFreshContext = cmd.freshContext;
 
        if (cmd.disableModelInvocation) {
          // Return the processed body directly without calling the LLM
@@ -361,7 +363,7 @@ app.post("/chat/:agent", chatRateLimit, asyncHandler(async (req: Request, res: R
    }
 
    try {
-      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations);
+      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext);
       let finalContent: string | undefined;
 
       if (answer instanceof ReadableStream) {

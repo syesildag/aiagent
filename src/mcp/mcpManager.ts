@@ -138,6 +138,14 @@ export interface ChatWithLLMArgs {
    * Falls back to config.MAX_LLM_ITERATIONS when not provided.
    */
   maxIterations?: number;
+  /**
+   * When true, prior conversation history is NOT injected into this LLM call.
+   * Only the current message (plus the system prompt) is sent.
+   * Use for stateless slash commands (e.g. daily briefings) that don't need
+   * earlier chat context and would otherwise overflow the token budget with
+   * accumulated history before the tool-call results are even added.
+   */
+  freshContext?: boolean;
 }
 
 export class MCPServerConnection extends EventEmitter {
@@ -799,7 +807,7 @@ export class MCPServerManager {
   }
 
   async chatWithLLM(args: ChatWithLLMArgs): Promise<ReadableStream<string> | string> {
-    const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, approvalCallback, toolNameFilter } = args;
+    const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, approvalCallback, toolNameFilter, freshContext } = args;
     try {
       // Ensure MCP servers are initialized on first use
       await this.ensureInitialized();
@@ -856,11 +864,20 @@ export class MCPServerManager {
       // Keep the last N messages (pairs of user+assistant) from the conversation.
       // When CONVERSATION_HISTORY_WINDOW_SIZE is unset the full history is forwarded
       // and handleTokenLimits() inside the LLM provider trims to the model's context window.
-      const windowSize = config.CONVERSATION_HISTORY_WINDOW_SIZE;
-      const trimmedConversation =
-        windowSize !== undefined && conversationMessages.length > windowSize
-          ? conversationMessages.slice(-windowSize)
-          : conversationMessages;
+      // When freshContext is true (stateless slash commands), skip prior history entirely
+      // so accumulated chat messages don't eat the token budget before tool results arrive.
+      let trimmedConversation: typeof conversationMessages;
+      if (freshContext) {
+        // Only include the message we just added — no prior conversation history
+        trimmedConversation = conversationMessages.slice(-1);
+        Logger.debug('chatWithLLM: fresh-context mode — prior conversation history excluded');
+      } else {
+        const windowSize = config.CONVERSATION_HISTORY_WINDOW_SIZE;
+        trimmedConversation =
+          windowSize !== undefined && conversationMessages.length > windowSize
+            ? conversationMessages.slice(-windowSize)
+            : conversationMessages;
+      }
 
       // Build messages; if an image was provided, replace the last user message with
       // a multimodal content array so vision models can process it.

@@ -602,6 +602,7 @@ async function main() {
               stream: true,
               toolNameFilter: cmd.allowedTools,
               maxIterations: cmd.maxIterations,
+              freshContext: cmd.freshContext,
             });
 
             currentAbortController = null;
