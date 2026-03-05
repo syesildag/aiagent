@@ -19,6 +19,9 @@ import {
     Box,
     Button,
     Container,
+    Dialog,
+    DialogContent,
+    DialogTitle,
     Divider,
     FormControl,
     IconButton,
@@ -49,6 +52,7 @@ export const ChatInterface: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<{ dataUrl: string; base64: string; mimeType: string; name: string }[]>([]);
+  const [previewFile, setPreviewFile] = useState<{ dataUrl: string; base64: string; mimeType: string; name: string } | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [currentModel, setCurrentModel] = useState('');
   const [availableAgents, setAvailableAgents] = useState<string[]>([]);
@@ -701,6 +705,7 @@ export const ChatInterface: React.FC = () => {
                       src={file.dataUrl}
                       alt={file.name}
                       title={file.name}
+                      onClick={() => setPreviewFile(file)}
                       sx={{
                         height: 72,
                         maxWidth: 120,
@@ -708,11 +713,13 @@ export const ChatInterface: React.FC = () => {
                         border: '1px solid',
                         borderColor: 'divider',
                         objectFit: 'cover',
+                        cursor: 'pointer',
                       }}
                     />
                   ) : (
                     <Box
                       title={file.name}
+                      onClick={() => setPreviewFile(file)}
                       sx={{
                         height: 72,
                         maxWidth: 120,
@@ -724,6 +731,8 @@ export const ChatInterface: React.FC = () => {
                         justifyContent: 'center',
                         p: 1,
                         bgcolor: 'grey.100',
+                        cursor: 'pointer',
+                        '&:hover': { borderColor: 'primary.main' },
                       }}
                     >
                       <Typography variant="caption" sx={{ wordBreak: 'break-all', textAlign: 'center', lineHeight: 1.2 }}>
@@ -751,6 +760,54 @@ export const ChatInterface: React.FC = () => {
               ))}
             </Box>
           )}
+
+          {/* File preview dialog */}
+          <Dialog
+            open={previewFile !== null}
+            onClose={() => setPreviewFile(null)}
+            maxWidth="lg"
+            fullWidth
+          >
+            {previewFile && (
+              <>
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pr: 1 }}>
+                  <Typography variant="subtitle1" noWrap sx={{ flex: 1, mr: 1 }}>{previewFile.name}</Typography>
+                  <IconButton size="small" onClick={() => setPreviewFile(null)}>
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </DialogTitle>
+                <DialogContent dividers sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                  {previewFile.mimeType.startsWith('image/') ? (
+                    <Box
+                      component="img"
+                      src={previewFile.dataUrl}
+                      alt={previewFile.name}
+                      sx={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain', borderRadius: 1 }}
+                    />
+                  ) : (
+                    <Box
+                      component="pre"
+                      sx={{
+                        width: '100%',
+                        maxHeight: '75vh',
+                        overflow: 'auto',
+                        m: 0,
+                        p: 1,
+                        fontSize: '0.8rem',
+                        fontFamily: 'monospace',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-all',
+                        bgcolor: 'grey.100',
+                        borderRadius: 1,
+                      }}
+                    >
+                      {(() => { try { return atob(previewFile.base64); } catch { return previewFile.dataUrl; } })()}
+                    </Box>
+                  )}
+                </DialogContent>
+              </>
+            )}
+          </Dialog>
 
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
             {/* Hidden file input — multiple files allowed, all types accepted */}
