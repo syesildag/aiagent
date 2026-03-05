@@ -1,8 +1,8 @@
 ---
 description: Daily briefing — weather, time, news and personal context from memory
 argument-hint: [city or location]
-allowed-tools: memory, weather, time, tavily-search
-max-iterations: 10
+allowed-tools: memory, weather, time, tavily-search, fetch
+max-iterations: 20
 fresh-context: true
 ---
 
@@ -30,16 +30,31 @@ Report temperature, conditions, and any alerts.
 ### 4. Local news — call tavily_search NOW (query 1)
 Construct the query from the location determined in step 3, e.g.:
 `"[city] local news today"`
-Collect the top 3–5 results.
+Collect the top 3–5 results. Save the URLs.
+
+### 4b. Scrape local news articles — call fetch_url for each URL from step 4
+For the top 3 URLs from step 4, call `fetch_url` on each one.
+Store the scraped `textContent` for each article — this is the real article body.
+If a URL fails, skip it and continue.
 
 ### 5. World headlines — call tavily_search NOW (query 2)
 Query: `"top world news headlines today"`
-Collect the top 5 results.
+Collect the top 5 results. Save the URLs.
+
+### 5b. Scrape world news articles — call fetch_url for each URL from step 5
+For the top 3 URLs from step 5, call `fetch_url` on each one.
+Store the scraped `textContent` for each article.
+If a URL fails, skip it and continue.
 
 ### 6. Topic news — call tavily_search NOW (query 3)
 Based on the user's interests from step 1, search for a relevant topic, e.g.:
 `"[interest] news today"`
-Collect 2–3 results.
+Collect 2–3 results. Save the URLs.
+
+### 6b. Scrape topic articles — call fetch_url for each URL from step 6
+For the top 2 URLs from step 6, call `fetch_url` on each one.
+Store the scraped `textContent` for each article.
+If a URL fails, skip it and continue.
 
 ### 7. Recall active tasks — call memory_search NOW
 Query: `tasks goals reminders todos action items`
@@ -49,7 +64,8 @@ Use these to inform the suggestions section.
 
 ### Final output
 
-After all tool calls are complete, write the briefing in this format:
+After all tool calls are complete, write the briefing in this format.
+**For each news item, use the scraped article text from fetch_url (steps 4b/5b/6b) as the basis for the summary — not just the Tavily snippet.** If an article failed to scrape, fall back to the Tavily snippet.
 
 ```
 # 📅 Daily Briefing — [Day, Date] at [Time]
@@ -60,15 +76,15 @@ After all tool calls are complete, write the briefing in this format:
 [Weather summary]
 
 ## 🗞 Local News — [Location]
-1. **[Headline]** — [one sentence] ([source URL])
+1. **[Headline]** — [2–3 sentence summary based on scraped article content] ([source URL])
 ...
 
 ## 🌍 World Headlines
-1. **[Headline]** — [one sentence] ([source URL])
+1. **[Headline]** — [2–3 sentence summary based on scraped article content] ([source URL])
 ...
 
 ## 🎯 Your Topics — [topic]
-1. **[Headline]** — [one sentence] ([source URL])
+1. **[Headline]** — [2–3 sentence summary based on scraped article content] ([source URL])
 ...
 
 ## 💡 Quick Thought

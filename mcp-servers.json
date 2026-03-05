@@ -47,6 +47,14 @@
         "dist/src/mcp/server/time.js"
       ],
       "enabled": true
+    },
+    {
+      "name": "fetch",
+      "command": "node",
+      "args": [
+        "dist/src/mcp/server/fetch.js"
+      ],
+      "enabled": true
     }
   ]
 }
