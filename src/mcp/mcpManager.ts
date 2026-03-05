@@ -848,10 +848,13 @@ export class MCPServerManager {
 
       // Trim history to the configured window to avoid exceeding LLM token limits.
       // Keep the last N messages (pairs of user+assistant) from the conversation.
+      // When CONVERSATION_HISTORY_WINDOW_SIZE is unset the full history is forwarded
+      // and handleTokenLimits() inside the LLM provider trims to the model's context window.
       const windowSize = config.CONVERSATION_HISTORY_WINDOW_SIZE;
-      const trimmedConversation = conversationMessages.length > windowSize
-        ? conversationMessages.slice(-windowSize)
-        : conversationMessages;
+      const trimmedConversation =
+        windowSize !== undefined && conversationMessages.length > windowSize
+          ? conversationMessages.slice(-windowSize)
+          : conversationMessages;
 
       // Build messages; if an image was provided, replace the last user message with
       // a multimodal content array so vision models can process it.

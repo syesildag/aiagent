@@ -10,8 +10,8 @@ export class InMemoryConversationHistory implements IConversationHistory {
   private readonly _maxConversations: number;
 
   constructor() {
-    this._maxConversations = config.CONVERSATION_HISTORY_WINDOW_SIZE;
-    Logger.info(`Initialized InMemoryConversationHistory with window size: ${this._maxConversations}`);
+    this._maxConversations = config.MAX_CONVERSATIONS;
+    Logger.info(`Initialized InMemoryConversationHistory with max conversations: ${this._maxConversations}`);
   }
 
   get maxConversations(): number {

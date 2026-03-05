@@ -34,7 +34,11 @@ const envSchema = z.object({
   TAVILY_API_KEY: z.string().min(1).optional(),
   MCP_SERVERS_PATH: z.string().min(1).default('./mcp-servers.json'),
   MAX_LLM_ITERATIONS: z.string().transform(Number).pipe(z.number().min(1).max(10)).default('2'),
-  CONVERSATION_HISTORY_WINDOW_SIZE: z.string().transform(Number).pipe(z.number().min(1)).default('10'),
+  // When unset, all messages in the current conversation are forwarded to the LLM
+  // and the built-in handleTokenLimits() mechanism trims based on the model's context window.
+  CONVERSATION_HISTORY_WINDOW_SIZE: z.string().transform(Number).pipe(z.number().min(1)).optional(),
+  // Maximum number of past conversations retained in memory/DB. Defaults to 100.
+  MAX_CONVERSATIONS: z.string().transform(Number).pipe(z.number().min(1)).default('100'),
   USE_DB_CONVERSATION_HISTORY: z.string().transform((val) => val === 'true').default('false'),
   EMBEDDING_PROVIDER: z.enum(['openai', 'ollama', 'local', 'github', 'auto']).default('auto'),
   EMBEDDING_MODEL_OPENAI: z.string().default('text-embedding-3-small'),
@@ -83,7 +87,8 @@ function validateEnvironment(): Environment {
       REDIS_URL: 'redis://localhost:6379',
       MCP_SERVERS_PATH: './mcp-servers.json',
       MAX_LLM_ITERATIONS: 2,
-      CONVERSATION_HISTORY_WINDOW_SIZE: 10,
+      CONVERSATION_HISTORY_WINDOW_SIZE: undefined,
+      MAX_CONVERSATIONS: 100,
       EMBEDDING_PROVIDER: 'auto',
       EMBEDDING_MODEL_OPENAI: 'text-embedding-3-small',
       EMBEDDING_MODEL_OLLAMA: 'nomic-embed-text',
