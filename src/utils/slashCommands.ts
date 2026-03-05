@@ -21,6 +21,12 @@ export interface SlashCommand {
   model?: string;
   /** From `disable-model-invocation:` frontmatter */
   disableModelInvocation?: boolean;
+  /**
+   * From `max-iterations:` frontmatter.
+   * Overrides the global MAX_LLM_ITERATIONS setting for this command.
+   * Useful for commands that require many sequential tool calls (e.g. daily briefings).
+   */
+  maxIterations?: number;
   /** Raw Markdown body after the YAML frontmatter */
   body: string;
 }
@@ -82,6 +88,12 @@ export function loadSlashCommands(commandsDir: string): Map<string, SlashCommand
       const { data, content } = matter(raw);
       const name = deriveCommandName(relativePath);
 
+      const rawMaxIter = data['max-iterations'];
+      const maxIterations =
+        rawMaxIter !== undefined && rawMaxIter !== null
+          ? parseInt(String(rawMaxIter), 10) || undefined
+          : undefined;
+
       commands.set(name, {
         name,
         filePath,
@@ -90,6 +102,7 @@ export function loadSlashCommands(commandsDir: string): Map<string, SlashCommand
         allowedTools: parseAllowedTools(data['allowed-tools']),
         model: data.model ? String(data.model) : undefined,
         disableModelInvocation: data['disable-model-invocation'] === true,
+        maxIterations,
         body: content.trim(),
       });
     } catch (err) {

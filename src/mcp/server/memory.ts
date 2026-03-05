@@ -292,7 +292,11 @@ server.registerTool(
       const createdMemory = { id: memory.getId(), type: memory.getType() };
       Logger.info(`Memory created successfully with ID: ${createdMemory.id}`);
 
-      // Optional: Clean up near-duplicate embeddings
+      // Optional: Clean up near-duplicate embeddings (threshold 0.75 catches
+      // semantically identical memories that differ only in JSON key names).
+      // Scoped by user_login so cross-user memories are never merged.
+      // The older row (lower id) is removed in each duplicate pair.
+      // Runs fire-and-forget so memory_create returns immediately.
       queryDatabase(`
         DELETE FROM ai_agent_memories WHERE id IN (
         SELECT m1.id
@@ -300,7 +304,11 @@ server.registerTool(
          INNER JOIN ai_agent_memories AS m2
             ON m1.id <> m2.id
            AND m1.id < m2.id
-         WHERE (1 - (m1.embedding <=> m2.embedding)) > 0.9
+         WHERE (1 - (m1.embedding <=> m2.embedding)) > 0.75
+           AND (
+             (m1.user_login IS NULL AND m2.user_login IS NULL)
+             OR m1.user_login = m2.user_login
+           )
       )`);
 
       return {
@@ -571,6 +579,81 @@ server.registerTool(
 /**
  * Tool to delete a memory by ID
  */
+/**
+ * Tool to manually deduplicate memories using semantic similarity.
+ * Removes older (lower id) entries where similarity exceeds the threshold.
+ * Useful to clean up duplicates that accumulated before the automatic
+ * dedup threshold was lowered.
+ */
+server.registerTool(
+  "memory_deduplicate",
+  {
+    title: "Deduplicate Memories",
+    description: "Remove near-duplicate memories based on semantic similarity. Keeps the newest entry (highest id) in each duplicate pair. Scoped per user so cross-user memories are never affected.",
+    inputSchema: {
+      threshold: z.number().min(0).max(1).optional().describe("Cosine similarity threshold (0–1). Pairs above this value are considered duplicates. Defaults to 0.75."),
+      user_login: z.string().optional().describe("Restrict deduplication to a specific user's memories. If omitted, deduplicates memories with no user_login (global memories)."),
+      dry_run: z.boolean().optional().describe("If true, return the IDs that would be deleted without actually deleting them. Defaults to false."),
+    }
+  } as any,
+  async (args) => {
+    const { threshold = 0.75, user_login, dry_run = false } = args as unknown as { threshold?: number; user_login?: string; dry_run?: boolean };
+    try {
+      const userFilter = user_login
+        ? `AND m1.user_login = $2 AND m2.user_login = $2`
+        : `AND m1.user_login IS NULL AND m2.user_login IS NULL`;
+
+      const selectSql = `
+        SELECT m1.id, m1.type, m1.source,
+               round((1 - (m1.embedding <=> m2.embedding))::numeric, 4) AS similarity,
+               m2.id AS kept_id
+          FROM ai_agent_memories AS m1
+         INNER JOIN ai_agent_memories AS m2
+            ON m1.id <> m2.id
+           AND m1.id < m2.id
+         WHERE (1 - (m1.embedding <=> m2.embedding)) > $1
+           ${userFilter}
+         ORDER BY similarity DESC
+      `;
+
+      const queryParams = user_login ? [threshold, user_login] : [threshold];
+      const duplicates = await queryDatabase(selectSql, queryParams);
+      const rows = duplicates.rows as Array<{ id: number; type: string; source: string; similarity: string; kept_id: number }>;
+
+      if (rows.length === 0) {
+        return { content: [{ type: "text", text: `No duplicate memories found above similarity threshold ${threshold}.` }] };
+      }
+
+      if (dry_run) {
+        const summary = rows.map(r => `  ID ${r.id} (type: ${r.type}) — similarity ${r.similarity} with ID ${r.kept_id} (kept)`).join('\n');
+        return { content: [{ type: "text", text: `Dry run — ${rows.length} memory/memories would be deleted:\n${summary}` }] };
+      }
+
+      const deleteSql = `
+        DELETE FROM ai_agent_memories WHERE id IN (
+          SELECT m1.id
+            FROM ai_agent_memories AS m1
+           INNER JOIN ai_agent_memories AS m2
+              ON m1.id <> m2.id
+             AND m1.id < m2.id
+           WHERE (1 - (m1.embedding <=> m2.embedding)) > $1
+             ${userFilter}
+        )
+      `;
+      await queryDatabase(deleteSql, queryParams);
+
+      Logger.info(`memory_deduplicate: removed ${rows.length} duplicate(s) with threshold ${threshold}`);
+      return { content: [{ type: "text", text: `Deleted ${rows.length} duplicate memory/memories (threshold: ${threshold}). Newest entries were kept.` }] };
+    } catch (error) {
+      Logger.error("Failed to deduplicate memories:", error);
+      return {
+        content: [{ type: "text", text: `Failed to deduplicate: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+        isError: true
+      };
+    }
+  }
+);
+
 server.registerTool(
   "memory_delete",
   {

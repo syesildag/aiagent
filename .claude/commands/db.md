@@ -2,6 +2,7 @@
 description: Daily briefing — weather, time, news and personal context from memory
 argument-hint: [city or location]
 allowed-tools: memory, weather, time, tavily-search
+max-iterations: 10
 ---
 
 You must now produce a personalised daily briefing by calling tools in the exact sequence below. Do NOT describe what you will do — call each tool immediately and use its output.

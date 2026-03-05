@@ -601,6 +601,7 @@ async function main() {
               abortSignal: currentAbortController.signal,
               stream: true,
               toolNameFilter: cmd.allowedTools,
+              maxIterations: cmd.maxIterations,
             });
 
             currentAbortController = null;

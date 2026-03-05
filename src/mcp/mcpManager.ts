@@ -132,6 +132,12 @@ export interface ChatWithLLMArgs {
    * When undefined the full tool list is used.
    */
   toolNameFilter?: string[];
+  /**
+   * Override the global MAX_LLM_ITERATIONS limit for this request.
+   * Sourced from the `max-iterations:` frontmatter of a slash command.
+   * Falls back to config.MAX_LLM_ITERATIONS when not provided.
+   */
+  maxIterations?: number;
 }
 
 export class MCPServerConnection extends EventEmitter {
@@ -924,7 +930,7 @@ export class MCPServerManager {
         ...historyMessages
       ];
 
-      const maxIterations = config.MAX_LLM_ITERATIONS;
+      const maxIterations = args.maxIterations ?? config.MAX_LLM_ITERATIONS;
       let currentIteration = 0;
 
       while (currentIteration < maxIterations) {

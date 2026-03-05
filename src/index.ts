@@ -281,12 +281,14 @@ app.post("/chat/:agent", chatRateLimit, asyncHandler(async (req: Request, res: R
    slashCommandRegistry.initialize();
    let effectivePrompt = prompt;
    let toolNameFilter: string[] | undefined;
+   let cmdMaxIterations: number | undefined;
 
    if (slashCommandRegistry.hasCommand(prompt)) {
      const parsed = slashCommandRegistry.parseInput(prompt);
      if (parsed) {
        const cmd = slashCommandRegistry.getCommand(parsed.name)!;
        toolNameFilter = cmd.allowedTools;
+       cmdMaxIterations = cmd.maxIterations;
 
        if (cmd.disableModelInvocation) {
          // Return the processed body directly without calling the LLM
@@ -359,7 +361,7 @@ app.post("/chat/:agent", chatRateLimit, asyncHandler(async (req: Request, res: R
    }
 
    try {
-      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter);
+      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations);
       let finalContent: string | undefined;
 
       if (answer instanceof ReadableStream) {

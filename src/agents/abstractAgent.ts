@@ -66,6 +66,7 @@ export default abstract class AbstractAgent implements Agent {
      attachments?: { base64: string; mimeType: string; name?: string }[],
      approvalCallback?: ToolApprovalCallback,
      toolNameFilter?: string[],
+     maxIterations?: number,
    ): Promise<ReadableStream<string> | string> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');
@@ -93,6 +94,7 @@ export default abstract class AbstractAgent implements Agent {
             userLogin,
             approvalCallback,
             toolNameFilter,
+            maxIterations,
          });
       } catch (error) {
          Logger.error(`MCP chat failed: ${error instanceof Error ? error.message : String(error)}`);
