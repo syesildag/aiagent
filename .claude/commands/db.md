@@ -10,6 +10,8 @@ You must now produce a personalised daily briefing by calling tools in the exact
 
 **IMPORTANT:** Call every tool listed. Do not skip any step.
 
+**LANGUAGE:** Write the entire briefing — all summaries, thoughts, and suggestions — in the language most appropriate for the user's location (e.g. French for France, Spanish for Spain). Use English only if the location resolves to an English-speaking country.
+
 ---
 
 ### 1. Personal context — call memory_search NOW
