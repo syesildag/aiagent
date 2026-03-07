@@ -17,6 +17,7 @@ import {
     AppBar,
     Box,
     Button,
+
     Container,
     Dialog,
     DialogContent,
@@ -70,6 +71,7 @@ export const ChatInterface: React.FC = () => {
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
+  const [compressingCount, setCompressingCount] = useState(0);
 
 
   const toggleAutoSpeak = () => {
@@ -137,11 +139,14 @@ export const ChatInterface: React.FC = () => {
       if (imageItems.length === 0) return;
       e.preventDefault();
       const files = imageItems.map(item => item.getAsFile()).filter(Boolean) as File[];
+      setCompressingCount(prev => prev + files.length);
       Promise.all(files.map(f => processFile(f))).then(results => {
         setAttachedFiles(prev => {
           const existingNames = new Set(prev.map(f => f.name));
           return [...prev, ...results.filter(r => !existingNames.has(r.name))];
         });
+      }).finally(() => {
+        setCompressingCount(prev => prev - files.length);
       });
     };
     window.addEventListener('paste', handlePaste);
@@ -250,6 +255,7 @@ export const ChatInterface: React.FC = () => {
     inputEl.value = '';
 
     // Read (and resize/compress images) in parallel.
+    setCompressingCount(prev => prev + files.length);
     Promise.all(files.map(f => processFile(f))).then(results => {
       setAttachedFiles(prev => {
         // Deduplicate by name so reopening the same file doesn't add a duplicate
@@ -259,6 +265,8 @@ export const ChatInterface: React.FC = () => {
       });
     }).catch(() => {
       setError('Failed to read selected file(s)');
+    }).finally(() => {
+      setCompressingCount(prev => prev - files.length);
     });
   };
 
@@ -773,7 +781,7 @@ export const ChatInterface: React.FC = () => {
       >
         <Container maxWidth="md">
           {/* Attached file previews */}
-          {attachedFiles.length > 0 && (
+          {(attachedFiles.length > 0 || compressingCount > 0) && (
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1 }}>
               {attachedFiles.map((file, index) => (
                 <Box key={index} sx={{ position: 'relative', display: 'inline-block' }}>
@@ -834,6 +842,59 @@ export const ChatInterface: React.FC = () => {
                   >
                     <CloseIcon fontSize="small" />
                   </IconButton>
+                </Box>
+              ))}
+              {/* Compression-in-progress placeholders */}
+              {Array.from({ length: compressingCount }).map((_, i) => (
+                <Box
+                  key={`compressing-${i}`}
+                  sx={{
+                    '@keyframes cpFade': {
+                      '0%, 100%': { opacity: 0.45, borderColor: 'primary.main' },
+                      '50%': { opacity: 1, borderColor: 'primary.light' },
+                    },
+                    '@keyframes cpBar': {
+                      '0%, 60%, 100%': { transform: 'scaleY(0.3)', opacity: 0.25 },
+                      '30%': { transform: 'scaleY(1)', opacity: 1 },
+                    },
+                    height: 72,
+                    width: 72,
+                    borderRadius: 1,
+                    border: '1px dashed',
+                    borderColor: 'primary.main',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 0.75,
+                    animation: 'cpFade 1.8s ease-in-out infinite',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', gap: '3px', alignItems: 'center', height: 14 }}>
+                    {[0, 1, 2].map(d => (
+                      <Box
+                        key={d}
+                        sx={{
+                          width: 3,
+                          height: 14,
+                          borderRadius: '2px',
+                          bgcolor: 'primary.main',
+                          animation: 'cpBar 1.1s ease-in-out infinite',
+                          animationDelay: `${d * 0.18}s`,
+                        }}
+                      />
+                    ))}
+                  </Box>
+                  <Typography sx={{
+                    fontFamily: 'monospace',
+                    fontSize: '0.52rem',
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    color: 'text.secondary',
+                    lineHeight: 1,
+                  }}>
+                    cmp
+                  </Typography>
                 </Box>
               ))}
             </Box>
