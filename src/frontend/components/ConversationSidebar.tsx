@@ -3,6 +3,7 @@ import {
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
     DeleteOutline as DeleteIcon,
+    DeleteSweep as DeleteSweepIcon,
     ChatBubbleOutline as ChatIcon,
 } from '@mui/icons-material';
 import {
@@ -73,8 +74,21 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
     }, [session]);
 
     useEffect(() => {
-        if (open) refresh();
-    }, [open, refresh, activeConversationId]);
+        refresh();
+    }, [refresh, activeConversationId]);
+
+    const handleDeleteAll = useCallback(() => {
+        if (!session || conversations.length === 0) return;
+        fetch(`/conversations?session=${encodeURIComponent(session)}`, { method: 'DELETE' })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (data?.ok) {
+                    setConversations([]);
+                    onConversationDeleted?.(-1);
+                }
+            })
+            .catch(() => {});
+    }, [session, conversations.length, onConversationDeleted]);
 
     const handleDelete = useCallback((e: React.MouseEvent, id: number) => {
         e.stopPropagation();
@@ -129,6 +143,28 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                 >
                     History
                 </Typography>
+                {conversations.length > 0 && (
+                    <Tooltip title="Delete all conversations">
+                        <IconButton
+                            size="small"
+                            onClick={handleDeleteAll}
+                            sx={{
+                                color: 'text.secondary',
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                borderRadius: 1.5,
+                                p: '3px',
+                                '&:hover': {
+                                    color: 'error.main',
+                                    borderColor: 'error.main',
+                                    bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,107,107,0.08)' : 'rgba(232,85,85,0.06)',
+                                },
+                            }}
+                        >
+                            <DeleteSweepIcon sx={{ fontSize: 15 }} />
+                        </IconButton>
+                    </Tooltip>
+                )}
                 <Tooltip title="New conversation">
                     <IconButton
                         size="small"

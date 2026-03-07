@@ -1,5 +1,4 @@
 import compression from "compression";
-import { randomBytes } from 'crypto';
 import cors from 'cors';
 import { config, isDevelopment } from './utils/config';
 import express, { NextFunction, Request, Response } from "express";
@@ -10,71 +9,27 @@ import http from 'http';
 import https from 'https';
 import schedule from "node-schedule";
 import { Duplex } from "stream";
-import { z } from 'zod';
-import { getAgentFromName, getAvailableAgentNames, getGlobalMCPManager, initializeAgents, shutdownAgentSystem } from './agent';
-import { AiAgentSession } from "./entities/ai-agent-session";
-import aiagentconversationsRepository, { AiAgentConversations } from "./entities/ai-agent-conversations";
-import { AiAgentConversationMessages } from "./entities/ai-agent-conversation-messages";
-import aiagentconversationmessagesRepository from "./entities/ai-agent-conversation-messages";
-import aiagentsessionRepository from "./entities/ai-agent-session";
-import aiagentuserRepository from "./entities/ai-agent-user";
-import { repository } from "./repository/repository";
-import { hashPassword, verifyPassword } from './utils/hashPassword';
+import { initializeAgents, shutdownAgentSystem } from './agent';
 import { initFromPath } from "./utils/initFromPath";
 import JobFactory from "./utils/jobFactory";
 import Logger from "./utils/logger";
-import { closeDatabase, queryDatabase } from "./utils/pgClient";
-import { handleStreamingResponse } from './utils/streamUtils';
-import { generateFrontendHTML } from './utils/frontendTemplate';
-import { generateManifest } from './utils/pwaManifest';
-import { approvalManager } from './mcp/approvalManager';
-import { slashCommandRegistry } from './utils/slashCommandRegistry';
-import { processCommand } from './utils/commandProcessor';
-import path from 'path';
+import { closeDatabase } from "./utils/pgClient";
+import { sessionMiddleware } from './middleware/session';
+import { authRouter } from './routes/auth';
+import { chatRouter } from './routes/chat';
+import { agentsRouter } from './routes/agents';
+import { conversationsRouter } from './routes/conversations';
+import { pwaRouter } from './routes/pwa';
+import { healthRouter } from './routes/health';
 
 // This array will hold references to the job factories, preventing them from being garbage collected.
 const activeJobs: JobFactory[] = [];
-
-// Cached service worker content (read from disk once on first request)
-let cachedSwJs: string | null = null;
-
-// Async handler utility for error handling
-function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) {
-   return (req: Request, res: Response, next: NextFunction) => {
-      Promise.resolve(fn(req, res, next)).catch(next);
-   };
-}
 
 // Load SSL certificate and private key (production only)
 const options: https.ServerOptions | null = isDevelopment() ? null : {
    key: fs.readFileSync('server.key'),
    cert: fs.readFileSync('server.cert')
 };
-
-const ALLOWED_MIME_TYPES = [
-   'image/png', 'image/jpeg', 'image/gif', 'image/webp',
-   'application/pdf', 'text/plain',
-] as const;
-
-// ~7.5 MB when decoded from base64
-const MAX_FILE_BASE64_LENGTH = 10 * 1024 * 1024;
-
-const Query = z.object({
-   session: z.string().optional().describe('The session id'),
-   prompt: z.string().describe('user prompt'),
-   conversationId: z.number().optional().describe('Existing conversation id to continue'),
-   // Legacy single-image fields (kept for backward compatibility)
-   imageBase64: z.string().max(MAX_FILE_BASE64_LENGTH).optional().describe('base64-encoded image data'),
-   imageMimeType: z.enum(ALLOWED_MIME_TYPES).optional().describe('MIME type of the image'),
-   // Multi-file support: array of {base64, mimeType, name?} objects
-   files: z.array(
-     z.object({
-       base64: z.string().max(MAX_FILE_BASE64_LENGTH),
-       mimeType: z.enum(ALLOWED_MIME_TYPES),
-       name: z.string().optional(),
-     })
-   ).max(5).optional().describe('Array of attached files (max 5)'),
-});
 
 const app = express();
 
@@ -111,26 +66,6 @@ app.use(rateLimit({
    legacyHeaders: false,
 }));
 
-// Per-session rate limiter for the chat endpoint (applied after body parsing so
-// req.body.session is available). Falls back to IP when no session is present.
-const chatRateLimit = rateLimit({
-   windowMs: 1 * 60 * 1000,
-   limit: 20, // 20 chat requests per minute per session
-   standardHeaders: 'draft-8',
-   legacyHeaders: false,
-   keyGenerator: (req) => req.body?.session ?? req.ip ?? 'unknown',
-});
-
-// Separate rate limiter for the approval endpoint to prevent brute-forcing approval IDs
-const approvalRateLimit = rateLimit({
-   windowMs: 60 * 1000,
-   limit: 10,
-   standardHeaders: 'draft-8',
-   legacyHeaders: false,
-   keyGenerator: (req) => req.ip ?? 'unknown',
-   message: { error: 'Too many approval attempts' },
-});
-
 app.use(compression({ filter: shouldCompress }));
 
 function shouldCompress(req: express.Request, res: express.Response) {
@@ -154,424 +89,17 @@ app.use(express.text({ limit: '20mb' }));
 // URLENCODED parsing middleware
 app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
-// Custom middleware for token-based authentication
-async function sessionMiddleware(req: Request, res: Response, next: NextFunction) {
-   if (req.is('application/json')) {
-      const session = req.body.session;
-      if (session) {
-         const sessionEntity = await repository.get(AiAgentSession)?.getByUniqueValues(session);
-
-         if (sessionEntity) {
-            // Enforce session expiry — don't wait for the background cleanup job
-            const lastActive = sessionEntity.getPing() ?? sessionEntity.getCreatedAt();
-            const ageMs = Date.now() - (lastActive?.getTime() ?? 0);
-            const sessionTimeoutMs = (config.SESSION_TIMEOUT_SECONDS || 3600) * 1000;
-            if (ageMs > sessionTimeoutMs) {
-               // Session expired: clean up and proceed without setting res.locals.session.
-               // The route handler will decide whether auth is required.
-               await sessionEntity.delete();
-            } else {
-               res.locals.session = sessionEntity;
-               sessionEntity.setPing(new Date());
-               sessionEntity.save();
-            }
-         }
-         // If session token is not found or is expired, just fall through —
-         // do NOT return 401 here. Individual routes enforce their own auth.
-      }
-   }
-   next();
-}
-
 app.use(sessionMiddleware);
 
-app.post("/login", asyncHandler(async (req: Request, res: Response) => {
-   // parse login and password from headers
-   const b64auth = (req.headers.authorization ?? '').split(' ')[1] ?? '';
-   const [userLogin, password] = Buffer.from(b64auth, 'base64').toString().split(':');
-   if (!userLogin || !password) {
-      Logger.warn('Missing username or password in authorization header');
-      sendAuthenticationRequired(res);
-      return;
-   }
-   // Use repository pattern to find user by login
-   const user = await aiagentuserRepository.findByLogin(userLogin);
-
-   const { valid, needsRehash } = user
-      ? await verifyPassword(password, user.getPassword(), config.HMAC_SECRET_KEY)
-      : { valid: false, needsRehash: false };
-
-   if (!valid) {
-      Logger.warn(`Authentication failed for user: ${userLogin}`);
-      sendAuthenticationRequired(res); // custom message
-      return;
-   }
-
-   // Lazy upgrade: re-hash with bcrypt if still using legacy HMAC
-   if (needsRehash) {
-      const newHash = await hashPassword(password, config.BCRYPT_ROUNDS);
-      user!.setPassword(newHash);
-      user!.setHashVersion('bcrypt');
-      await user!.save();
-      Logger.info(`Password re-hashed to bcrypt for user: ${userLogin}`);
-   }
-
-   //save session to database
-   const session = randomBytes(32).toString('hex');
-   Logger.debug(`Creating session for user: ${userLogin}, session: ${session}`);
-   await new AiAgentSession({ name: session, userLogin }).save();
-
-   res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ session }));
-}));
-
-// Logout endpoint: deletes session from database
-app.post("/logout", asyncHandler(async (req: Request, res: Response) => {
-   // If session is still set (valid), delete it. If it was already gone (expired
-   // or previously deleted), treat the logout as successful — the end state is
-   // the same either way and we must not trigger a 401 → logout loop.
-   if (res.locals.session) {
-      await (res.locals.session as AiAgentSession).delete();
-   } else {
-      Logger.debug('Logout: session not found (already expired or deleted) — treating as success');
-   }
-   res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }));
-}));
-
-const CHAT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-
-app.post("/chat/:agent", chatRateLimit, asyncHandler(async (req: Request, res: Response) => {
-   const { prompt, imageBase64, imageMimeType, files, conversationId: incomingConversationId } = Query.parse(req.body);
-   const agent = await getAgentFromName(req.params.agent);
-   const sessionEntity: AiAgentSession = res.locals.session;
-   agent.setSession(sessionEntity);
-
-   // Build the image-data array, merging legacy single-image fields and the new multi-file array
-   const attachmentsArray: { base64: string; mimeType: string; name?: string }[] = [];
-   if (files && files.length > 0) {
-     attachmentsArray.push(...files);
-   } else if (imageBase64 && imageMimeType) {
-     attachmentsArray.push({ base64: imageBase64, mimeType: imageMimeType });
-   }
-   const attachments = attachmentsArray.length > 0 ? attachmentsArray : undefined;
-
-   // All responses use NDJSON so we can multiplex approval events and text chunks
-   // on the same stream (MCP 2025-11-25 human-in-the-loop pattern).
-   res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-   res.setHeader('Transfer-Encoding', 'chunked');
-   res.setHeader('Cache-Control', 'no-cache');
-   res.flushHeaders();  // open the connection now so early writes (approvals) reach the client
-
-   // ── Slash command processing ───────────────────────────────────────────────
-   slashCommandRegistry.initialize();
-   let effectivePrompt = prompt;
-   let toolNameFilter: string[] | undefined;
-   let cmdMaxIterations: number | undefined;
-   let cmdFreshContext: boolean | undefined;
-
-   if (slashCommandRegistry.hasCommand(prompt)) {
-     const parsed = slashCommandRegistry.parseInput(prompt);
-     if (parsed) {
-       const cmd = slashCommandRegistry.getCommand(parsed.name)!;
-       toolNameFilter = cmd.allowedTools;
-       cmdMaxIterations = cmd.maxIterations;
-       cmdFreshContext = cmd.freshContext;
-
-       if (cmd.disableModelInvocation) {
-         // Return the processed body directly without calling the LLM
-         const body = processCommand(cmd, parsed.args, slashCommandRegistry.getSkills());
-         res.write(JSON.stringify({ t: 'text', v: body }) + '\n');
-         res.end();
-         return;
-       }
-
-       effectivePrompt = processCommand(cmd, parsed.args, slashCommandRegistry.getSkills());
-     }
-   }
-   // ── End slash command processing ──────────────────────────────────────────
-
-   // Abort the request after timeout so slow LLMs/MCP servers don't hang forever
-   const timeoutId = setTimeout(() => {
-      if (!res.writableEnded) {
-         res.write(JSON.stringify({ t: 'error', v: 'Request timed out' }) + '\n');
-         res.end();
-      }
-   }, CHAT_TIMEOUT_MS);
-
-   // Approval callback: broadcasts the approval request event to the browser
-   // and then suspends tool execution until the user decides.
-   const approvalCallback = async (
-     toolName: string,
-     args: Record<string, unknown>,
-     description: string,
-     schema?: { properties?: Record<string, { type?: string; description?: string; [key: string]: unknown }>; required?: string[] },
-   ): Promise<boolean> => {
-     const request = approvalManager.buildRequest(toolName, args, description);
-     const decision = approvalManager.register(request.id);
-     // Emit the approval event as an NDJSON line
-     res.write(
-       JSON.stringify({
-         t: 'approval',
-         id: request.id,
-         tool: request.toolName,
-         args: request.args,
-         desc: request.description,
-         schema,
-       }) + '\n',
-     );
-     return decision;
-   };
-
-   // Resolve or create a conversation for persistence
-   const userLogin = sessionEntity?.getUserLogin();
-   let activeConversationId = incomingConversationId ?? null;
-   if (userLogin) {
-      try {
-         if (!activeConversationId) {
-            const title = effectivePrompt.slice(0, 60);
-            const conv = await new AiAgentConversations({
-               sessionId: sessionEntity.getId()!,
-               metadata: { title, userLogin },
-            }).save();
-            activeConversationId = conv?.getId() ?? null;
-         }
-         if (activeConversationId) {
-            await new AiAgentConversationMessages({
-               conversationId: activeConversationId,
-               role: 'user',
-               content: prompt,
-            }).save();
-            // Emit conversation id so client can continue the conversation
-            res.write(JSON.stringify({ t: 'conversation', id: activeConversationId }) + '\n');
-         }
-      } catch (err) {
-         Logger.error(`Failed to persist conversation: ${err}`);
-      }
-   }
-
-   try {
-      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext);
-      let finalContent: string | undefined;
-
-      if (answer instanceof ReadableStream) {
-         finalContent = await handleStreamingResponse(answer, res, agent.addAssistantMessageToHistory.bind(agent));
-      } else {
-         finalContent = answer;
-         agent.addAssistantMessageToHistory(answer);
-         res.write(JSON.stringify({ t: 'text', v: answer }) + '\n');
-         res.end();
-      }
-
-      // Persist the assistant reply
-      if (userLogin && activeConversationId && finalContent) {
-         try {
-            await new AiAgentConversationMessages({
-               conversationId: activeConversationId,
-               role: 'assistant',
-               content: finalContent,
-            }).save();
-            // Update conversation updated_at via a raw update
-            await aiagentconversationsRepository.getById(activeConversationId).then(conv => {
-               if (conv) { conv.setUpdatedAt(new Date()); conv.save(); }
-            });
-         } catch (err) {
-            Logger.error(`Failed to persist assistant message: ${err}`);
-         }
-      }
-   } catch (err) {
-      // Headers are already sent (flushHeaders was called), so we cannot send
-      // a standard HTTP error response. Write an NDJSON error event instead so
-      // the client can display the message, then close the stream cleanly.
-      Logger.error(`Chat error for agent '${req.params.agent}': ${err}`);
-      if (!res.writableEnded) {
-         const message = err instanceof Error ? err.message : String(err);
-         res.write(JSON.stringify({ t: 'error', v: message }) + '\n');
-         res.end();
-      }
-   } finally {
-      clearTimeout(timeoutId);
-   }
-}));
-
-// Approve / deny a pending tool execution (called by the browser when the user decides)
-app.post("/chat/approve/:approvalId", approvalRateLimit, asyncHandler(async (req: Request, res: Response) => {
-   const { approvalId } = req.params;
-   const { approved } = z.object({ approved: z.boolean() }).parse(req.body);
-   const resolved = approvalManager.resolve(approvalId, approved);
-   if (!resolved) {
-      res.status(404).json({ error: 'Approval request not found or already resolved' });
-      return;
-   }
-   Logger.info(`Tool approval ${approvalId}: ${approved ? 'APPROVED' : 'DENIED'}`);
-   res.json({ success: true });
-}));
-
-// List all loaded slash commands and skills (useful for frontend autocomplete)
-app.get("/commands", asyncHandler(async (_req: Request, res: Response) => {
-   slashCommandRegistry.initialize();
-   const commands = slashCommandRegistry.listCommands().map(cmd => ({
-      name: cmd.name,
-      description: cmd.description,
-      argumentHint: cmd.argumentHint,
-      model: cmd.model,
-      disableModelInvocation: cmd.disableModelInvocation,
-      allowedTools: cmd.allowedTools,
-   }));
-   const skills = Array.from(slashCommandRegistry.getSkills().keys());
-   res.json({ commands, skills });
-}));
-
-// Info endpoint - returns current model, provider and all available models for the agent
-app.get("/info/:agent", asyncHandler(async (req: Request, res: Response) => {
-   await getAgentFromName(req.params.agent); // validates agent exists
-   const manager = getGlobalMCPManager();
-   const models = manager ? await manager.getAvailableModels() : [];
-   res.json({
-      model: manager?.getCurrentModel() ?? '',
-      provider: manager?.getProviderName() ?? '',
-      models
-   });
-}));
-
-// List available agents
-app.get("/agents", asyncHandler(async (_req: Request, res: Response) => {
-   const names = await getAvailableAgentNames();
-   res.json({ agents: names });
-}));
-
-// List conversations for the authenticated user
-app.get("/conversations", asyncHandler(async (req: Request, res: Response) => {
-   const session = (req.query.session ?? req.body?.session) as string | undefined;
-   if (!session) { res.status(401).json({ error: 'No session' }); return; }
-   const sessionEntity = await aiagentsessionRepository.findByName(session);
-   if (!sessionEntity) { res.status(401).json({ error: 'Invalid session' }); return; }
-   const conversations = await aiagentconversationsRepository.findByUserLogin(sessionEntity.getUserLogin());
-   res.json({ conversations });
-}));
-
-// Delete a conversation
-app.delete("/conversations/:id", asyncHandler(async (req: Request, res: Response) => {
-   const session = req.query.session as string | undefined;
-   if (!session) { res.status(401).json({ error: 'No session' }); return; }
-   const sessionEntity = await aiagentsessionRepository.findByName(session);
-   if (!sessionEntity) { res.status(401).json({ error: 'Invalid session' }); return; }
-   const convId = parseInt(req.params.id, 10);
-   const conv = await aiagentconversationsRepository.getById(convId);
-   if (!conv || (conv.getMetadata() as Record<string, unknown>)?.userLogin !== sessionEntity.getUserLogin()) {
-      res.status(404).json({ error: 'Conversation not found' }); return;
-   }
-   await conv.delete();
-   res.json({ ok: true });
-}));
-
-// Get messages for a conversation
-app.get("/conversations/:id/messages", asyncHandler(async (req: Request, res: Response) => {
-   const session = req.query.session as string | undefined;
-   if (!session) { res.status(401).json({ error: 'No session' }); return; }
-   const sessionEntity = await aiagentsessionRepository.findByName(session);
-   if (!sessionEntity) { res.status(401).json({ error: 'Invalid session' }); return; }
-   const convId = parseInt(req.params.id, 10);
-   const conv = await aiagentconversationsRepository.getById(convId);
-   if (!conv || (conv.getMetadata() as Record<string, unknown>)?.userLogin !== sessionEntity.getUserLogin()) {
-      res.status(404).json({ error: 'Conversation not found' }); return;
-   }
-   const messages = await aiagentconversationmessagesRepository.findByConversationId(convId);
-   res.json({
-      messages: messages.map((m: AiAgentConversationMessages) => ({
-         id: m.getId(),
-         role: m.getRole(),
-         content: m.getContent(),
-         timestamp: m.getTimestamp(),
-      })),
-   });
-}));
-
-// Model switch endpoint - changes the active model
-app.post("/model/:agent", asyncHandler(async (req: Request, res: Response) => {
-   if (!res.locals.session) {
-      sendAuthenticationRequired(res);
-      return;
-   }
-   await getAgentFromName(req.params.agent);
-   const { model } = z.object({ model: z.string().min(1).max(200) }).parse(req.body);
-   const manager = getGlobalMCPManager();
-   if (!manager) {
-      res.status(503).json({ error: 'Agent not initialised' });
-      return;
-   }
-   manager.updateModel(model);
-   Logger.info(`Model switched to: ${model}`);
-   res.json({ model });
-}));
-
 // ---------------------------------------------------------------------------
-// PWA routes
+// Routes
 // ---------------------------------------------------------------------------
-
-// Service worker – served under /static but allowed to control root scope via header
-app.get('/static/sw.js', (req: Request, res: Response) => {
-   if (!cachedSwJs) {
-      cachedSwJs = fs.readFileSync(path.join(__dirname, 'frontend/pwa/sw.js'), 'utf-8');
-   }
-   res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-   res.setHeader('Service-Worker-Allowed', '/');
-   res.setHeader('Cache-Control', 'no-cache');
-   res.send(cachedSwJs);
-});
-
-// Web app manifest – dynamically generated per agent
-app.get('/front/:agent/manifest.json', (req: Request, res: Response) => {
-   res.setHeader('Cache-Control', 'no-cache');
-   res.json(generateManifest(req.params.agent));
-});
-
-// Frontend endpoint - serves React chat interface
-app.get("/front/:agent", asyncHandler(async (req: Request, res: Response) => {
-   const agentName = req.params.agent;
-   
-   // Validate agent exists
-   try {
-      await getAgentFromName(agentName);
-   } catch (error) {
-      res.status(404).send(`Agent "${agentName}" not found`);
-      return;
-   }
-
-   // Serve HTML that loads the bundle from a separate endpoint
-   const html = generateFrontendHTML('', agentName);
-   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-   res.send(html);
-}));
-
-// Serve static files
-app.use('/static', express.static(path.join(__dirname, '..', 'static'), {
-   index: false,
-   etag: true,
-   maxAge: '1d',
-   redirect: false,
-   setHeaders: function (res, path, stat) {
-      res.setHeader('x-timestamp', Date.now());
-   },
-}));
-
-// Health endpoint
-app.get('/healthz', (req: Request, res: Response) => {
-   // Basic health check: server is up
-   res.status(200).json({ status: 'ok' });
-});
-
-// Readiness endpoint
-app.get('/readyz', async (req: Request, res: Response) => {
-   // Readiness check: database and agent system
-   try {
-      // Example: check database connection
-      await queryDatabase('SELECT 1');
-      // Optionally, check agent system readiness here
-      res.status(200).json({ status: 'ready' });
-   } catch (error) {
-      Logger.error('Readiness check failed:', error);
-      res.status(503).json({ status: 'not ready', error: error instanceof Error ? error.message : String(error) });
-   }
-});
+app.use(authRouter);
+app.use('/chat', chatRouter);
+app.use(agentsRouter);
+app.use('/conversations', conversationsRouter);
+app.use(pwaRouter);
+app.use(healthRouter);
 
 // Error-handling middleware — must be registered AFTER all routes so Express
 // routes exceptions here instead of through the default opaque handler.
@@ -641,12 +169,6 @@ process.on('SIGINT', (signal) => {
       process.exit(1);
    });
 });
-
-function sendAuthenticationRequired(res: Response) {
-   // Do NOT set WWW-Authenticate: Basic — that triggers the browser's native
-   // login popup instead of letting the frontend handle the 401 itself.
-   res.status(401).json({ error: 'Authentication required.' });
-}
 
 async function gracefulShutdown(event: NodeJS.Signals) {
 

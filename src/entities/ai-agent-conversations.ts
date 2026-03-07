@@ -105,7 +105,7 @@ class AiAgentConversationsRepository extends AbstractRepository<AiAgentConversat
 
    public async findByUserLogin(userLogin: string): Promise<{ id: number; title: string; updatedAt: Date }[]> {
       const rows = await queryDatabase(
-         `SELECT id, metadata->>'title' AS title, updated_at FROM ai_agent_conversations WHERE metadata->>'userLogin' = $1 ORDER BY updated_at DESC LIMIT 50`,
+         `SELECT c.id, c.metadata->>'title' AS title, c.updated_at FROM ai_agent_conversations c JOIN ai_agent_session s ON c.session_id = s.id WHERE s.user_login = $1 ORDER BY c.updated_at DESC LIMIT 100`,
          [userLogin],
       );
       return rows.map((r: any) => ({ id: r.id, title: r.title ?? 'Untitled', updatedAt: r.updated_at }));
