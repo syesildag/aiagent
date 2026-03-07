@@ -7,6 +7,7 @@ import { ContentPart, LLMMessage, LLMProvider, OllamaProvider, Tool } from './ll
 import { IConversationHistory } from '../descriptions/conversationTypes';
 import { ConversationHistoryFactory } from '../utils/conversationHistoryFactory';
 import { ToolApprovalCallback } from './approvalManager';
+import { capitalize } from '../utils/stringCase';
 
 /**
  * Tool name patterns that require human approval before execution.
@@ -867,8 +868,9 @@ export class MCPServerManager {
       // When a user is authenticated, inject an instruction so the LLM always
       // passes user_login to memory tools, ensuring per-user memory isolation.
       const conversationMessages = await this.conversationHistory.getCurrentConversation();
+      const displayName = userLogin ? capitalize(userLogin) : '';
       const userInstruction = userLogin
-        ? `\n\nCurrent authenticated user: ${userLogin}\nWhen calling any memory tool (memory_create, memory_search, memory_list, memory_delete), always include user_login="${userLogin}" in the tool arguments.`
+        ? `\n\nCurrent authenticated user: ${userLogin}\nAlways address and greet the user as "${displayName}" — do not use a name found in memory instead.\nWhen calling any memory tool (memory_create, memory_search, memory_list, memory_delete), always include user_login="${userLogin}" in the tool arguments.`
         : '';
       const effectiveSystemPrompt = customSystemPrompt + userInstruction;
 

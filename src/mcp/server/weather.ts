@@ -17,6 +17,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import Logger from "../../utils/logger.js";
 import { config } from "../../utils/config.js";
+import { weatherIcon, groupByDay, getNoonSlot, dayStats, buildForecastTable, getUserLocation } from "../../utils/weatherUtils.js";
 
 // OpenWeatherMap API configuration
 const OPENWEATHER_API_KEY = process.env.OPENWEATHERMAP_API_KEY || config.OPENWEATHERMAP_API_KEY;
@@ -33,12 +34,12 @@ if (!OPENWEATHER_API_KEY) {
  * Input schemas for tools with comprehensive validation
  */
 const CurrentWeatherInputSchema = z.object({
-  location: z.string().min(1, "Location cannot be empty").describe("City name, state/country code (e.g., 'London,UK' or 'New York,NY,US')"),
+  location: z.string().optional().describe("City name, state/country code (e.g., 'London,UK') — omit to auto-detect from IP"),
   units: z.enum(["metric", "imperial", "kelvin"]).optional().describe("Temperature units: metric (°C), imperial (°F), or kelvin (K)")
 });
 
 const ForecastInputSchema = z.object({
-  location: z.string().min(1, "Location cannot be empty").describe("City name, state/country code"),
+  location: z.string().optional().describe("City name, state/country code — omit to auto-detect from IP"),
   days: z.number().int().min(1).max(5).optional().describe("Number of forecast days (1-5)"),
   units: z.enum(["metric", "imperial", "kelvin"]).optional().describe("Temperature units")
 });
@@ -393,7 +394,8 @@ server.registerTool(
   },
   async ({ location, units = "metric" }) => {
     try {
-      const url = `${OPENWEATHER_BASE_URL}/weather?q=${encodeURIComponent(location)}&appid=${OPENWEATHER_API_KEY}&units=${units}`;
+      const resolvedLocation = location || await getUserLocation() || 'Valbonne,FR';
+      const url = `${OPENWEATHER_BASE_URL}/weather?q=${encodeURIComponent(resolvedLocation)}&appid=${OPENWEATHER_API_KEY}&units=${units}`;
       const data = await makeWeatherRequest(url);
       const weatherData = formatWeatherData(data, units);
 
@@ -410,7 +412,7 @@ server.registerTool(
 🌅 **Sunrise:** ${new Date(weatherData.sunrise * 1000).toLocaleTimeString()}
 🌇 **Sunset:** ${new Date(weatherData.sunset * 1000).toLocaleTimeString()}`;
 
-      Logger.info(`Retrieved current weather for ${location}`);
+      Logger.info(`Retrieved current weather for ${resolvedLocation}`);
 
       return {
         content: [
@@ -429,7 +431,7 @@ server.registerTool(
       return {
         content: [{
           type: "text",
-          text: `❌ Failed to get weather for "${location}": ${error instanceof Error ? error.message : 'Unknown error'}`
+          text: `❌ Failed to get weather for "${resolvedLocation ?? location}": ${error instanceof Error ? error.message : 'Unknown error'}`
         }],
         isError: true
       };
@@ -449,65 +451,30 @@ server.registerTool(
   },
   async ({ location, days = 5, units = "metric" }) => {
     try {
-      const url = `${OPENWEATHER_BASE_URL}/forecast?q=${encodeURIComponent(location)}&appid=${OPENWEATHER_API_KEY}&units=${units}&cnt=${days * 8}`;
+      const resolvedLocation = location || await getUserLocation() || 'London,UK';
+      const url = `${OPENWEATHER_BASE_URL}/forecast?q=${encodeURIComponent(resolvedLocation)}&appid=${OPENWEATHER_API_KEY}&units=${units}&cnt=${days * 8}`;
       const data = await makeWeatherRequest(url);
 
-      const cityInfo = `📍 **${data.city.name}, ${data.city.country}**\n\n`;
-      
-      // Group forecast by days
-      const dailyForecasts = new Map<string, any[]>();
-      
-      data.list.forEach((item: any) => {
-        const date = new Date(item.dt * 1000);
-        const dateKey = date.toDateString();
-        
-        if (!dailyForecasts.has(dateKey)) {
-          dailyForecasts.set(dateKey, []);
-        }
-        dailyForecasts.get(dateKey)!.push(item);
-      });
+      const dailyForecasts = groupByDay(data.list);
+      const forecastSummary = buildForecastTable(
+        data.city.name,
+        data.city.country,
+        dailyForecasts,
+        days,
+        (t) => formatTemperature(t, units),
+        (s) => formatWindSpeed(s, units)
+      );
 
-      let forecastSummary = cityInfo + `📅 **${days}-Day Weather Forecast**\n\n`;
-
-      Array.from(dailyForecasts.entries()).slice(0, days).forEach(([dateKey, dayData]) => {
-        const date = new Date(dateKey);
-        const dayName = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-        
-        // Get representative data (around noon if available, otherwise first available)
-        const noonItem = dayData.find(item => {
-          const hour = new Date(item.dt * 1000).getHours();
-          return hour >= 11 && hour <= 13;
-        }) || dayData[0];
-
-        const minTemp = Math.min(...dayData.map(item => item.main.temp));
-        const maxTemp = Math.max(...dayData.map(item => item.main.temp));
-        const avgHumidity = Math.round(dayData.reduce((sum, item) => sum + item.main.humidity, 0) / dayData.length);
-        const maxPop = Math.max(...dayData.map(item => item.pop || 0));
-
-        forecastSummary += `**${dayName}**\n`;
-        forecastSummary += `🌡️ ${formatTemperature(minTemp, units)} - ${formatTemperature(maxTemp, units)}\n`;
-        forecastSummary += `🌤️ ${noonItem.weather[0].description}\n`;
-        forecastSummary += `💨 ${formatWindSpeed(noonItem.wind.speed, units)}\n`;
-        forecastSummary += `💧 ${avgHumidity}% humidity\n`;
-        if (maxPop > 0) {
-          forecastSummary += `🌧️ ${Math.round(maxPop * 100)}% chance of rain\n`;
-        }
-        forecastSummary += `\n`;
-      });
-
-      Logger.info(`Retrieved ${days}-day forecast for ${location}`);
+      Logger.info(`Retrieved ${days}-day forecast for ${resolvedLocation}`);
 
       const detailedData = {
         location: data.city.name,
         country: data.city.country,
         forecast_days: days,
-        daily_summaries: Array.from(dailyForecasts.entries()).slice(0, days).map(([dateKey, dayData]) => ({
-          date: dateKey,
-          min_temp: Math.min(...dayData.map(item => item.main.temp)),
-          max_temp: Math.max(...dayData.map(item => item.main.temp)),
-          conditions: dayData[0].weather[0].description,
-          precipitation_chance: Math.max(...dayData.map(item => item.pop || 0))
-        }))
+        daily_summaries: Array.from(dailyForecasts.entries()).slice(0, days).map(([dateKey, dayData]) => {
+          const { minT, maxT, pop } = dayStats(dayData);
+          return { date: dateKey, min_temp: minT, max_temp: maxT, conditions: dayData[0].weather[0].description, precipitation_chance: pop };
+        })
       };
 
       return {
@@ -527,7 +494,7 @@ server.registerTool(
       return {
         content: [{
           type: "text",
-          text: `❌ Failed to get forecast for "${location}": ${error instanceof Error ? error.message : 'Unknown error'}`
+          text: `❌ Failed to get forecast for "${resolvedLocation ?? location}": ${error instanceof Error ? error.message : 'Unknown error'}`
         }],
         isError: true
       };

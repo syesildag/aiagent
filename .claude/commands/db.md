@@ -19,13 +19,13 @@ Store the results; use them to personalise every subsequent step.
 ### 2. Current time — call get_current_time NOW
 Use the result for the briefing header.
 
-### 3. Weather — call get_weather NOW
+### 3. Weather — call weather_forecast NOW
 $IF $1
 Location: **$1**
 $ELSE
-Location: use the city found in memory from step 1, or default to the user's most recently known city.
+Omit the location argument — the tool will auto-detect it via IP.
 $ENDIF
-Report temperature, conditions, and any alerts.
+Use `days: 3`. Save the exact markdown table returned — you will paste it verbatim into the briefing.
 
 ### 4. Local news — call tavily_search NOW (query 1)
 Construct the query from the location determined in step 3, e.g.:
@@ -70,10 +70,10 @@ After all tool calls are complete, write the briefing in this format.
 ```
 # 📅 Daily Briefing — [Day, Date] at [Time]
 
-## 👤 Good [morning/afternoon/evening][, name if known from memory]
+## 👤 Good [morning/afternoon/evening], [current authenticated username]
 
 ## 🌤 Weather — [Location]
-[Weather summary]
+[Paste the markdown table from step 3 exactly as returned — do not reformat]
 
 ## 🗞 Local News — [Location]
 1. **[Headline]** — [2–3 sentence summary based on scraped article content] ([source URL])
