@@ -142,23 +142,6 @@ function shouldCompress(req: express.Request, res: express.Response) {
    return compression.filter(req, res);
 }
 
-// Error-handling middleware
-app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
-   Logger.error(err.stack);
-   // If headers were already sent (e.g. streaming responses), we cannot write
-   // a new HTTP status. Just destroy the socket to avoid crashing the process.
-   if (res.headersSent) {
-      Logger.error('Headers already sent; destroying socket to avoid crash');
-      res.destroy();
-      return;
-   }
-   if (isDevelopment()) {
-      res.status(500).send(`<pre>${err.message}\n${err.stack}</pre>`);
-   } else {
-      res.status(500).send('Something broke!');
-   }
-});
-
 // JSON parsing middleware
 app.use(express.json({ limit: '20mb' }));
 
@@ -173,7 +156,7 @@ app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
 // Custom middleware for token-based authentication
 async function sessionMiddleware(req: Request, res: Response, next: NextFunction) {
-   if (req.headers['content-type'] === 'application/json') {
+   if (req.is('application/json')) {
       const session = req.body.session;
       if (session) {
          const sessionEntity = await repository.get(AiAgentSession)?.getByUniqueValues(session);
@@ -182,7 +165,8 @@ async function sessionMiddleware(req: Request, res: Response, next: NextFunction
             // Enforce session expiry — don't wait for the background cleanup job
             const lastActive = sessionEntity.getPing() ?? sessionEntity.getCreatedAt();
             const ageMs = Date.now() - (lastActive?.getTime() ?? 0);
-            if (ageMs > config.SESSION_TIMEOUT_SECONDS * 1000) {
+            const sessionTimeoutMs = (config.SESSION_TIMEOUT_SECONDS || 3600) * 1000;
+            if (ageMs > sessionTimeoutMs) {
                // Session expired: clean up and proceed without setting res.locals.session.
                // The route handler will decide whether auth is required.
                await sessionEntity.delete();
@@ -587,6 +571,20 @@ app.get('/readyz', async (req: Request, res: Response) => {
       Logger.error('Readiness check failed:', error);
       res.status(503).json({ status: 'not ready', error: error instanceof Error ? error.message : String(error) });
    }
+});
+
+// Error-handling middleware — must be registered AFTER all routes so Express
+// routes exceptions here instead of through the default opaque handler.
+app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+   Logger.error(err.stack);
+   // If headers were already sent (e.g. streaming responses), we cannot write
+   // a new HTTP status. Just destroy the socket to avoid crashing the process.
+   if (res.headersSent) {
+      Logger.error('Headers already sent; destroying socket to avoid crash');
+      res.destroy();
+      return;
+   }
+   res.status(500).json({ error: isDevelopment() ? err.message : 'Something broke!' });
 });
 
 const PORT: number = config.PORT;
