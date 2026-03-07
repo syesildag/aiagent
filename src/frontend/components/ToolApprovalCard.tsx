@@ -82,7 +82,7 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
 
         {/* Arguments (collapsible) */}
         {approval.args && Object.keys(approval.args).length > 0 && (
-          <Accordion disableGutters elevation={0} sx={{ bgcolor: 'grey.50', mb: 1.5 }}>
+          <Accordion disableGutters elevation={0} sx={{ bgcolor: 'action.hover', mb: 1.5 }}>
             <AccordionSummary
               expandIcon={<ExpandMoreIcon fontSize="small" />}
               sx={{ minHeight: 32, '& .MuiAccordionSummary-content': { my: 0.5 } }}
@@ -92,18 +92,36 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
               </Typography>
             </AccordionSummary>
             <AccordionDetails sx={{ p: 1 }}>
-              <Box
-                component="pre"
-                sx={{
-                  m: 0,
-                  fontSize: '0.72rem',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-all',
-                  color: 'text.primary',
-                }}
-              >
-                {JSON.stringify(approval.args, null, 2)}
-              </Box>
+              {Object.entries(approval.args).map(([key, value]) => {
+                const propSchema = approval.schema?.properties?.[key];
+                const isRequired = approval.schema?.required?.includes(key);
+                return (
+                  <Box key={key} sx={{ mb: 1, '&:last-child': { mb: 0 } }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
+                      <Typography variant="caption" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                        {key}
+                      </Typography>
+                      {isRequired && (
+                        <Chip label="required" size="small" color="warning" variant="outlined"
+                          sx={{ height: 16, fontSize: '0.6rem', px: 0 }} />
+                      )}
+                      {propSchema?.type && (
+                        <Chip label={String(propSchema.type)} size="small" variant="outlined"
+                          sx={{ height: 16, fontSize: '0.6rem', px: 0 }} />
+                      )}
+                    </Box>
+                    {propSchema?.description && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>
+                        {String(propSchema.description)}
+                      </Typography>
+                    )}
+                    <Box component="pre" sx={{ m: 0, fontSize: '0.72rem', whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all', color: 'text.primary' }}>
+                      {typeof value === 'string' ? value : JSON.stringify(value, null, 2)}
+                    </Box>
+                  </Box>
+                );
+              })}
             </AccordionDetails>
           </Accordion>
         )}

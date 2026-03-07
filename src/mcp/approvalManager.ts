@@ -21,6 +21,7 @@ export type ToolApprovalCallback = (
   toolName: string,
   args: Record<string, unknown>,
   description: string,
+  schema?: { properties?: Record<string, { type?: string; description?: string; [key: string]: unknown }>; required?: string[] },
 ) => Promise<boolean>;
 
 interface PendingEntry {

@@ -59,6 +59,10 @@ export const ChatInterface: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Tracks approved (toolName::args) combos within the current streaming session
+  const sessionApprovedRef = useRef<Set<string>>(new Set());
+  // Mirrors messages state so useCallback closures can read current messages without stale closures
+  const messagesRef = useRef<Message[]>([]);
   const { session, username, agentName, darkMode, toggleDarkMode, logout } = useAuth();
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
   const [autoSpeak, setAutoSpeak] = useState<boolean>(
@@ -104,6 +108,7 @@ export const ChatInterface: React.FC = () => {
   };
 
   useEffect(() => {
+    messagesRef.current = messages;
     scrollToBottom();
   }, [messages]);
 
@@ -281,6 +286,8 @@ export const ChatInterface: React.FC = () => {
     setError('');
     setLastFailedPrompt(null);
 
+    sessionApprovedRef.current.clear();
+
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
@@ -343,7 +350,7 @@ export const ChatInterface: React.FC = () => {
             const trimmed = line.trim();
             if (!trimmed) continue;
             try {
-              const event = JSON.parse(trimmed) as { t: string; v?: string; id?: string; tool?: string; args?: Record<string, unknown>; desc?: string };
+              const event = JSON.parse(trimmed) as { t: string; v?: string; id?: string; tool?: string; args?: Record<string, unknown>; desc?: string; schema?: ToolApproval['schema'] };
               if (event.t === 'error') {
                 // Server-side error surfaced over the NDJSON stream
                 setError(event.v ?? 'Server error');
@@ -363,7 +370,14 @@ export const ChatInterface: React.FC = () => {
                   args: event.args ?? {},
                   description: event.desc ?? '',
                   status: 'pending',
+                  schema: event.schema,
                 };
+                const sessionKey = `${approval.toolName}::${JSON.stringify(approval.args)}`;
+                if (sessionApprovedRef.current.has(sessionKey)) {
+                  // Same tool+args already approved this session — auto-approve and show as pre-approved
+                  approval.status = 'approved';
+                  void handleApproval(event.id, true);
+                }
                 setMessages(prev => [
                   ...prev,
                   { id: event.id!, role: 'tool_approval', content: '', timestamp: new Date(), approval },
@@ -478,6 +492,14 @@ export const ChatInterface: React.FC = () => {
           : m,
       ),
     );
+    // Remember approved combos so subsequent identical tool calls are auto-approved
+    if (approved) {
+      const approvedMsg = messagesRef.current.find(m => m.approval?.id === approvalId);
+      if (approvedMsg?.approval) {
+        const key = `${approvedMsg.approval.toolName}::${JSON.stringify(approvedMsg.approval.args)}`;
+        sessionApprovedRef.current.add(key);
+      }
+    }
     try {
       await fetch(`/chat/approve/${approvalId}`, {
         method: 'POST',

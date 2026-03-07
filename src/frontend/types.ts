@@ -4,6 +4,10 @@ export interface ToolApproval {
   args: Record<string, unknown>;
   description: string;
   status: 'pending' | 'approved' | 'denied';
+  schema?: {
+    properties?: Record<string, { type?: string; description?: string; [key: string]: unknown }>;
+    required?: string[];
+  };
 }
 
 export interface Message {

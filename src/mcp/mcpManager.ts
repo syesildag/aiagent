@@ -683,6 +683,17 @@ export class MCPServerManager {
     return tool?.description ?? fullToolName;
   }
 
+  /** Returns the inputSchema for a full tool name ("server_method"), for display in approval cards. */
+  private getToolSchema(fullToolName: string): MCPTool['inputSchema'] | undefined {
+    const parts = fullToolName.split('_');
+    if (parts.length < 2) return undefined;
+    const serverName = parts[0];
+    const methodName = parts.slice(1).join('_');
+    const connection = this.connections.get(serverName);
+    const tool = connection?.getTools().find(t => t.name === methodName);
+    return tool?.inputSchema;
+  }
+
   private async handleToolCall(
     toolCall: any,
     approvalCallback?: ToolApprovalCallback,
@@ -725,7 +736,8 @@ export class MCPServerManager {
     if (approvalCallback && this.isToolDangerous(name)) {
       Logger.info(`Tool '${name}' requires user approval before execution.`);
       const description = this.getToolDescription(name);
-      const approved = await approvalCallback(name, parsedArgs ?? {}, description);
+      const schema = this.getToolSchema(name);
+      const approved = await approvalCallback(name, parsedArgs ?? {}, description, schema);
       if (!approved) {
         Logger.info(`Tool '${name}' execution denied by user.`);
         return JSON.stringify({ denied: true, message: `User denied execution of tool: ${name}` });

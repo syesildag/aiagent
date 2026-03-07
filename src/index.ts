@@ -319,6 +319,7 @@ app.post("/chat/:agent", chatRateLimit, asyncHandler(async (req: Request, res: R
      toolName: string,
      args: Record<string, unknown>,
      description: string,
+     schema?: { properties?: Record<string, { type?: string; description?: string; [key: string]: unknown }>; required?: string[] },
    ): Promise<boolean> => {
      const request = approvalManager.buildRequest(toolName, args, description);
      const decision = approvalManager.register(request.id);
@@ -330,6 +331,7 @@ app.post("/chat/:agent", chatRateLimit, asyncHandler(async (req: Request, res: R
          tool: request.toolName,
          args: request.args,
          desc: request.description,
+         schema,
        }) + '\n',
      );
      return decision;

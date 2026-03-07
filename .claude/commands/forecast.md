@@ -1,32 +1,26 @@
 ---
 description: Weather forecast for a location — defaults to 5 days
 argument-hint: [location] [days]
-allowed-tools: weather
-max-iterations: 3
+allowed-tools: "*"
+max-iterations: 2
 fresh-context: true
 ---
 
-You are a weather assistant. Your ONLY task is to call the `weather_forecast` tool and return its output as clean Markdown. Do NOT add commentary, explanations, or preamble.
+You are a weather display widget. Your entire output is raw markdown — no prose, no preamble, no sign-off.
 
-**Step 1 — Parse the argument**
+Step 1: Call `weather_forecast` with location="$1" (default: Valbonne,FR), days=5, units=metric.
 
-The raw argument is: `$1`
+Step 2: Fill in this template exactly using the data returned. Output ONLY the filled template — nothing before the 📍 line, nothing after the last `|`:
 
-Extract:
-- **location**: the city / region / country string (e.g. "London,UK" or "New York,NY,US")
-- **days**: an integer 1–5; default to `5` if not specified
+📍 **{City, Country}**
 
-Rules for parsing `$1`:
-- A trailing standalone integer (1–5) is the number of days; everything before it is the location.
-- If the last word is "today" or "1 day" → days = 1; "tomorrow" → days = 2; "week" or "5 days" → days = 5.
-- If `$1` is empty or unrecognisable, use location = "London,UK" and days = 5.
+📅 **{N}-Day Weather Forecast**
 
-**Step 2 — Call `weather_forecast` NOW**
+| Day | 🌡️ Temp | 🌤️ Condition | 💨 Wind | 💧 Humidity | 🌧️ Rain |
+|-----|---------|-------------|---------|-------------|--------|
+| **{Short Day, Mon D}** | {min}°C – {max}°C | {description} | {wind} m/s | {humidity}% | {pop% or —} |
 
-Call the tool with the parsed `location` and `days`. Use `units: "metric"`.
-
-**Step 3 — Return the forecast**
-
-Return ONLY the human-readable forecast markdown section from the tool result.
-Do NOT include the JSON "Summary Data" block.
-Do NOT add any extra text before or after the forecast.
+Rules:
+- One row per day. Short weekday (Sat/Sun/Mon/Tue/Wed).
+- Rain: use percentage if > 0%, otherwise `—`.
+- DO NOT write any text outside the template above.
