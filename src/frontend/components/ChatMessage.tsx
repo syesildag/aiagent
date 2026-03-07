@@ -6,11 +6,9 @@ import {
     VolumeUp as VolumeUpIcon
 } from '@mui/icons-material';
 import {
-    Avatar,
     Box,
     IconButton,
     ListItem,
-    Paper,
     Tooltip,
     Typography
 } from '@mui/material';
@@ -38,121 +36,257 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = 
   };
 
   return (
-    <ListItem sx={{ py: 1, px: 0 }}>
+    <ListItem
+      sx={{
+        py: 0.75,
+        px: 0,
+        animation: 'msgFadeIn 0.25s ease-out',
+        '@keyframes msgFadeIn': {
+          '0%': { opacity: 0, transform: 'translateY(6px)' },
+          '100%': { opacity: 1, transform: 'translateY(0)' },
+        },
+      }}
+    >
       <Box sx={{ width: '100%' }}>
-        <Paper
-          elevation={1}
-          sx={{
-            p: 2,
-            bgcolor: isUser ? 'primary.light' : (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100',
-            color: isUser ? 'primary.contrastText' : 'text.primary',
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 1 }}>
-            <Avatar
-              sx={{
-                bgcolor: isUser ? 'primary.main' : 'secondary.main',
-                width: 24,
-                height: 24,
-              }}
-            >
-              {isUser ? <PersonIcon sx={{ fontSize: 16 }} /> : <BotIcon sx={{ fontSize: 16 }} />}
-            </Avatar>
-            <Typography variant="caption" sx={{ fontWeight: 600, opacity: 0.8 }}>
-              {isUser ? 'You' : 'Assistant'}
-            </Typography>
-          </Box>
-          {message.imageUrls && message.imageUrls.length > 0 && (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: message.content ? 1 : 0 }}>
-              {message.imageUrls.map((url, i) => (
-                <Box
-                  key={i}
-                  component="img"
-                  src={url}
-                  alt={`attachment ${i + 1}`}
-                  sx={{
-                    display: 'block',
-                    maxWidth: '100%',
-                    maxHeight: 240,
-                    borderRadius: 1,
-                    objectFit: 'contain',
-                  }}
-                />
-              ))}
-            </Box>
-          )}
-          {isUser ? (
-            <Typography
-              variant="body1"
-              sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-            >
-              {message.content}
-            </Typography>
-          ) : (
-            <Box sx={{
-              '& p': { my: 0.5, '&:first-of-type': { mt: 0 }, '&:last-of-type': { mb: 0 } },
-              '& pre': { bgcolor: (theme: any) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.200', borderRadius: 1, p: 1, overflow: 'auto', my: 1 },
-              '& code': { fontFamily: 'monospace', fontSize: '0.875em' },
-              '& pre code': { bgcolor: 'transparent', p: 0 },
-              '& ul, & ol': { pl: 2.5, my: 0.5 },
-              '& li': { mb: 0.25 },
-              '& blockquote': { borderLeft: '3px solid', borderColor: 'divider', pl: 1.5, ml: 0, my: 0.5, color: 'text.secondary' },
-              '& h1, & h2, & h3, & h4': { my: 1, lineHeight: 1.3 },
-              '& table': { borderCollapse: 'collapse', width: '100%', my: 1 },
-              '& th, & td': { border: '1px solid', borderColor: 'divider', p: 0.75, textAlign: 'left' },
-              '& a': { color: 'primary.main' },
-              wordBreak: 'break-word',
-            }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {message.content}
-              </ReactMarkdown>
-            </Box>
-          )}
-          <Typography
-            variant="caption"
+        {isUser ? (
+          // User message: coral-tinted bubble, right-aligned
+          <Box
             sx={{
-              display: 'block',
-              mt: 0.5,
-              opacity: 0.7,
+              display: 'flex',
+              justifyContent: 'flex-end',
+              '&:hover .msg-actions': { opacity: 1 },
             }}
           >
-            {message.timestamp.toLocaleTimeString()}
-          </Typography>
-          {message.content && (
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 0.5, gap: 0.5 }}>
-              {!isUser && (
-                <Tooltip title={isSpeaking ? 'Stop' : 'Read aloud'} placement="top">
-                  <IconButton
-                    size="small"
-                    onClick={isSpeaking ? onStopSpeaking : onSpeak}
-                    sx={{
-                      opacity: isSpeaking ? 1 : 0.5,
-                      '&:hover': { opacity: 1 },
-                      p: '2px',
-                      color: isSpeaking ? 'primary.main' : 'text.secondary',
-                    }}
-                  >
-                    {isSpeaking ? <VolumeOffIcon fontSize="inherit" /> : <VolumeUpIcon fontSize="inherit" />}
-                  </IconButton>
-                </Tooltip>
-              )}
-              <Tooltip title={copied ? 'Copied!' : 'Copy'} placement="top">
-                <IconButton
-                  size="small"
-                  onClick={handleCopy}
+            <Box sx={{ maxWidth: { xs: '90%', sm: '80%', md: '70%' } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mb: 0.5, gap: 0.75 }}>
+                <Typography
+                  variant="caption"
+                  sx={{ fontWeight: 500, color: 'text.secondary', fontSize: '0.72rem', letterSpacing: '0.04em' }}
+                >
+                  You
+                </Typography>
+                <Box
                   sx={{
-                    opacity: 0.5,
-                    '&:hover': { opacity: 1 },
-                    p: '2px',
-                    color: isUser ? 'primary.contrastText' : 'text.secondary',
+                    width: 18,
+                    height: 18,
+                    borderRadius: '50%',
+                    bgcolor: 'primary.main',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
                   }}
                 >
-                  <CopyIcon fontSize="inherit" />
-                </IconButton>
-              </Tooltip>
+                  <PersonIcon sx={{ fontSize: 11, color: 'white' }} />
+                </Box>
+              </Box>
+              {message.imageUrls && message.imageUrls.length > 0 && (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: message.content ? 1 : 0, justifyContent: 'flex-end' }}>
+                  {message.imageUrls.map((url, i) => (
+                    <Box
+                      key={i}
+                      component="img"
+                      src={url}
+                      alt={`attachment ${i + 1}`}
+                      sx={{
+                        display: 'block',
+                        maxWidth: '100%',
+                        maxHeight: 240,
+                        borderRadius: 2,
+                        objectFit: 'contain',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                      }}
+                    />
+                  ))}
+                </Box>
+              )}
+              {message.content && (
+                <Box
+                  sx={{
+                    bgcolor: (theme) => theme.palette.mode === 'dark'
+                      ? 'rgba(255,107,107,0.12)'
+                      : 'rgba(232,85,85,0.09)',
+                    border: '1px solid',
+                    borderColor: (theme) => theme.palette.mode === 'dark'
+                      ? 'rgba(255,107,107,0.2)'
+                      : 'rgba(232,85,85,0.2)',
+                    borderRadius: '14px 14px 4px 14px',
+                    px: 2,
+                    py: 1.25,
+                  }}
+                >
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      fontSize: '0.9375rem',
+                      lineHeight: 1.6,
+                      color: 'text.primary',
+                    }}
+                  >
+                    {message.content}
+                  </Typography>
+                </Box>
+              )}
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mt: 0.5, gap: 0.5 }}>
+                <Typography variant="caption" sx={{ opacity: 0.4, fontSize: '0.7rem' }}>
+                  {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Typography>
+                {message.content && (
+                  <Box className="msg-actions" sx={{ opacity: 0, transition: 'opacity 0.15s' }}>
+                    <Tooltip title={copied ? 'Copied!' : 'Copy'} placement="top">
+                      <IconButton size="small" onClick={handleCopy} sx={{ p: '2px', color: 'text.secondary' }}>
+                        <CopyIcon sx={{ fontSize: 13 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                )}
+              </Box>
             </Box>
-          )}
-        </Paper>
+          </Box>
+        ) : (
+          // Assistant message: editorial left-border style
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 1.5,
+              '&:hover .msg-actions': { opacity: 1 },
+            }}
+          >
+            {/* Bot avatar */}
+            <Box
+              sx={{
+                width: 26,
+                height: 26,
+                borderRadius: '50%',
+                bgcolor: 'primary.main',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                mt: 0.25,
+                opacity: 0.9,
+              }}
+            >
+              <BotIcon sx={{ fontSize: 14, color: 'white' }} />
+            </Box>
+
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.75, gap: 0.75 }}>
+                <Typography
+                  variant="caption"
+                  sx={{ fontWeight: 500, color: 'text.secondary', fontSize: '0.72rem', letterSpacing: '0.04em' }}
+                >
+                  Assistant
+                </Typography>
+              </Box>
+              {message.content && (
+                <Box
+                  sx={{
+                    '& p': { my: 0.75, '&:first-of-type': { mt: 0 }, '&:last-of-type': { mb: 0 } },
+                    '& pre': {
+                      bgcolor: (theme) => theme.palette.mode === 'dark' ? '#0a0a0e' : '#f0ede8',
+                      borderRadius: 2,
+                      p: '14px 16px',
+                      overflow: 'auto',
+                      my: 1.5,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      fontSize: '0.8125rem',
+                      fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+                      lineHeight: 1.7,
+                      position: 'relative',
+                    },
+                    '& code': {
+                      fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+                      fontSize: '0.8125em',
+                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
+                      px: '5px',
+                      py: '1px',
+                      borderRadius: '4px',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                    },
+                    '& pre code': { bgcolor: 'transparent', p: 0, border: 'none', borderRadius: 0 },
+                    '& ul, & ol': { pl: 2.5, my: 0.75 },
+                    '& li': { mb: 0.4, lineHeight: 1.65 },
+                    '& blockquote': {
+                      borderLeft: '3px solid',
+                      borderColor: 'primary.main',
+                      pl: 2,
+                      ml: 0,
+                      my: 1,
+                      color: 'text.secondary',
+                      fontStyle: 'italic',
+                      opacity: 0.85,
+                    },
+                    '& h1, & h2, & h3, & h4': {
+                      my: 1.25,
+                      lineHeight: 1.3,
+                      fontWeight: 600,
+                      letterSpacing: '-0.01em',
+                    },
+                    '& h1': { fontSize: '1.3em' },
+                    '& h2': { fontSize: '1.15em' },
+                    '& h3': { fontSize: '1.05em' },
+                    '& table': { borderCollapse: 'collapse', width: '100%', my: 1.5, fontSize: '0.875em' },
+                    '& th': {
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      p: '6px 12px',
+                      textAlign: 'left',
+                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+                      fontWeight: 600,
+                    },
+                    '& td': { border: '1px solid', borderColor: 'divider', p: '6px 12px', textAlign: 'left' },
+                    '& tr:hover td': {
+                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
+                    },
+                    '& a': { color: 'primary.main', textDecorationThickness: '1px', textUnderlineOffset: '3px' },
+                    '& strong': { fontWeight: 600 },
+                    '& hr': { border: 'none', borderTop: '1px solid', borderColor: 'divider', my: 2 },
+                    wordBreak: 'break-word',
+                    fontSize: '0.9375rem',
+                    lineHeight: 1.65,
+                  }}
+                >
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {message.content}
+                  </ReactMarkdown>
+                </Box>
+              )}
+
+              <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.75, gap: 0.5 }}>
+                <Typography variant="caption" sx={{ opacity: 0.4, fontSize: '0.7rem' }}>
+                  {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Typography>
+                {message.content && (
+                  <Box className="msg-actions" sx={{ opacity: 0, transition: 'opacity 0.15s', display: 'flex', gap: 0.25 }}>
+                    <Tooltip title={isSpeaking ? 'Stop' : 'Read aloud'} placement="top">
+                      <IconButton
+                        size="small"
+                        onClick={isSpeaking ? onStopSpeaking : onSpeak}
+                        sx={{
+                          p: '2px',
+                          color: isSpeaking ? 'primary.main' : 'text.secondary',
+                        }}
+                      >
+                        {isSpeaking ? <VolumeOffIcon sx={{ fontSize: 13 }} /> : <VolumeUpIcon sx={{ fontSize: 13 }} />}
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={copied ? 'Copied!' : 'Copy'} placement="top">
+                      <IconButton size="small" onClick={handleCopy} sx={{ p: '2px', color: 'text.secondary' }}>
+                        <CopyIcon sx={{ fontSize: 13 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          </Box>
+        )}
       </Box>
     </ListItem>
   );

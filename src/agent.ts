@@ -19,6 +19,8 @@ export interface Agent {
      attachments?: { base64: string; mimeType: string; name?: string }[],
      approvalCallback?: ToolApprovalCallback,
      toolNameFilter?: string[],
+     maxIterations?: number,
+     freshContext?: boolean,
    ): Promise<ReadableStream<string> | string>;
    getSystemPrompt(): string;
    getName(): AgentName;

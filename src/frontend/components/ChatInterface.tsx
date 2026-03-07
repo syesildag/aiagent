@@ -15,7 +15,6 @@ import {
 import {
     Alert,
     AppBar,
-    Avatar,
     Box,
     Button,
     Container,
@@ -526,18 +525,21 @@ export const ChatInterface: React.FC = () => {
         onNewConversation={handleNewConversation}
         onConversationDeleted={(id) => { if (id === activeConversationId) handleNewConversation(); }}
       />
-      <AppBar position="static">
+      <AppBar position="static" elevation={0}>
         <Toolbar sx={{ gap: 0.5, minHeight: { xs: 56, sm: 64 } }}>
-          <BotIcon sx={{ mr: { xs: 0.5, sm: 1 }, flexShrink: 0 }} />
+          <BotIcon sx={{ mr: { xs: 0.5, sm: 0.75 }, flexShrink: 0, fontSize: 20, color: 'primary.main' }} />
           <Typography
             variant="h6"
             sx={{
-              fontSize: { xs: '0.9rem', sm: '1.1rem', md: '1.25rem' },
+              fontSize: { xs: '0.875rem', sm: '1rem', md: '1.1rem' },
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
               flexShrink: 1,
               minWidth: 0,
+              fontWeight: 600,
+              letterSpacing: '-0.01em',
+              color: 'primary.main',
             }}
           >
             {agentName}
@@ -551,15 +553,17 @@ export const ChatInterface: React.FC = () => {
                 onChange={handleModelChange}
                 disabled={loading}
                 sx={{
-                  color: 'inherit',
-                  '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
-                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
-                  '.MuiSvgIcon-root': { color: 'inherit' },
-                  fontSize: { xs: '0.7rem', sm: '0.85rem' },
+                  color: 'text.secondary',
+                  fontSize: { xs: '0.7rem', sm: '0.8rem' },
+                  fontFamily: "'Outfit', sans-serif",
+                  '.MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main' },
+                  '.MuiSvgIcon-root': { color: 'text.secondary' },
+                  borderRadius: 1.5,
                 }}
               >
                 {availableModels.map(m => (
-                  <MenuItem key={m} value={m} sx={{ fontSize: '0.85rem' }}>{m}</MenuItem>
+                  <MenuItem key={m} value={m} sx={{ fontSize: '0.8rem', fontFamily: "'Outfit', sans-serif" }}>{m}</MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -647,10 +651,48 @@ export const ChatInterface: React.FC = () => {
         <Container maxWidth="md">
           <List sx={{ width: '100%' }}>
             {messages.length === 0 && (
-              <Box sx={{ textAlign: 'center', py: 8 }}>
-                <BotIcon sx={{ fontSize: 80, color: 'text.disabled', mb: 2 }} />
-                <Typography variant="h6" color="text.secondary">
-                  Start a conversation with {agentName}
+              <Box
+                sx={{
+                  textAlign: 'center',
+                  py: { xs: 6, sm: 10 },
+                  px: 2,
+                  animation: 'fadeIn 0.5s ease-out',
+                  '@keyframes fadeIn': {
+                    '0%': { opacity: 0, transform: 'translateY(12px)' },
+                    '100%': { opacity: 1, transform: 'translateY(0)' },
+                  },
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,107,107,0.1)' : 'rgba(232,85,85,0.08)',
+                    border: '1px solid',
+                    borderColor: (t) => t.palette.mode === 'dark' ? 'rgba(255,107,107,0.2)' : 'rgba(232,85,85,0.18)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    mx: 'auto',
+                    mb: 2.5,
+                  }}
+                >
+                  <BotIcon sx={{ fontSize: 30, color: 'primary.main', opacity: 0.85 }} />
+                </Box>
+                <Typography
+                  sx={{
+                    fontWeight: 600,
+                    fontSize: { xs: '1rem', sm: '1.125rem' },
+                    letterSpacing: '-0.02em',
+                    color: 'text.primary',
+                    mb: 0.75,
+                  }}
+                >
+                  {agentName}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 300, mx: 'auto', lineHeight: 1.6 }}>
+                  Ask me anything — I'm ready to help.
                 </Typography>
               </Box>
             )}
@@ -673,31 +715,45 @@ export const ChatInterface: React.FC = () => {
               )
             )}
             {loading && (
-              <ListItem sx={{ justifyContent: 'flex-start', py: 1 }}>
-                <Avatar sx={{ bgcolor: 'secondary.main', mr: 1 }}>
-                  <BotIcon />
-                </Avatar>
-                <Paper elevation={1} sx={{ px: 2, py: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100' }}>
-                  <Box sx={{ display: 'flex', gap: '5px', alignItems: 'center', height: 20 }}>
+              <ListItem sx={{ justifyContent: 'flex-start', py: 0.75 }}>
+                <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                  <Box
+                    sx={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: '50%',
+                      bgcolor: 'primary.main',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      mt: 0.25,
+                      opacity: 0.9,
+                    }}
+                  >
+                    <BotIcon sx={{ fontSize: 14, color: 'white' }} />
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: '4px', alignItems: 'center', height: 26 }}>
                     {[0, 1, 2].map(i => (
                       <Box
                         key={i}
                         sx={{
-                          width: 8,
-                          height: 8,
+                          width: 5,
+                          height: 5,
                           borderRadius: '50%',
-                          bgcolor: 'text.secondary',
-                          animation: 'bounce 1.2s infinite',
-                          animationDelay: `${i * 0.2}s`,
-                          '@keyframes bounce': {
-                            '0%, 80%, 100%': { transform: 'scale(0.6)', opacity: 0.4 },
-                            '40%': { transform: 'scale(1)', opacity: 1 },
+                          bgcolor: 'primary.main',
+                          animation: 'pulse 1.4s ease-in-out infinite',
+                          animationDelay: `${i * 0.18}s`,
+                          opacity: 0.7,
+                          '@keyframes pulse': {
+                            '0%, 60%, 100%': { transform: 'scale(0.6)', opacity: 0.3 },
+                            '30%': { transform: 'scale(1)', opacity: 0.9 },
                           },
                         }}
                       />
                     ))}
                   </Box>
-                </Paper>
+                </Box>
               </ListItem>
             )}
             <div ref={messagesEndRef} />
@@ -706,13 +762,13 @@ export const ChatInterface: React.FC = () => {
       </Box>
 
       <Paper
-        elevation={3}
+        elevation={0}
         sx={{
-          p: { xs: 1, sm: 2 },
+          p: { xs: 1, sm: 1.5 },
           borderTop: 1,
           borderColor: 'divider',
-          // Safe area padding for devices with home indicator
-          pb: { xs: 'max(8px, env(safe-area-inset-bottom))', sm: 2 },
+          bgcolor: 'background.default',
+          pb: { xs: 'max(8px, env(safe-area-inset-bottom))', sm: 1.5 },
         }}
       >
         <Container maxWidth="md">
@@ -864,10 +920,20 @@ export const ChatInterface: React.FC = () => {
               onKeyDown={handleKeyDown}
               disabled={loading}
               variant="outlined"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 3,
+                  bgcolor: 'background.paper',
+                  fontSize: '0.9375rem',
+                  transition: 'box-shadow 0.2s',
+                  '&.Mui-focused': {
+                    boxShadow: (t) => `0 0 0 3px ${t.palette.mode === 'dark' ? 'rgba(255,107,107,0.15)' : 'rgba(232,85,85,0.12)'}`,
+                  },
+                },
+              }}
             />
             {loading ? (
               <Tooltip title="Cancel">
-                {/* Show icon-only on xs, text button on sm+ */}
                 <span>
                   <IconButton
                     color="error"
@@ -888,23 +954,36 @@ export const ChatInterface: React.FC = () => {
                 </span>
               </Tooltip>
             ) : (
-              <Tooltip title="Send">
+              <Tooltip title="Send (Enter)">
                 <span>
-                  {/* Icon-only on xs */}
                   <IconButton
                     color="primary"
                     onClick={handleSendMessage}
                     disabled={!inputMessage.trim()}
-                    sx={{ display: { xs: 'flex', sm: 'none' }, flexShrink: 0 }}
+                    sx={{
+                      display: { xs: 'flex', sm: 'none' },
+                      flexShrink: 0,
+                      bgcolor: inputMessage.trim() ? 'primary.main' : 'transparent',
+                      color: inputMessage.trim() ? 'white' : 'text.disabled',
+                      '&:hover': { bgcolor: 'primary.dark' },
+                      '&.Mui-disabled': { bgcolor: 'transparent' },
+                    }}
                   >
-                    <SendIcon />
+                    <SendIcon sx={{ fontSize: 18 }} />
                   </IconButton>
                   <Button
                     variant="contained"
                     onClick={handleSendMessage}
                     disabled={!inputMessage.trim()}
-                    endIcon={<SendIcon />}
-                    sx={{ minWidth: 90, display: { xs: 'none', sm: 'flex' }, flexShrink: 0 }}
+                    endIcon={<SendIcon sx={{ fontSize: 16 }} />}
+                    sx={{
+                      minWidth: 90,
+                      display: { xs: 'none', sm: 'flex' },
+                      flexShrink: 0,
+                      borderRadius: 2.5,
+                      py: 1.2,
+                      fontWeight: 600,
+                    }}
                   >
                     Send
                   </Button>

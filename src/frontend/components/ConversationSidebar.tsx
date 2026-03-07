@@ -1,9 +1,9 @@
 import {
     Add as AddIcon,
-    Chat as ChatIcon,
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
     DeleteOutline as DeleteIcon,
+    ChatBubbleOutline as ChatIcon,
 } from '@mui/icons-material';
 import {
     Backdrop,
@@ -34,6 +34,22 @@ interface ConversationSidebarProps {
     onSelectConversation: (id: number) => void;
     onNewConversation: () => void;
     onConversationDeleted?: (id: number) => void;
+}
+
+function formatRelativeDate(dateStr: string): string {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 2) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
@@ -74,7 +90,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
             .catch(() => {});
     }, [session, onConversationDeleted]);
 
-    const drawerWidth = 260;
+    const drawerWidth = 264;
 
     const drawerSx = {
         width: drawerWidth,
@@ -82,30 +98,67 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
         '& .MuiDrawer-paper': {
             width: drawerWidth,
             boxSizing: 'border-box',
-            top: 64, // below AppBar
+            top: 64,
             height: 'calc(100% - 64px)',
         },
     };
 
     const drawerContent = (
         <>
-            <Box sx={{ display: 'flex', alignItems: 'center', px: 1.5, py: 1, gap: 1 }}>
-                <ChatIcon fontSize="small" color="action" />
-                <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
+            {/* Header */}
+            <Box
+                sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    px: 2,
+                    py: 1.5,
+                    gap: 1,
+                }}
+            >
+                <ChatIcon sx={{ fontSize: 15, color: 'text.secondary', opacity: 0.6 }} />
+                <Typography
+                    variant="caption"
+                    sx={{
+                        flexGrow: 1,
+                        fontWeight: 600,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        color: 'text.secondary',
+                        fontSize: '0.68rem',
+                    }}
+                >
                     History
                 </Typography>
                 <Tooltip title="New conversation">
-                    <IconButton size="small" onClick={onNewConversation}>
-                        <AddIcon fontSize="small" />
+                    <IconButton
+                        size="small"
+                        onClick={onNewConversation}
+                        sx={{
+                            color: 'text.secondary',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderRadius: 1.5,
+                            p: '3px',
+                            '&:hover': {
+                                color: 'primary.main',
+                                borderColor: 'primary.main',
+                                bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,107,107,0.08)' : 'rgba(232,85,85,0.06)',
+                            },
+                        }}
+                    >
+                        <AddIcon sx={{ fontSize: 15 }} />
                     </IconButton>
                 </Tooltip>
             </Box>
             <Divider />
-            <List dense sx={{ overflow: 'auto', flexGrow: 1 }}>
+            <List dense sx={{ overflow: 'auto', flexGrow: 1, pt: 0.5 }}>
                 {conversations.length === 0 && (
-                    <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 1, display: 'block' }}>
-                        No past conversations
-                    </Typography>
+                    <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
+                        <ChatIcon sx={{ fontSize: 28, color: 'text.disabled', mb: 1 }} />
+                        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.75rem' }}>
+                            No conversations yet
+                        </Typography>
+                    </Box>
                 )}
                 {conversations.map(conv => (
                     <ListItemButton
@@ -113,17 +166,46 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                         selected={conv.id === activeConversationId}
                         onClick={() => onSelectConversation(conv.id)}
                         sx={{
-                            borderRadius: 1, mx: 0.5, my: 0.25,
+                            borderRadius: 0,
+                            mx: 0,
+                            my: 0,
+                            px: 2,
+                            py: 1,
+                            borderLeft: '2px solid transparent',
+                            ...(conv.id === activeConversationId && {
+                                borderLeftColor: 'primary.main',
+                                bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,107,107,0.07)' : 'rgba(232,85,85,0.06)',
+                                '&:hover': {
+                                    bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,107,107,0.1)' : 'rgba(232,85,85,0.09)',
+                                },
+                            }),
                             '& .delete-btn': { opacity: 0 },
                             '&:hover .delete-btn': { opacity: 1 },
+                            '&:hover': {
+                                bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+                            },
                         }}
                     >
                         <ListItemText
                             primary={conv.title}
-                            secondary={new Date(conv.updatedAt).toLocaleDateString()}
+                            secondary={formatRelativeDate(conv.updatedAt)}
                             slotProps={{
-                                primary: { noWrap: true, variant: 'body2' },
-                                secondary: { variant: 'caption' },
+                                primary: {
+                                    noWrap: true,
+                                    sx: {
+                                        fontSize: '0.8125rem',
+                                        fontWeight: conv.id === activeConversationId ? 500 : 400,
+                                        color: conv.id === activeConversationId ? 'text.primary' : 'text.secondary',
+                                        fontFamily: "'Outfit', sans-serif",
+                                    },
+                                },
+                                secondary: {
+                                    sx: {
+                                        fontSize: '0.7rem',
+                                        fontFamily: "'Outfit', sans-serif",
+                                        color: 'text.disabled',
+                                    },
+                                },
                             }}
                         />
                         <Tooltip title="Delete" placement="right">
@@ -131,9 +213,15 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                                 className="delete-btn"
                                 size="small"
                                 onClick={e => handleDelete(e, conv.id)}
-                                sx={{ p: '2px', color: 'error.main', flexShrink: 0 }}
+                                sx={{
+                                    p: '3px',
+                                    color: 'error.main',
+                                    flexShrink: 0,
+                                    opacity: 0.7,
+                                    '&:hover': { opacity: 1 },
+                                }}
                             >
-                                <DeleteIcon fontSize="inherit" />
+                                <DeleteIcon sx={{ fontSize: 14 }} />
                             </IconButton>
                         </Tooltip>
                     </ListItemButton>
@@ -144,7 +232,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
 
     return (
         <>
-            {/* Toggle button always visible */}
+            {/* Toggle button */}
             <Tooltip title={open ? 'Hide history' : 'Show history'}>
                 <IconButton
                     onClick={() => setOpen(o => !o)}
@@ -158,11 +246,17 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                         bgcolor: 'background.paper',
                         border: '1px solid',
                         borderColor: 'divider',
-                        boxShadow: 1,
-                        transition: 'left 225ms',
+                        boxShadow: 2,
+                        transition: 'left 225ms cubic-bezier(0.4, 0, 0.6, 1)',
+                        borderRadius: 1.5,
+                        p: '5px',
+                        '&:hover': {
+                            borderColor: 'primary.main',
+                            color: 'primary.main',
+                        },
                     }}
                 >
-                    {open ? <ChevronLeftIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+                    {open ? <ChevronLeftIcon sx={{ fontSize: 16 }} /> : <ChevronRightIcon sx={{ fontSize: 16 }} />}
                 </IconButton>
             </Tooltip>
 
