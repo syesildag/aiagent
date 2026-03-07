@@ -2,7 +2,7 @@ import { Options } from 'ollama';
 import { GeneralAgent } from './agents/generalAgent';
 import { WeatherAgent } from './agents/weatherAgent';
 import { createLLMProvider, getLLMModel } from './mcp/llmFactory';
-import { MCPServerManager } from './mcp/mcpManager';
+import { MCPServerManager, SubAgentRunner } from './mcp/mcpManager';
 import { ToolApprovalCallback } from './mcp/approvalManager';
 import { AiAgentSession } from './entities/ai-agent-session';
 import { config } from './utils/config';
@@ -24,6 +24,8 @@ export interface Agent {
    ): Promise<ReadableStream<string> | string>;
    getSystemPrompt(): string;
    getName(): AgentName;
+   /** One-sentence description shown to the orchestrator LLM in the Task tool. */
+   getDescription(): string;
    getOptions(): Partial<Options> | undefined;
    setMCPManager(manager: MCPServerManager): void;
    getAllowedServerNames(): string[] | undefined;
@@ -65,6 +67,35 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
       // Set the global MCP manager for all agents
       agent.setMCPManager(globalMCPManager);
    });
+
+   // Build the sub-agent runner and register it with the MCP manager.
+   // This is done after all agents are created to avoid circular initialization.
+   // Sub-agents always run without streaming and with freshContext so they
+   // don't share or pollute the parent conversation history.
+   const subAgentDescriptions: Record<string, string> = {};
+   for (const agent of Object.values(Agents)) {
+      subAgentDescriptions[agent.getName()] = agent.getDescription();
+   }
+
+   const subAgentRunner: SubAgentRunner = async (agentName, prompt, abortSignal) => {
+      const subAgent = Agents[agentName];
+      if (!subAgent) {
+         throw new Error(`Unknown sub-agent: "${agentName}". Available: ${Object.keys(Agents).join(', ')}`);
+      }
+      const result = await subAgent.chat(
+         prompt,
+         abortSignal,
+         false,       // no streaming — we need the full string result
+         undefined,   // no attachments
+         undefined,   // no approval callback for sub-agents
+         undefined,   // no tool filter
+         undefined,   // use default max iterations
+         true,        // freshContext — isolated from parent history
+      );
+      return typeof result === 'string' ? result : '';
+   };
+
+   globalMCPManager.setSubAgentRunner(subAgentRunner, subAgentDescriptions);
 
    initialized = true;
    

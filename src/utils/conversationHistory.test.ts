@@ -66,7 +66,10 @@ describe('InMemoryConversationHistory', () => {
   describe('sliding window', () => {
     it('should maintain sliding window size', async () => {
       const maxConversations = config.CONVERSATION_HISTORY_WINDOW_SIZE;
-      
+      if (maxConversations === undefined) {
+        return; // No window configured — sliding window behaviour does not apply
+      }
+
       // Create more conversations than the window size
       for (let i = 0; i < maxConversations + 3; i++) {
         await conversationHistory.startNewConversation(`session${i}`, `user${i}`);

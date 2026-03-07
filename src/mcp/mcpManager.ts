@@ -391,6 +391,16 @@ export class MCPServerConnection extends EventEmitter {
   }
 }
 
+/**
+ * Callback that runs a named sub-agent with a given prompt and returns its text result.
+ * Injected from agent.ts after the agent registry is built to avoid circular imports.
+ */
+export type SubAgentRunner = (
+  agentName: string,
+  prompt: string,
+  abortSignal?: AbortSignal,
+) => Promise<string>;
+
 export class MCPServerManager {
   private servers: MCPServer[] = [];
   private connections: Map<string, MCPServerConnection> = new Map();
@@ -400,6 +410,9 @@ export class MCPServerManager {
   private cachedTools: Tool[] | null = null;
   private initialized: boolean = false;
   private conversationHistory: IConversationHistory;
+  /** Injected after agent registry is built. Enables the Task sub-agent tool. */
+  private subAgentRunner: SubAgentRunner | null = null;
+  private subAgentDescriptions: Record<string, string> = {};
 
   constructor(
     configPath: string = './mcp-servers.json', 
@@ -645,11 +658,15 @@ export class MCPServerManager {
       }
     }
 
+    // Append virtual tools (e.g. the Task sub-agent tool) after MCP tools
+    const virtualTools = this.getVirtualTools();
+    const allTools = [...tools, ...virtualTools];
+
     // Cache the tools
-    this.cachedTools = tools;
-    
-    Logger.info(`Cached ${tools.length} tools from ${this.connections.size} MCP servers`);
-    return tools;
+    this.cachedTools = allTools;
+
+    Logger.info(`Cached ${allTools.length} tools (${tools.length} MCP + ${virtualTools.length} virtual) from ${this.connections.size} MCP servers`);
+    return allTools;
   }
 
   // Handle tool calls by routing them to appropriate MCP servers
@@ -718,6 +735,26 @@ export class MCPServerManager {
     } catch (error) {
       return `Error parsing tool arguments: ${error}`;
     }
+
+    // ── Virtual Task tool: delegate to a sub-agent ────────────────────────────
+    if (name === 'task') {
+      if (!this.subAgentRunner) {
+        return 'Error: Sub-agent system not initialized';
+      }
+      const { subagent_type, prompt, description } = parsedArgs ?? {};
+      if (!subagent_type || !prompt) {
+        return 'Error: task tool requires subagent_type and prompt';
+      }
+      Logger.info(`Task tool: delegating "${description ?? prompt.slice(0, 60)}" to sub-agent "${subagent_type}"`);
+      try {
+        const result = await this.subAgentRunner(subagent_type, prompt);
+        Logger.info(`Task tool: sub-agent "${subagent_type}" completed`);
+        return JSON.stringify({ result });
+      } catch (error) {
+        return `Error: sub-agent "${subagent_type}" failed: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
+    // ──────────────────────────────────────────────────────────────────────────
 
     // Parse tool name to extract server and method
     const parts = name.split('_');
@@ -829,8 +866,9 @@ export class MCPServerManager {
       let tools = this.convertMCPToolsToLLMFormat();
       
       if (serverNames && serverNames.length > 0) {
-        tools = tools.filter(tool => 
-          tool.serverName && serverNames.includes(tool.serverName)
+        // Virtual tools (no serverName) always pass through — they are not MCP-server-specific
+        tools = tools.filter(tool =>
+          !tool.serverName || serverNames.includes(tool.serverName)
         );
       }
 
@@ -843,10 +881,6 @@ export class MCPServerManager {
           );
         });
       }
-      
-      const availableServers = serverNames && serverNames.length > 0 
-        ? serverNames.filter(name => this.connections.has(name))
-        : Array.from(this.connections.keys());
       
       // Ensure the conversation is initialised with the authenticated user's login
       // before adding the first message. Without this, DbConversationHistory would
@@ -1084,6 +1118,58 @@ export class MCPServerManager {
     }
     
     return status;
+  }
+
+  /**
+   * Register a sub-agent runner so the LLM can delegate tasks via the Task tool.
+   * Called from agent.ts after the full agent registry is built.
+   */
+  setSubAgentRunner(runner: SubAgentRunner, descriptions: Record<string, string>): void {
+    this.subAgentRunner = runner;
+    this.subAgentDescriptions = descriptions;
+    this.invalidateToolsCache();
+    Logger.info(`Sub-agent runner registered with agents: ${Object.keys(descriptions).join(', ')}`);
+  }
+
+  /**
+   * Generate the virtual "task" tool that lets the LLM spawn sub-agents.
+   * Only produced when a SubAgentRunner has been registered.
+   */
+  private getVirtualTools(): Tool[] {
+    if (!this.subAgentRunner) return [];
+    const agentNames = Object.keys(this.subAgentDescriptions);
+    if (agentNames.length === 0) return [];
+
+    const agentList = agentNames
+      .map(name => `- ${name}: ${this.subAgentDescriptions[name]}`)
+      .join('\n');
+
+    return [{
+      type: 'function' as const,
+      function: {
+        name: 'task',
+        description: `Delegate work to a specialized sub-agent and receive its full response.\nAvailable sub-agents:\n${agentList}`,
+        parameters: {
+          type: 'object',
+          properties: {
+            description: {
+              type: 'string',
+              description: 'A short (3-5 word) description of the task',
+            },
+            prompt: {
+              type: 'string',
+              description: 'The full task prompt for the sub-agent to execute',
+            },
+            subagent_type: {
+              type: 'string',
+              description: 'Which specialized agent to invoke',
+              enum: agentNames,
+            },
+          },
+          required: ['description', 'prompt', 'subagent_type'],
+        },
+      },
+    }];
   }
 
   /**

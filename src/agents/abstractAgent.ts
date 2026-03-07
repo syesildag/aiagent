@@ -23,6 +23,10 @@ export default abstract class AbstractAgent implements Agent {
 
    abstract getName(): AgentName;
 
+   getDescription(): string {
+      return `${this.getName()} agent`;
+   }
+
    setSession(session: AiAgentSession) {
       this.session = session;
    }

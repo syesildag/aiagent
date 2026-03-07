@@ -19,6 +19,10 @@ export class GeneralAgent extends AbstractAgent {
       return GENERAL_ASSISTANT_SYSTEM_PROMPT;
    }
 
+   getDescription(): string {
+      return 'General-purpose assistant with access to all tools including memory, notes, documentation, and web fetch.';
+   }
+
    getAllowedServerNames(): string[] | undefined {
       return undefined; // General agent uses all available servers
    }

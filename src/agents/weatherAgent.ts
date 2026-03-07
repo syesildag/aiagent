@@ -27,6 +27,10 @@ export class WeatherAgent extends AbstractAgent {
       return WEATHER_SYSTEM_PROMPT;
    }
 
+   getDescription(): string {
+      return 'Weather specialist with real-time conditions, multi-day forecasts, alerts, and time zone data.';
+   }
+
    getAllowedServerNames(): string[] {
       return ['weather', 'time'];
    }
