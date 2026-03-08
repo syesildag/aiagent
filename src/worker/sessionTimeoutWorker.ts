@@ -9,11 +9,9 @@ class SessionTimeoutWorker extends AbstractBaseWorker<Date, void> {
       return __filename;
    }
 
-   protected run(fireDate: Date): void {
+   protected async run(fireDate: Date): Promise<void> {
       Logger.debug('sessionTimeoutWorker: ' + fireDate);
-      deleteExpiredSessions().catch((error) => {
-         Logger.error(`Error in sessionTimeoutWorker: ${error}`);
-      });
+      await deleteExpiredSessions();
    }
 }
 

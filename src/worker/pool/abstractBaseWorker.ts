@@ -10,13 +10,18 @@ export default abstract class AbstractBaseWorker<T, R> {
          // This prevents the worker from exiting after a task.
          this.parentPort.ref();
 
-         this.parentPort.on('message', (task: T) => {
-            this.parentPort!.postMessage(this.run(task));
+         this.parentPort.on('message', async (task: T) => {
+            try {
+               const result = await this.run(task);
+               this.parentPort!.postMessage(result);
+            } catch (err) {
+               throw err;
+            }
          });
       }
    }
 
    abstract getFilename(): string;
 
-   protected abstract run(task: T): R;
+   protected abstract run(task: T): R | Promise<R>;
 }

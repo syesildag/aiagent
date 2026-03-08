@@ -11,7 +11,7 @@ export default class Watchdog extends JobFactory {
 
    protected getSpec() {
       const rule = new RecurrenceRule();
-      rule.minute = new Range(0, 60, 1);
+      rule.minute = new Range(0, 59, 1);
       return rule;
    }
 
