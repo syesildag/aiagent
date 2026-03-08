@@ -119,7 +119,7 @@ export default class WorkerPool<Task, Result, This = any> extends EventEmitter {
    runTask(task: Task, callback: Callback<Result, This>, thisArg?: This) {
       if (this.freeWorkers.length === 0) {
          // No free threads, wait until a worker thread becomes free.
-         this.once(kWorkerFreedEvent, () => this.runTask(task, callback));
+         this.once(kWorkerFreedEvent, () => this.runTask(task, callback, thisArg));
          return;
       }
 
@@ -131,6 +131,13 @@ export default class WorkerPool<Task, Result, This = any> extends EventEmitter {
    close() {
       this.closed = true;
       for (const worker of this.workers) {
+         if ((worker as any)[kTaskInfo]) {
+            ((worker as any)[kTaskInfo] as WorkerPoolTaskInfo<Result, This>).done(
+               new Error('Worker pool closed'),
+               null
+            );
+            (worker as any)[kTaskInfo] = null;
+         }
          //Stop all JavaScript execution in the worker thread as soon as possible.
          //Returns a Promise for the exit code that is fulfilled when the 'exit' event is emitted.
          worker.terminate();
