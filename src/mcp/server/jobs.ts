@@ -69,15 +69,15 @@ async function main(): Promise<void> {
             description:
                "Returns all registered scheduled jobs with their current enabled state, " +
                "last run time, and configuration params.",
-            inputSchema: z.object({}),
-         },
+            inputSchema: z.object({}).shape,
+         } as any,
          async () => {
             try {
                const result = await queryDatabase(
                   "SELECT id, name, enabled, params, last_run_at, created_at, updated_at " +
                   "FROM ai_agent_jobs ORDER BY name ASC"
                );
-               const rows: JobRow[] = result.rows;
+               const rows: JobRow[] = result;
                if (rows.length === 0) {
                   return { content: [{ type: "text" as const, text: "No jobs registered." }] };
                }
@@ -102,19 +102,20 @@ async function main(): Promise<void> {
             description: "Returns detailed information about a single scheduled job by name.",
             inputSchema: z.object({
                name: z.string().min(1).describe("The unique name of the job to retrieve"),
-            }),
-         },
-         async ({ name }) => {
+            }).shape,
+         } as any,
+         async (args) => {
+            const { name } = args as unknown as { name: string };
             try {
                const result = await queryDatabase(
                   "SELECT id, name, enabled, params, last_run_at, created_at, updated_at " +
                   "FROM ai_agent_jobs WHERE name = $1",
                   [name]
                );
-               if (result.rows.length === 0) {
+               if (result.length === 0) {
                   return { content: [{ type: "text" as const, text: `Job not found: "${name}"` }] };
                }
-               return { content: [{ type: "text" as const, text: formatJob(result.rows[0] as JobRow) }] };
+               return { content: [{ type: "text" as const, text: formatJob(result[0] as JobRow) }] };
             } catch (err) {
                const msg = err instanceof Error ? err.message : String(err);
                Logger.error(`[jobs-server] get_job_info error: ${msg}`);
@@ -135,16 +136,17 @@ async function main(): Promise<void> {
                "next scheduled tick (no server restart required).",
             inputSchema: z.object({
                name: z.string().min(1).describe("The unique name of the job to enable"),
-            }),
-         },
-         async ({ name }) => {
+            }).shape,
+         } as any,
+         async (args) => {
+            const { name } = args as unknown as { name: string };
             try {
                const result = await queryDatabase(
                   "UPDATE ai_agent_jobs SET enabled = TRUE, updated_at = NOW() " +
                   "WHERE name = $1 RETURNING id, name, enabled, updated_at",
                   [name]
                );
-               if (result.rowCount === 0) {
+               if (result.length === 0) {
                   return { content: [{ type: "text" as const, text: `Job not found: "${name}"` }] };
                }
                Logger.info(`[jobs-server] Enabled job: ${name}`);
@@ -174,16 +176,17 @@ async function main(): Promise<void> {
                "next scheduled tick \u2014 the timer continues to fire but the body is skipped.",
             inputSchema: z.object({
                name: z.string().min(1).describe("The unique name of the job to disable"),
-            }),
-         },
-         async ({ name }) => {
+            }).shape,
+         } as any,
+         async (args) => {
+            const { name } = args as unknown as { name: string };
             try {
                const result = await queryDatabase(
                   "UPDATE ai_agent_jobs SET enabled = FALSE, updated_at = NOW() " +
                   "WHERE name = $1 RETURNING id, name, enabled, updated_at",
                   [name]
                );
-               if (result.rowCount === 0) {
+               if (result.length === 0) {
                   return { content: [{ type: "text" as const, text: `Job not found: "${name}"` }] };
                }
                Logger.info(`[jobs-server] Disabled job: ${name}`);
