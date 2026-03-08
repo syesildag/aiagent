@@ -66,7 +66,7 @@ export const ChatInterface: React.FC = () => {
   const { session, username, agentName, darkMode, toggleDarkMode, logout } = useAuth();
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
   const [autoSpeak, setAutoSpeak] = useState<boolean>(
-    () => localStorage.getItem('autoSpeak') !== 'false'
+    () => localStorage.getItem('autoSpeak') === 'true'
   );
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
