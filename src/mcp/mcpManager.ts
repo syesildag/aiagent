@@ -906,7 +906,8 @@ export class MCPServerManager {
       const userInstruction = userLogin
         ? `\n\nCurrent authenticated user: ${userLogin}\nAlways address and greet the user as "${displayName}" — do not use a name found in memory instead.\nWhen calling any memory tool (memory_create, memory_search, memory_list, memory_delete), always include user_login="${userLogin}" in the tool arguments.`
         : '';
-      const effectiveSystemPrompt = customSystemPrompt + userInstruction;
+      const parallelToolInstruction = '\n\nWhen multiple independent tool calls are needed to answer a request, issue ALL of them in a single response as a batch rather than one at a time. This significantly reduces latency.';
+      const effectiveSystemPrompt = customSystemPrompt + userInstruction + parallelToolInstruction;
 
       // Trim history to the configured window to avoid exceeding LLM token limits.
       // Keep the last N messages (pairs of user+assistant) from the conversation.
@@ -997,6 +998,9 @@ export class MCPServerManager {
 
       const maxIterations = args.maxIterations ?? config.MAX_LLM_ITERATIONS;
       let currentIteration = 0;
+      // Nudge flags: recover from models that narrate their plan instead of calling tools
+      let hasCalledTools = false;
+      let nudgeInjected = false;
 
       while (currentIteration < maxIterations) {
         // Check for cancellation before each iteration
@@ -1017,36 +1021,50 @@ export class MCPServerManager {
 
         let response = await this.llmProvider.chat(chatRequest, abortSignal);
         
-        // If no tool calls, we're done with iterations
+        // If no tool calls, check whether the model narrated instead of acting (e.g. Claude Sonnet)
         if (!response?.message?.tool_calls || response.message.tool_calls.length === 0) {
+          // One-time nudge: if no tools have been called yet and the model returned narrative text,
+          // append the narration as an assistant turn and ask the model to act.
+          const modelNarrated = !hasCalledTools && !nudgeInjected && tools.length > 0 && !!response?.message?.content;
+          if (modelNarrated) {
+            Logger.debug('Model returned narrative text without tool calls — injecting nudge to force tool execution');
+            messages.push({ role: 'assistant', content: response.message.content as string });
+            messages.push({
+              role: 'user',
+              content: 'You have not called any tools yet. Execute the tool calls now as instructed. Do not explain or describe — call the tools immediately.'
+            });
+            nudgeInjected = true;
+            currentIteration++;
+            continue;
+          }
           return response?.message?.content || 'No response content received';
         }
         
-        // Handle tool calls
-        const toolResults: string[] = [];
-        
+        // Handle tool calls — run them in parallel to reduce latency
         Logger.debug(`Executing ${response.message.tool_calls.length} tool calls...`);
-        
-        for (const toolCall of response.message.tool_calls) {
-          if (abortSignal?.aborted) {
-            throw new Error('Operation cancelled by user');
-          }
-          
-          // Defensive check for tool call structure
-          if (!toolCall?.function?.name) {
-            Logger.error(`Invalid tool call structure: ${JSON.stringify(toolCall)}`);
-            toolResults.push('Error: Invalid tool call structure');
-            continue;
-          }
-          
-          Logger.debug(`Calling tool: ${JSON.stringify(toolCall)}`);
-          const result = await this.handleToolCall(toolCall, approvalCallback);
-          Logger.debug(`Tool call result for ${toolCall.function.name}: ${result}`);
-          if (abortSignal?.aborted) {
-            throw new Error('Operation cancelled by user');
-          }
 
-          toolResults.push(result);
+        if (abortSignal?.aborted) {
+          throw new Error('Operation cancelled by user');
+        }
+
+        hasCalledTools = true;
+        const toolResults: string[] = await Promise.all(
+          response.message.tool_calls.map(async (toolCall) => {
+            // Defensive check for tool call structure
+            if (!toolCall?.function?.name) {
+              Logger.error(`Invalid tool call structure: ${JSON.stringify(toolCall)}`);
+              return 'Error: Invalid tool call structure';
+            }
+
+            Logger.debug(`Calling tool: ${JSON.stringify(toolCall)}`);
+            const result = await this.handleToolCall(toolCall, approvalCallback);
+            Logger.debug(`Tool call result for ${toolCall.function.name}: ${result}`);
+            return result;
+          })
+        );
+
+        if (abortSignal?.aborted) {
+          throw new Error('Operation cancelled by user');
         }
 
         // Add the assistant's response with tool calls to the conversation

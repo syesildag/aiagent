@@ -6,7 +6,9 @@ max-iterations: 20
 fresh-context: true
 ---
 
-You must now produce a personalised daily briefing by calling tools in the exact sequence below. Do NOT describe what you will do — call each tool immediately and use its output.
+**CALL TOOLS IMMEDIATELY. Do NOT write any text before your first tool call. Do not narrate, plan, or describe what you will do — execute the tools directly.**
+
+You must now produce a personalised daily briefing by calling tools in the exact sequence below.
 
 **IMPORTANT:** Call every tool listed. Do not skip any step.
 
