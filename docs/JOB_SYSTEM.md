@@ -4,6 +4,8 @@
 
 The Job System provides scheduled task execution using `node-schedule`. It supports cron-like scheduling, recurrence rules, and worker threads for background processing.
 
+> **DB-backed jobs with persistent state and MCP control?** See [DB_JOB_SYSTEM.md](DB_JOB_SYSTEM.md).
+
 ## Architecture
 
 ### Components

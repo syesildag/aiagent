@@ -55,6 +55,14 @@
         "dist/src/mcp/server/fetch.js"
       ],
       "enabled": true
+    },
+    {
+      "name": "jobs",
+      "command": "node",
+      "args": [
+        "dist/src/mcp/server/jobs.js"
+      ],
+      "enabled": true
     }
   ]
 }

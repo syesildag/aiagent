@@ -54,6 +54,7 @@ Welcome to the comprehensive documentation for the AI Agent system. This documen
 ## Background Processing
 
 - **[Job System](JOB_SYSTEM.md)**: Scheduled jobs with node-schedule and cron patterns
+- **[DB Job System](DB_JOB_SYSTEM.md)**: DB-persistent jobs with MCP server control (enable/disable at runtime)
 - **[Worker System](WORKER_SYSTEM.md)**: Background processing with worker threads
 
 ## Architecture Documents

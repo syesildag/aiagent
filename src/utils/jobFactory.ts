@@ -15,6 +15,14 @@ export default abstract class JobFactory {
       this.enabled = enabled;
    }
 
+   /**
+    * Called once before create() during server startup. Subclasses can override
+    * to perform async initialization (e.g. syncing state with a database).
+    * The default implementation is a no-op so existing jobs are unaffected.
+    */
+   public async initialize(): Promise<void> {
+   }
+
    public create(): Job | null {
       if (!this.isEnabled())
          return null;
