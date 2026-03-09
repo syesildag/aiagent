@@ -1,3 +1,5 @@
+import Logger from './logger';
+
 export function weatherIcon(id: number): string {
   if (id >= 200 && id < 300) return '⛈️';
   if (id >= 300 && id < 400) return '🌦️';
@@ -61,7 +63,10 @@ export async function getUserLocation(): Promise<string | null> {
     const res = await fetch('http://ip-api.com/json?fields=city,countryCode,status');
     if (!res.ok) return null;
     const { city, countryCode, status } = await res.json() as { city?: string; countryCode?: string; status?: string };
-    if (status === 'success' && city && countryCode) return `${city},${countryCode}`;
+    if (status === 'success' && city && countryCode) {
+      Logger.info(`[getUserLocation] resolved: ${city},${countryCode}`);
+      return `${city},${countryCode}`;
+    }
   } catch {
     // network failure — caller should use its own fallback
   }
