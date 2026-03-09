@@ -1,6 +1,6 @@
 ---
 description: "Weather forecast for a location — defaults to 5 days"
-argument-hint: [location] [days]
+argument-hint: "[location] [days]"
 allowed-tools: Bash
 max-iterations: 2
 fresh-context: true
