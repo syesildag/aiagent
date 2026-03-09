@@ -34,7 +34,7 @@ if (!OPENWEATHER_API_KEY) {
  * Input schemas for tools with comprehensive validation
  */
 const CurrentWeatherInputSchema = z.object({
-  location: z.string().optional().describe("City name, state/country code (e.g., 'London,UK') — omit to auto-detect from IP"),
+  location: z.string().optional().describe("City name, state/country code (e.g., 'Valbonne,FR') — omit to auto-detect from IP"),
   units: z.enum(["metric", "imperial", "kelvin"]).optional().describe("Temperature units: metric (°C), imperial (°F), or kelvin (K)")
 });
 
@@ -451,7 +451,7 @@ server.registerTool(
   },
   async ({ location, days = 5, units = "metric" }) => {
     try {
-      const resolvedLocation = location || await getUserLocation() || 'London,UK';
+      const resolvedLocation = location || await getUserLocation() || 'Valbonne,FR';
       const url = `${OPENWEATHER_BASE_URL}/forecast?q=${encodeURIComponent(resolvedLocation)}&appid=${OPENWEATHER_API_KEY}&units=${units}&cnt=${days * 8}`;
       const data = await makeWeatherRequest(url);
 
