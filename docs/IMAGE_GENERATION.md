@@ -142,10 +142,32 @@ Generated images are not stored in the `ai_agent_conversation_messages` database
 
 This keeps the conversation history browsable without storing large binary blobs or expiring URLs.
 
+## Provider Behavior
+
+The Track 2 (Responses API) branch uses a combined condition to dispatch:
+
+```ts
+if (isResponsesAPIImageModel(this.model) && isResponsesAPICapable(this.llmProvider)) {
+  // Responses API path — image generation available
+}
+// otherwise: falls through to standard Chat Completions agentic loop
+```
+
+This means provider capability and model name are checked together:
+
+| Provider | Model | Behavior |
+|---|---|---|
+| OpenAI | `gpt-4.1`, `gpt-4o`, `o3`, `gpt-5` | Responses API → image generation enabled |
+| GitHub Copilot | `gpt-4.1`, `gpt-4o` | Falls through → normal Chat Completions (no images) |
+| Ollama | any | Falls through → normal Chat Completions (no images) |
+| Any provider | `dall-e-3`, `dall-e-2`, `gpt-image-1` | Images API (Track 1) — throws if provider lacks `generateImage()` |
+
+This design avoids errors when non-OpenAI providers use model names that happen to match the Responses API patterns (e.g. GitHub Copilot serving `gpt-4o`).
+
 ## Limitations
 
 - Image generation is only available when `LLM_PROVIDER=openai`.
-- Ollama and GitHub Copilot providers will throw an error if an image generation model is selected.
+- Ollama and GitHub Copilot providers silently fall back to standard chat when a Responses-API-capable model name is used — no images are generated but no error is thrown.
 - OpenAI CDN URLs returned by `dall-e-3`/`dall-e-2` expire after approximately 1 hour. Download the image immediately if you need to keep it.
 - Image generation via the Responses API uses `gpt-image-1` internally (OpenAI routes automatically); the model charged to your account may differ from the chat model selected.
 - The Responses API image generation tool defaults to `1024x1024` at `medium` quality. These can be changed in `chatWithResponsesAPILoop()` in `src/mcp/mcpManager.ts`.

@@ -978,10 +978,9 @@ export class MCPServerManager {
       }
 
       // ── Track 2: Chat models with image generation via Responses API ──────
-      if (isResponsesAPIImageModel(this.model)) {
-        if (!isResponsesAPICapable(this.llmProvider)) {
-          throw new Error(`Provider '${this.llmProvider.name}' does not support the Responses API`);
-        }
+      // Only enters this path when the provider actually supports the Responses API (i.e. OpenAI).
+      // Other providers (GitHub Copilot, Ollama) fall through to the standard Chat Completions loop.
+      if (isResponsesAPIImageModel(this.model) && isResponsesAPICapable(this.llmProvider)) {
         // Add user message to history
         if (!this.conversationHistory.hasActiveConversation() && userLogin) {
           await this.conversationHistory.startNewConversation(undefined, userLogin);
