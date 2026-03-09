@@ -1,6 +1,6 @@
 import { Options } from "ollama";
 import { Agent, AgentName } from "../agent";
-import { MCPServerManager } from "../mcp/mcpManager";
+import { MCPServerManager, ImageGenerationResult, MixedContentResult } from "../mcp/mcpManager";
 import { ToolApprovalCallback } from "../mcp/approvalManager";
 import { AiAgentSession } from "../entities/ai-agent-session";
 import Logger from "../utils/logger";
@@ -72,7 +72,7 @@ export default abstract class AbstractAgent implements Agent {
      toolNameFilter?: string[],
      maxIterations?: number,
      freshContext?: boolean,
-   ): Promise<ReadableStream<string> | string> {
+   ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');
       }

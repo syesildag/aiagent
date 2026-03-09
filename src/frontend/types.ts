@@ -19,6 +19,8 @@ export interface Message {
   imageUrls?: string[];
   /** Present when role === 'tool_approval' */
   approval?: ToolApproval;
+  /** Generated image URLs/data-URLs from image generation models */
+  generatedImageUrls?: string[];
 }
 
 /** Models that support image (vision) input */
@@ -40,6 +42,25 @@ const VISION_MODEL_PATTERNS = [
 
 export function isVisionModel(model: string): boolean {
   return VISION_MODEL_PATTERNS.some(pattern => pattern.test(model));
+}
+
+/** Dedicated image-generation models that always produce images (Images API) */
+const IMAGE_GENERATION_MODEL_PATTERNS = [/^dall-e-/i, /^gpt-image-/i];
+
+export function isImageGenerationModel(model: string): boolean {
+  return IMAGE_GENERATION_MODEL_PATTERNS.some(p => p.test(model));
+}
+
+/** Chat models that can generate images via the Responses API image_generation tool */
+const RESPONSES_API_IMAGE_MODEL_PATTERNS = [/^gpt-4o/i, /^gpt-4\.1/i, /^o3/i, /^gpt-5/i];
+
+export function isResponsesAPIImageModel(model: string): boolean {
+  return RESPONSES_API_IMAGE_MODEL_PATTERNS.some(p => p.test(model));
+}
+
+/** Returns true if the model can produce images in any form */
+export function isImageCapableModel(model: string): boolean {
+  return isImageGenerationModel(model) || isResponsesAPIImageModel(model);
 }
 
 export interface AuthContextValue {

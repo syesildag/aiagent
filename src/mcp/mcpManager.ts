@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import { promises as fs } from 'fs';
 import Logger from '../utils/logger';
 import { config } from '../utils/config';
-import { ContentPart, LLMMessage, LLMProvider, OllamaProvider, Tool } from './llmProviders';
+import { ContentPart, LLMMessage, LLMProvider, OllamaProvider, Tool, isImageGenerationModel, isResponsesAPIImageModel, isImageGenerationProvider, isResponsesAPICapable } from './llmProviders';
 import { IConversationHistory } from '../descriptions/conversationTypes';
 import { ConversationHistoryFactory } from '../utils/conversationHistoryFactory';
 import { ToolApprovalCallback } from './approvalManager';
@@ -107,6 +107,9 @@ export interface MCPServer {
 export interface MCPConfig {
   servers: MCPServer[];
 }
+
+export type ImageGenerationResult = { kind: 'image'; urls: string[] };
+export type MixedContentResult = { kind: 'mixed'; text: string; imageUrls: string[] };
 
 export interface ChatWithLLMArgs {
   message: string;
@@ -856,11 +859,147 @@ export class MCPServerManager {
     });
   }
 
-  async chatWithLLM(args: ChatWithLLMArgs): Promise<ReadableStream<string> | string> {
+  /**
+   * Agentic loop using the OpenAI Responses API.
+   * Handles text responses, image_generation_call outputs, and function_call
+   * items (MCP tools) via the same handleToolCall mechanism as Chat Completions.
+   */
+  private async chatWithResponsesAPILoop(params: {
+    model: string;
+    systemPrompt: string;
+    history: LLMMessage[];
+    tools: Tool[];
+    approvalCallback?: ToolApprovalCallback;
+    abortSignal?: AbortSignal;
+  }): Promise<{ text: string; imageUrls: string[] }> {
+    const { model, systemPrompt, history, tools, approvalCallback, abortSignal } = params;
+    const provider = this.llmProvider as unknown as import('./llmProviders').ResponsesAPICapable;
+
+    // Convert MCP tools to Responses API function format
+    const functionTools = tools.map(t => ({
+      type: 'function',
+      name: t.function.name,
+      description: t.function.description,
+      parameters: t.function.parameters,
+    }));
+
+    const responsesTools: any[] = [
+      { type: 'image_generation', size: '1024x1024', quality: 'medium' },
+      ...functionTools,
+    ];
+
+    // Convert LLM history messages to Responses API input format
+    // System messages become `instructions`; tool-result messages are skipped
+    // on the initial call (they're included only when continuing with function_call_output)
+    const inputMessages = history
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => ({
+        role: m.role,
+        content: typeof m.content === 'string'
+          ? m.content
+          : (m.content as import('./llmProviders').ContentPart[])
+              .filter((p: any) => p.type === 'text')
+              .map((p: any) => p.text)
+              .join(' '),
+      }));
+
+    let collectedText = '';
+    const collectedImageUrls: string[] = [];
+    let previousResponseId: string | undefined;
+    let inputForThisCall: any[] = inputMessages;
+    const MAX_ITERATIONS = 10;
+
+    for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+      if (abortSignal?.aborted) throw new Error('Operation cancelled by user');
+
+      const { id, output } = await provider.callResponsesAPI({
+        model,
+        instructions: previousResponseId ? undefined : systemPrompt,
+        input: inputForThisCall,
+        tools: responsesTools,
+        previousResponseId,
+        abortSignal,
+      });
+
+      previousResponseId = id;
+
+      const functionCallOutputs: any[] = [];
+      let hasFunctionCalls = false;
+
+      for (const item of output) {
+        if (item.type === 'message') {
+          for (const contentItem of (item.content ?? [])) {
+            if (contentItem.type === 'output_text') {
+              collectedText += contentItem.text;
+            }
+          }
+        } else if (item.type === 'image_generation_call' && item.status === 'completed' && item.result) {
+          collectedImageUrls.push(`data:image/png;base64,${item.result}`);
+        } else if (item.type === 'function_call') {
+          hasFunctionCalls = true;
+          const toolCallAdapter = {
+            id: item.id,
+            type: 'function' as const,
+            function: { name: item.name, arguments: item.arguments },
+          };
+          const result = await this.handleToolCall(toolCallAdapter, approvalCallback);
+          functionCallOutputs.push({
+            type: 'function_call_output',
+            call_id: item.call_id,
+            output: result,
+          });
+        }
+      }
+
+      if (!hasFunctionCalls) break;
+
+      // Next iteration: send function_call_outputs using previous_response_id chaining
+      inputForThisCall = functionCallOutputs;
+    }
+
+    return { text: collectedText, imageUrls: collectedImageUrls };
+  }
+
+  async chatWithLLM(args: ChatWithLLMArgs): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
     const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, approvalCallback, toolNameFilter, freshContext } = args;
     try {
       // Ensure MCP servers are initialized on first use
       await this.ensureInitialized();
+
+      // ── Track 1: Dedicated image-generation models (Images API) ───────────
+      if (isImageGenerationModel(this.model)) {
+        if (!isImageGenerationProvider(this.llmProvider)) {
+          throw new Error(`Provider '${this.llmProvider.name}' does not support image generation`);
+        }
+        // Add user message to history before generating
+        await this.conversationHistory.addMessage({ role: 'user', content: message });
+        const url = await this.llmProvider.generateImage(message, this.model, abortSignal);
+        return { kind: 'image', urls: [url] };
+      }
+
+      // ── Track 2: Chat models with image generation via Responses API ──────
+      if (isResponsesAPIImageModel(this.model)) {
+        if (!isResponsesAPICapable(this.llmProvider)) {
+          throw new Error(`Provider '${this.llmProvider.name}' does not support the Responses API`);
+        }
+        // Add user message to history
+        if (!this.conversationHistory.hasActiveConversation() && userLogin) {
+          await this.conversationHistory.startNewConversation(undefined, userLogin);
+        }
+        await this.conversationHistory.addMessage({ role: 'user', content: message });
+        const history = await this.conversationHistory.getCurrentConversation();
+        const result = await this.chatWithResponsesAPILoop({
+          model: this.model,
+          systemPrompt: customSystemPrompt,
+          history,
+          tools: this.convertMCPToolsToLLMFormat(),
+          approvalCallback,
+          abortSignal,
+        });
+        return result.imageUrls.length > 0
+          ? { kind: 'mixed', text: result.text, imageUrls: result.imageUrls }
+          : result.text;
+      }
 
       // Get all tools and filter by server names if specified
       let tools = this.convertMCPToolsToLLMFormat();

@@ -1,6 +1,7 @@
 import {
     SmartToy as BotIcon,
     ContentCopy as CopyIcon,
+    Download as DownloadIcon,
     Person as PersonIcon,
     VolumeOff as VolumeOffIcon,
     VolumeUp as VolumeUpIcon
@@ -33,6 +34,13 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = 
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  };
+
+  const handleDownloadImage = (url: string, index: number) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `generated-image-${index + 1}.png`;
+    a.click();
   };
 
   return (
@@ -182,6 +190,28 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = 
                   Assistant
                 </Typography>
               </Box>
+              {message.generatedImageUrls && message.generatedImageUrls.length > 0 && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: message.content ? 1.5 : 0 }}>
+                  {message.generatedImageUrls.map((url, i) => (
+                    <Box key={i} sx={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+                      <Box
+                        component="img"
+                        src={url}
+                        alt={`Generated image ${i + 1}`}
+                        sx={{
+                          display: 'block',
+                          maxWidth: '100%',
+                          maxHeight: 512,
+                          borderRadius: 2,
+                          objectFit: 'contain',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                        }}
+                      />
+                    </Box>
+                  ))}
+                </Box>
+              )}
               {message.content && (
                 <Box
                   sx={{
@@ -262,25 +292,36 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = 
                 <Typography variant="caption" sx={{ opacity: 0.4, fontSize: '0.7rem' }}>
                   {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Typography>
-                {message.content && (
+                {(message.content || (message.generatedImageUrls && message.generatedImageUrls.length > 0)) && (
                   <Box className="msg-actions" sx={{ opacity: 0, transition: 'opacity 0.15s', display: 'flex', gap: 0.25 }}>
-                    <Tooltip title={isSpeaking ? 'Stop' : 'Read aloud'} placement="top">
-                      <IconButton
-                        size="small"
-                        onClick={isSpeaking ? onStopSpeaking : onSpeak}
-                        sx={{
-                          p: '2px',
-                          color: isSpeaking ? 'primary.main' : 'text.secondary',
-                        }}
-                      >
-                        {isSpeaking ? <VolumeOffIcon sx={{ fontSize: 13 }} /> : <VolumeUpIcon sx={{ fontSize: 13 }} />}
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={copied ? 'Copied!' : 'Copy'} placement="top">
-                      <IconButton size="small" onClick={handleCopy} sx={{ p: '2px', color: 'text.secondary' }}>
-                        <CopyIcon sx={{ fontSize: 13 }} />
-                      </IconButton>
-                    </Tooltip>
+                    {message.generatedImageUrls && message.generatedImageUrls.map((url, i) => (
+                      <Tooltip key={i} title={`Download image${message.generatedImageUrls!.length > 1 ? ` ${i + 1}` : ''}`} placement="top">
+                        <IconButton size="small" onClick={() => handleDownloadImage(url, i)} sx={{ p: '2px', color: 'text.secondary' }}>
+                          <DownloadIcon sx={{ fontSize: 13 }} />
+                        </IconButton>
+                      </Tooltip>
+                    ))}
+                    {message.content && (
+                      <>
+                        <Tooltip title={isSpeaking ? 'Stop' : 'Read aloud'} placement="top">
+                          <IconButton
+                            size="small"
+                            onClick={isSpeaking ? onStopSpeaking : onSpeak}
+                            sx={{
+                              p: '2px',
+                              color: isSpeaking ? 'primary.main' : 'text.secondary',
+                            }}
+                          >
+                            {isSpeaking ? <VolumeOffIcon sx={{ fontSize: 13 }} /> : <VolumeUpIcon sx={{ fontSize: 13 }} />}
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title={copied ? 'Copied!' : 'Copy'} placement="top">
+                          <IconButton size="small" onClick={handleCopy} sx={{ p: '2px', color: 'text.secondary' }}>
+                            <CopyIcon sx={{ fontSize: 13 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
                   </Box>
                 )}
               </Box>

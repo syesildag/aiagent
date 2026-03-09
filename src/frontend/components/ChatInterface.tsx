@@ -41,7 +41,7 @@ import {
 } from '@mui/material';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Message, ToolApproval } from '../types';
+import { Message, ToolApproval, isImageGenerationModel, isImageCapableModel } from '../types';
 import { ChatMessage } from './ChatMessage';
 import { ConversationSidebar } from './ConversationSidebar';
 import { ToolApprovalCard } from './ToolApprovalCard';
@@ -55,6 +55,8 @@ export const ChatInterface: React.FC = () => {
   const [previewFile, setPreviewFile] = useState<{ dataUrl: string; base64: string; mimeType: string; name: string } | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [currentModel, setCurrentModel] = useState('');
+  const isImageOnlyModel = isImageGenerationModel(currentModel);
+  const isImageCapable = isImageCapableModel(currentModel);
   const [availableAgents, setAvailableAgents] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -389,6 +391,16 @@ export const ChatInterface: React.FC = () => {
                   ...prev,
                   { id: event.id!, role: 'tool_approval', content: '', timestamp: new Date(), approval },
                 ]);
+              } else if (event.t === 'image' && event.v) {
+                const msgId = ensureAssistantMsg();
+                const imageUrl = event.v;
+                setMessages(prev =>
+                  prev.map(m =>
+                    m.id === msgId
+                      ? { ...m, generatedImageUrls: [...(m.generatedImageUrls ?? []), imageUrl] }
+                      : m,
+                  ),
+                );
               }
             } catch {
               // Fallback: treat unrecognised lines as raw text
@@ -408,12 +420,14 @@ export const ChatInterface: React.FC = () => {
         // Non-streaming fallback: parse NDJSON body
         const rawBody = await response.text();
         let content = '';
+        const imageUrls: string[] = [];
         try {
           for (const line of rawBody.split('\n')) {
             const trimmed = line.trim();
             if (!trimmed) continue;
             const event = JSON.parse(trimmed);
             if (event.t === 'text') content += event.v ?? '';
+            else if (event.t === 'image' && event.v) imageUrls.push(event.v);
           }
         } catch {
           content = rawBody; // fallback
@@ -423,6 +437,7 @@ export const ChatInterface: React.FC = () => {
           role: 'assistant',
           content,
           timestamp: new Date(),
+          generatedImageUrls: imageUrls.length > 0 ? imageUrls : undefined,
         };
         setMessages(prev => [...prev, assistantMessage]);
         // Auto-read the completed assistant response aloud
@@ -958,24 +973,26 @@ export const ChatInterface: React.FC = () => {
               onChange={handleFilesSelect}
             />
 
-            {/* Attach button */}
-            <Tooltip title="Attach files">
-              <span>
-                <IconButton
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={loading}
-                  color={attachedFiles.length > 0 ? 'primary' : 'default'}
-                >
-                  <AttachFileIcon />
-                </IconButton>
-              </span>
-            </Tooltip>
+            {/* Attach button — hidden for dedicated image-generation models */}
+            {!isImageOnlyModel && (
+              <Tooltip title="Attach files">
+                <span>
+                  <IconButton
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={loading}
+                    color={attachedFiles.length > 0 ? 'primary' : 'default'}
+                  >
+                    <AttachFileIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
 
             <TextField
               fullWidth
               multiline
               maxRows={4}
-              placeholder="Type your message..."
+              placeholder={isImageOnlyModel ? 'Describe the image you want to generate...' : isImageCapable ? 'Ask anything, or say "draw" to generate an image...' : 'Type your message...'}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyDown={handleKeyDown}

@@ -2,7 +2,7 @@ import { Options } from 'ollama';
 import { GeneralAgent } from './agents/generalAgent';
 import { WeatherAgent } from './agents/weatherAgent';
 import { createLLMProvider, getLLMModel } from './mcp/llmFactory';
-import { MCPServerManager, SubAgentRunner } from './mcp/mcpManager';
+import { MCPServerManager, SubAgentRunner, ImageGenerationResult, MixedContentResult } from './mcp/mcpManager';
 import { ToolApprovalCallback } from './mcp/approvalManager';
 import { AiAgentSession } from './entities/ai-agent-session';
 import { config } from './utils/config';
@@ -21,7 +21,7 @@ export interface Agent {
      toolNameFilter?: string[],
      maxIterations?: number,
      freshContext?: boolean,
-   ): Promise<ReadableStream<string> | string>;
+   ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult>;
    getSystemPrompt(): string;
    getName(): AgentName;
    /** One-sentence description shown to the orchestrator LLM in the Task tool. */

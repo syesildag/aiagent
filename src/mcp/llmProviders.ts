@@ -1176,7 +1176,56 @@ export class GitHubCopilotProvider implements LLMProvider {
   }
 }
 
-export class OpenAIProvider implements LLMProvider {
+/** Dedicated image-generation models that use the Images API directly */
+const IMAGE_GENERATION_MODEL_PATTERNS = [/^dall-e-/i, /^gpt-image-/i];
+
+/** Returns true for models like dall-e-3, dall-e-2, gpt-image-1 */
+export function isImageGenerationModel(model: string): boolean {
+  return IMAGE_GENERATION_MODEL_PATTERNS.some(p => p.test(model));
+}
+
+/** Chat models that support the image_generation tool via the Responses API */
+const RESPONSES_API_IMAGE_MODEL_PATTERNS = [
+  /^gpt-4o/i,
+  /^gpt-4\.1/i,
+  /^o3/i,
+  /^gpt-5/i,
+];
+
+/** Returns true for models like gpt-4.1, gpt-4o, o3, gpt-5 */
+export function isResponsesAPIImageModel(model: string): boolean {
+  return RESPONSES_API_IMAGE_MODEL_PATTERNS.some(p => p.test(model));
+}
+
+/** Provider capability: generate images via the OpenAI Images API */
+export interface ImageGenerationProvider {
+  generateImage(prompt: string, model: string, signal?: AbortSignal): Promise<string>;
+}
+
+export function isImageGenerationProvider(p: unknown): p is ImageGenerationProvider {
+  return typeof (p as any)?.generateImage === 'function';
+}
+
+/**
+ * Provider capability: single raw HTTP call to the OpenAI Responses API.
+ * The agentic loop (function-call handling, tool approval) stays in MCPServerManager.
+ */
+export interface ResponsesAPICapable {
+  callResponsesAPI(params: {
+    model: string;
+    instructions?: string;
+    input: any[];
+    tools: any[];
+    previousResponseId?: string;
+    abortSignal?: AbortSignal;
+  }): Promise<{ id: string; output: any[] }>;
+}
+
+export function isResponsesAPICapable(p: unknown): p is ResponsesAPICapable {
+  return typeof (p as any)?.callResponsesAPI === 'function';
+}
+
+export class OpenAIProvider implements LLMProvider, ImageGenerationProvider, ResponsesAPICapable {
   name = 'OpenAI';
   private baseUrl: string;
   private apiKey: string;
@@ -1344,5 +1393,84 @@ export class OpenAIProvider implements LLMProvider {
         done: true
       };
     }
+  }
+
+  async generateImage(prompt: string, model: string, signal?: AbortSignal): Promise<string> {
+    // gpt-image-1 only supports b64_json; dall-e-3 and dall-e-2 support url
+    const usesB64 = /^gpt-image-/i.test(model);
+    const requestBody: any = {
+      model,
+      prompt,
+      n: 1,
+      size: '1024x1024',
+      response_format: usesB64 ? 'b64_json' : 'url',
+    };
+
+    Logger.debug(`OpenAI generateImage: model=${model}, prompt=${prompt.slice(0, 80)}`);
+
+    const response = await fetch(`${this.baseUrl}/v1/images/generations`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+      signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      Logger.error(`OpenAI Images API error: ${errorText}`);
+      throw new Error(`OpenAI Images API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const item = data.data?.[0];
+    if (!item) throw new Error('No image returned from OpenAI Images API');
+
+    if (usesB64) {
+      return `data:image/png;base64,${item.b64_json}`;
+    }
+    return item.url as string;
+  }
+
+  async callResponsesAPI(params: {
+    model: string;
+    instructions?: string;
+    input: any[];
+    tools: any[];
+    previousResponseId?: string;
+    abortSignal?: AbortSignal;
+  }): Promise<{ id: string; output: any[] }> {
+    const { model, instructions, input, tools, previousResponseId, abortSignal } = params;
+
+    const requestBody: any = { model, tools };
+    if (previousResponseId) {
+      requestBody.previous_response_id = previousResponseId;
+    } else {
+      if (instructions) requestBody.instructions = instructions;
+    }
+    requestBody.input = input;
+
+    Logger.debug(`OpenAI Responses API: model=${model}, input items=${input.length}, tools=${tools.length}`);
+
+    const response = await fetch(`${this.baseUrl}/v1/responses`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+      signal: abortSignal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      Logger.error(`OpenAI Responses API error: ${errorText}`);
+      throw new Error(`OpenAI Responses API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return { id: data.id as string, output: data.output ?? [] };
   }
 }

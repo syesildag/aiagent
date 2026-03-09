@@ -2,6 +2,7 @@ import { Request, Response, Router } from "express";
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import { getAgentFromName } from '../agent';
+import type { ImageGenerationResult, MixedContentResult } from '../mcp/mcpManager';
 import { AiAgentConversationMessages } from "../entities/ai-agent-conversation-messages";
 import aiagentconversationsRepository, { AiAgentConversations } from "../entities/ai-agent-conversations";
 import { AiAgentSession } from "../entities/ai-agent-session";
@@ -190,10 +191,27 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
 
       if (answer instanceof ReadableStream) {
          finalContent = await handleStreamingResponse(answer, res, agent.addAssistantMessageToHistory.bind(agent));
+      } else if (answer && typeof answer === 'object' && (answer as ImageGenerationResult).kind === 'image') {
+         const imageResult = answer as ImageGenerationResult;
+         for (const url of imageResult.urls) {
+            res.write(JSON.stringify({ t: 'image', v: url }) + '\n');
+         }
+         finalContent = `[Generated image: ${effectivePrompt.slice(0, 60)}]`;
+         agent.addAssistantMessageToHistory(finalContent);
+         res.end();
+      } else if (answer && typeof answer === 'object' && (answer as MixedContentResult).kind === 'mixed') {
+         const mixedResult = answer as MixedContentResult;
+         if (mixedResult.text) res.write(JSON.stringify({ t: 'text', v: mixedResult.text }) + '\n');
+         for (const url of mixedResult.imageUrls) {
+            res.write(JSON.stringify({ t: 'image', v: url }) + '\n');
+         }
+         finalContent = mixedResult.text || `[Generated image: ${effectivePrompt.slice(0, 60)}]`;
+         agent.addAssistantMessageToHistory(finalContent);
+         res.end();
       } else {
-         finalContent = answer;
-         agent.addAssistantMessageToHistory(answer);
-         res.write(JSON.stringify({ t: 'text', v: answer }) + '\n');
+         finalContent = answer as string;
+         agent.addAssistantMessageToHistory(finalContent);
+         res.write(JSON.stringify({ t: 'text', v: finalContent }) + '\n');
          res.end();
       }
 
