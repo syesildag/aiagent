@@ -393,8 +393,9 @@ server.registerTool(
     inputSchema: CurrentWeatherInputSchema
   },
   async ({ location, units = "metric" }) => {
+    let resolvedLocation: string | undefined;
     try {
-      const resolvedLocation = location || await getUserLocation() || 'Valbonne,FR';
+      resolvedLocation = location || await getUserLocation() || 'Valbonne,FR';
       const url = `${OPENWEATHER_BASE_URL}/weather?q=${encodeURIComponent(resolvedLocation)}&appid=${OPENWEATHER_API_KEY}&units=${units}`;
       const data = await makeWeatherRequest(url);
       const weatherData = formatWeatherData(data, units);
@@ -450,8 +451,9 @@ server.registerTool(
     inputSchema: ForecastInputSchema
   },
   async ({ location, days = 5, units = "metric" }) => {
+    let resolvedLocation: string | undefined;
     try {
-      const resolvedLocation = location || await getUserLocation() || 'Valbonne,FR';
+      resolvedLocation = location || await getUserLocation() || 'Valbonne,FR';
       const url = `${OPENWEATHER_BASE_URL}/forecast?q=${encodeURIComponent(resolvedLocation)}&appid=${OPENWEATHER_API_KEY}&units=${units}&cnt=${days * 8}`;
       const data = await makeWeatherRequest(url);
 
