@@ -14,8 +14,20 @@ import {
     Typography
 } from '@mui/material';
 import React, { useState } from 'react';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+const sanitizeSchema = {
+    ...defaultSchema,
+    attributes: {
+        ...defaultSchema.attributes,
+        '*': [...(defaultSchema.attributes?.['*'] ?? []), 'style', 'className'],
+        img: ['src', 'alt', 'width', 'height'],
+        a: ['href', 'target', 'rel'],
+    },
+};
 import { Message } from '../types';
 
 interface ChatMessageProps {
@@ -282,7 +294,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = 
                     lineHeight: 1.65,
                   }}
                 >
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
+                  >
                     {message.content}
                   </ReactMarkdown>
                 </Box>
