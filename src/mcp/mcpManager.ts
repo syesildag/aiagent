@@ -152,6 +152,12 @@ export interface ChatWithLLMArgs {
    * accumulated history before the tool-call results are even added.
    */
   freshContext?: boolean;
+  /**
+   * Override the LLM model for this request only.
+   * Sourced from the `model:` frontmatter of a file-based agent definition.
+   * Falls back to the globally configured model when not provided.
+   */
+  modelOverride?: string;
 }
 
 export class MCPServerConnection extends EventEmitter {
@@ -963,7 +969,9 @@ export class MCPServerManager {
   }
 
   async chatWithLLM(args: ChatWithLLMArgs): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
-    const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, approvalCallback, toolNameFilter, freshContext } = args;
+    const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, approvalCallback, toolNameFilter, freshContext, modelOverride } = args;
+    const previousModel = this.model;
+    if (modelOverride) this.model = modelOverride;
     try {
       // Ensure MCP servers are initialized on first use
       await this.ensureInitialized();
@@ -1249,6 +1257,8 @@ export class MCPServerManager {
       }
       Logger.error(`Error chatting with LLM: ${error}`);
       throw error;
+    } finally {
+      if (modelOverride) this.model = previousModel;
     }
   }
 

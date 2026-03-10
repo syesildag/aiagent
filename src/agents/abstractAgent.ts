@@ -54,6 +54,15 @@ export default abstract class AbstractAgent implements Agent {
       return undefined; // Default implementation - use all servers
    }
 
+   /**
+    * Override to use a different LLM model for this agent's calls.
+    * File-based agents source this from the `model:` frontmatter field.
+    * Returns undefined to use the globally configured model.
+    */
+   getModelOverride(): string | undefined {
+      return undefined;
+   }
+
    addAssistantMessageToHistory(finalContent: string | undefined) {
 
       if (!this.mcpManager) {
@@ -101,6 +110,7 @@ export default abstract class AbstractAgent implements Agent {
             toolNameFilter,
             maxIterations,
             freshContext,
+            modelOverride: this.getModelOverride(),
          });
       } catch (error) {
          Logger.error(`MCP chat failed: ${error instanceof Error ? error.message : String(error)}`);

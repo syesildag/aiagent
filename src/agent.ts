@@ -1,14 +1,18 @@
+import * as os from 'os';
+import * as path from 'path';
 import { Options } from 'ollama';
 import { GeneralAgent } from './agents/generalAgent';
 import { WeatherAgent } from './agents/weatherAgent';
+import { FileBasedAgent } from './agents/fileBasedAgent';
 import { createLLMProvider, getLLMModel } from './mcp/llmFactory';
 import { MCPServerManager, SubAgentRunner, ImageGenerationResult, MixedContentResult } from './mcp/mcpManager';
 import { ToolApprovalCallback } from './mcp/approvalManager';
 import { AiAgentSession } from './entities/ai-agent-session';
 import { config } from './utils/config';
 import Logger from './utils/logger';
+import { loadAgentDefinitions } from './utils/agentLoader';
 
-export type AgentName = 'general' | 'weather';
+export type AgentName = string;
 
 export interface Agent {
    setSession(session: AiAgentSession): void;
@@ -94,6 +98,25 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
       );
       return typeof result === 'string' ? result : '';
    };
+
+   // Load file-based agents from ~/.claude/agents/ (user-level) and
+   // .claude/agents/ (project-level). Project-level wins on name collision.
+   const userAgentsDir    = path.resolve(os.homedir(),  '.claude', 'agents');
+   const projectAgentsDir = path.resolve(process.cwd(), '.claude', 'agents');
+
+   for (const agentsDir of [userAgentsDir, projectAgentsDir]) {
+      for (const def of loadAgentDefinitions(agentsDir).values()) {
+         const fileAgent = new FileBasedAgent(def);
+         fileAgent.setMCPManager(globalMCPManager);
+         if (Agents[def.name]) {
+            Logger.info(`[Agents] File-based agent "${def.name}" from ${def.filePath} overrides the existing definition`);
+         } else {
+            Logger.info(`[Agents] Loaded file-based agent "${def.name}" from ${def.filePath}`);
+         }
+         Agents[def.name] = fileAgent;
+         subAgentDescriptions[def.name] = fileAgent.getDescription();
+      }
+   }
 
    globalMCPManager.setSubAgentRunner(subAgentRunner, subAgentDescriptions);
 
