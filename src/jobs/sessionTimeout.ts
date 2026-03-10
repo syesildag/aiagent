@@ -1,4 +1,4 @@
-import { Range, RecurrenceRule } from "node-schedule";
+import { RecurrenceRule } from "node-schedule";
 import ThreadJobFactory from "../utils/threadJobFactory";
 import AbstractBaseWorker from "../worker/pool/abstractBaseWorker";
 import sessionTimeoutWorker from "../worker/sessionTimeoutWorker";
@@ -12,7 +12,7 @@ export default class SessionTimeout extends ThreadJobFactory {
 
    protected getSpec() {
       const rule = new RecurrenceRule();
-      rule.minute = new Range(0, 59, 1);
+      rule.minute = 0;
       return rule;
    }
 

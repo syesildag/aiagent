@@ -66,13 +66,13 @@ Client (Browser SPA or CLI)
 
 ### Key Subsystems
 
-**Agent system** (`src/agent.ts`, `src/agents/`): `initializeAgents()` creates a single global `MCPServerManager` and assigns it to all registered agents. Add new agents by subclassing `AbstractAgent`, implementing `getName()`, `getSystemPrompt()`, and `getAllowedServerNames()`, then registering the instance in `agent.ts`.
+**Agent system** (`src/agent.ts`, `src/agents/`): `initializeAgents()` creates a single global `MCPServerManager` and assigns it to all registered agents. Add new agents by subclassing `AbstractAgent`, implementing `getName()`, `getSystemPrompt()`, and `getAllowedServerNames()`, then registering the instance in `agent.ts`. Agents can optionally override `shouldValidate()` and `validate(data)` for structured data extraction. LLM options (temperature, seed, top_p, etc.) are customizable per agent.
 
-**MCP layer** (`src/mcp/`): `MCPServerManager` reads `mcp-servers.json`, spawns each server as a child process, and communicates via JSON-RPC 2.0 over stdio. It also handles the LLM agentic loop (tool calling, iteration limits). Tool approval is required for tools matching `DANGEROUS_TOOL_PATTERNS` in `mcpManager.ts`. MCP servers live in `src/mcp/server/` and are built independently.
+**MCP layer** (`src/mcp/`): `MCPServerManager` reads `mcp-servers.json`, spawns each server as a child process, and communicates via JSON-RPC 2.0 over stdio. It also handles the LLM agentic loop (tool calling, iteration limits). Tool approval is required for tools matching `DANGEROUS_TOOL_PATTERNS` in `mcpManager.ts`. MCP servers live in `src/mcp/server/` and are built independently. Tool names follow the convention `<serverName>_<toolName>` (e.g. `jobs_list_jobs`). The tools cache has a 5-minute TTL and can be explicitly invalidated via `refreshToolsCache()`. Servers start lazily on the first `chatWithLLM()` call.
 
-**LLM providers** (`src/mcp/llmProviders.ts`, `src/mcp/llmFactory.ts`): Implements a `LLMProvider` interface with `OllamaProvider`, `OpenAIProvider`, and `GitHubCopilotProvider`. Provider is selected at startup from `config.LLM_PROVIDER`. GitHub Copilot uses OAuth device flow managed by `src/utils/githubAuth.ts`.
+**LLM providers** (`src/mcp/llmProviders.ts`, `src/mcp/llmFactory.ts`): Implements a `LLMProvider` interface with `OllamaProvider`, `OpenAIProvider`, and `GitHubCopilotProvider`. Provider is selected at startup from `config.LLM_PROVIDER`. GitHub Copilot uses OAuth device flow managed by `src/utils/githubAuth.ts` with auto-token refresh.
 
-**Repository/ORM** (`src/repository/`): Custom decorator-based ORM over PostgreSQL. Entities extend `Entity<PK>` and annotate getter methods with `@Id`, `@Column`, `@OneToOne`, `@OneToMany`, `@ManyToOne`. Each entity file creates and registers its own `AbstractRepository` subclass via the global `repository` WeakMap (`src/repository/repository.ts`). The `@Find` decorator auto-generates find methods for unique columns.
+**Repository/ORM** (`src/repository/`): Custom decorator-based ORM over PostgreSQL. Entities extend `Entity<PK>` and annotate getter methods with `@Id`, `@Column`, `@OneToOne`, `@OneToMany`, `@ManyToOne`. Each entity file creates and registers its own `AbstractRepository` subclass via the global `repository` WeakMap (`src/repository/repository.ts`). The `@Find` decorator auto-generates find methods; method names encode ordering and filtering (e.g. `findByTypeOrderByCreatedAtDesc`). Use `getByFieldValues()` for flexible querying with ordering/limit/offset. Prefer the ORM for CRUD; use raw SQL for complex joins or vector similarity.
 
 **Database migrations** (`database/migrations/`, `src/utils/migrationRunner.ts`): SQL files named `NNN_description.sql`. The `MigrationRunner` tracks applied versions in `ai_agent_schema_migrations`.
 
@@ -82,7 +82,18 @@ Client (Browser SPA or CLI)
 
 **Frontend** (`src/frontend/`): React 19 SPA using MUI. Bundled with webpack (`webpack.config.js`) into `dist/static/`. Served dynamically per agent at `/front/:agent`. Auth state lives in `AuthContext`. The service worker (`src/frontend/pwa/sw.js`) is copied to `dist/src/frontend/pwa/` during build.
 
-**Jobs** (`src/jobs/`, `src/worker/`): Background jobs discovered at startup via `initFromPath`. Each job file exports a `JobFactory` that spawns a worker pool using Node.js worker threads.
+**Jobs** (`src/jobs/`, `src/worker/`): Background jobs discovered at startup via `initFromPath`. Three base classes:
+- `JobFactory`: Direct callback execution.
+- `ThreadJobFactory`: Offloads to a Node.js worker thread pool.
+- `DbJobFactory`: Persists enabled flag, params, and `last_run_at` to `ai_agent_jobs` table; can be toggled at runtime without restart.
+
+`AgentJob` (`src/utils/agentJob.ts`) extends `DbJobFactory` and runs a named agent with a fixed prompt on a schedule. Create a subclass in `src/jobs/` to add a new agent-driven scheduled task.
+
+**Conversation history**: Two implementations share the `IConversationHistory` interface — in-memory (default) and `DbConversationHistory` (PostgreSQL, enabled via `USE_DB_CONVERSATION_HISTORY=true`). DB-backed history stores rows in `ai_agent_conversations` and `ai_agent_conversation_messages`.
+
+**Embedding service** (`src/utils/embeddingService.ts`): Multi-provider (OpenAI, Ollama, GitHub Copilot, local transformers.js). Supports batch generation, LRU caching (1 h TTL), and pgvector similarity search (`cosineSimilarity`, `dotProduct`, `euclideanDistance`, `findMostSimilar`).
+
+**Slash commands & skills** (`.claude/commands/`, `.claude/skills/`): Reusable prompts with frontmatter (`description`, `allowed-tools`, `model`, etc.), argument substitution (`$1`, `$ARGUMENTS`), file inclusion (`@path`), and bash capture (`` !`cmd` ``). Skills are auto-injected into every agent's system prompt inside a `<skills>...</skills>` block.
 
 ### Entity Pattern
 
@@ -106,7 +117,22 @@ export default myRepository;
 ### Environment Variables
 
 Required: `PORT`, `HOST`, `DB_USER`, `DB_HOST`, `DB_NAME`, `DB_PORT`, `HMAC_SECRET_KEY`, `SERVER_TERMINATE_TIMEOUT`.
-Optional with defaults: `LLM_PROVIDER` (ollama), `LLM_MODEL` (qwen3:4b), `OLLAMA_HOST`, `MCP_SERVERS_PATH` (./mcp-servers.json), `MAX_LLM_ITERATIONS` (2), `CONVERSATION_HISTORY_WINDOW_SIZE` (10), `EMBEDDING_PROVIDER` (auto).
+
+Optional with defaults:
+
+| Variable | Default | Notes |
+|---|---|---|
+| `LLM_PROVIDER` | `ollama` | `ollama` \| `openai` \| `github` |
+| `LLM_MODEL` | `qwen3:4b` | |
+| `OLLAMA_HOST` | `http://localhost:11434` | |
+| `MCP_SERVERS_PATH` | `./mcp-servers.json` | |
+| `MAX_LLM_ITERATIONS` | `2` | |
+| `CONVERSATION_HISTORY_WINDOW_SIZE` | `10` | |
+| `EMBEDDING_PROVIDER` | `auto` | `auto` \| `openai` \| `ollama` \| `github` \| `local` |
+| `USE_DB_CONVERSATION_HISTORY` | `false` | |
+| `SESSION_TIMEOUT_SECONDS` | `3600` | |
+| `OPENAI_API_KEY` | — | Required for OpenAI provider |
+| `OPENWEATHERMAP_API_KEY` | — | Required for weather MCP server |
 
 ### MCP Server Configuration (`mcp-servers.json`)
 
@@ -119,3 +145,14 @@ Optional with defaults: `LLM_PROVIDER` (ollama), `LLM_MODEL` (qwen3:4b), `OLLAMA
 ```
 
 New MCP servers go in `src/mcp/server/`, use `McpServer` from `@modelcontextprotocol/sdk`, and must be added to `mcp-servers.json`.
+
+### API Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/login` | Basic auth → session cookie |
+| `POST` | `/chat/:agent` | Chat (NDJSON streaming or full response) |
+| `POST` | `/chat/approve/:approvalId` | Resolve a pending tool-approval request |
+| `POST` | `/validate/:agent` | Structured data validation |
+
+Rate limits: 5 req/15 min (login), 100 req/15 min (chat).

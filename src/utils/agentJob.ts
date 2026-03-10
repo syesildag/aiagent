@@ -61,6 +61,10 @@ export default abstract class AgentJob extends DbJobFactory {
    protected override async getJobBody(): Promise<void> {
       Logger.info(`[AgentJob] Running job "${this.getJobName()}" — agent="${this.agentName}"`);
       const agent = await getAgentFromName(this.agentName);
+      if (!agent) {
+         Logger.error(`[AgentJob] Agent "${this.agentName}" not found — skipping job "${this.getJobName()}"`);
+         return;
+      }
       const result = await agent.chat(
          this.prompt,
          undefined, // no AbortSignal
