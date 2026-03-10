@@ -76,10 +76,9 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
    // This is done after all agents are created to avoid circular initialization.
    // Sub-agents always run without streaming and with freshContext so they
    // don't share or pollute the parent conversation history.
+   // Only file-based agents are exposed as sub-agents (populated below after
+   // scanning .claude/agents/ directories).
    const subAgentDescriptions: Record<string, string> = {};
-   for (const agent of Object.values(Agents)) {
-      subAgentDescriptions[agent.getName()] = agent.getDescription();
-   }
 
    const subAgentRunner: SubAgentRunner = async (agentName, prompt, abortSignal) => {
       const subAgent = Agents[agentName];
