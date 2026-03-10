@@ -35,6 +35,8 @@ const DANGEROUS_TOOL_PATTERNS: RegExp[] = [
   /(_|^)purge$/i,
 ];
 
+const VIRTUAL_TASK_TOOL_NAME = 'task';
+
 // MCP Protocol Types
 interface MCPRequest {
   jsonrpc: '2.0';
@@ -740,7 +742,7 @@ export class MCPServerManager {
     }
 
     // ── Virtual Task tool: delegate to a sub-agent ────────────────────────────
-    if (name === 'task') {
+    if (name === VIRTUAL_TASK_TOOL_NAME) {
       if (!this.subAgentRunner) {
         return 'Error: Sub-agent system not initialized';
       }
@@ -1303,7 +1305,7 @@ export class MCPServerManager {
     return [{
       type: 'function' as const,
       function: {
-        name: 'task',
+        name: VIRTUAL_TASK_TOOL_NAME,
         description: `Delegate work to a specialized sub-agent and receive its full response.\nAvailable sub-agents:\n${agentList}`,
         parameters: {
           type: 'object',
