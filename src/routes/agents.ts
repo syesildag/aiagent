@@ -4,12 +4,19 @@ import { getAgentFromName, getAvailableAgentNames, getGlobalMCPManager } from '.
 import { asyncHandler } from "../utils/asyncHandler";
 import Logger from "../utils/logger";
 import { slashCommandRegistry } from '../utils/slashCommandRegistry';
+import { parseReleases } from '../utils/releaseParser';
 
 export const agentsRouter = Router();
 
 function sendAuthenticationRequired(res: Response) {
    res.status(401).json({ error: 'Authentication required.' });
 }
+
+// Version / release notes endpoint
+agentsRouter.get("/version", asyncHandler(async (_req: Request, res: Response) => {
+   const { current } = parseReleases({ current: true });
+   res.json(current);
+}));
 
 // List all loaded slash commands and skills (useful for frontend autocomplete)
 agentsRouter.get("/commands", asyncHandler(async (_req: Request, res: Response) => {

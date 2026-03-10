@@ -74,6 +74,7 @@ export const ChatInterface: React.FC = () => {
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
   const [compressingCount, setCompressingCount] = useState(0);
+  const [releaseData, setReleaseData] = useState<{ version: string; date: string; sections: { heading: string; items: string[] }[] } | null>(null);
 
 
   const toggleAutoSpeak = () => {
@@ -130,6 +131,11 @@ export const ChatInterface: React.FC = () => {
     fetch('/agents')
       .then(res => res.ok ? res.json() : null)
       .then(data => { if (data) setAvailableAgents(data.agents ?? []); })
+      .catch(() => {/* non-critical */});
+
+    fetch('/version')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data?.version) setReleaseData(data); })
       .catch(() => {/* non-critical */});
   }, [agentName]);
 
@@ -551,22 +557,52 @@ export const ChatInterface: React.FC = () => {
       <AppBar position="static" elevation={0}>
         <Toolbar sx={{ gap: 0.5, minHeight: { xs: 56, sm: 64 } }}>
           <BotIcon sx={{ mr: { xs: 0.5, sm: 0.75 }, flexShrink: 0, fontSize: 20, color: 'primary.main' }} />
-          <Typography
-            variant="h6"
-            sx={{
-              fontSize: { xs: '0.875rem', sm: '1rem', md: '1.1rem' },
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              flexShrink: 1,
-              minWidth: 0,
-              fontWeight: 600,
-              letterSpacing: '-0.01em',
-              color: 'primary.main',
-            }}
+          <Tooltip
+            title={releaseData ? (
+              <Box sx={{ p: 0.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>
+                  v{releaseData.version} &mdash; {releaseData.date}
+                </Typography>
+                {releaseData.sections.map(section => (
+                  <Box key={section.heading} sx={{ mb: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, opacity: 0.8, display: 'block' }}>
+                      {section.heading}
+                    </Typography>
+                    {section.items.map((item, i) => (
+                      <Typography key={i} variant="caption" sx={{ display: 'block', pl: 1 }}>
+                        &bull; {item}
+                      </Typography>
+                    ))}
+                  </Box>
+                ))}
+              </Box>
+            ) : ''}
+            arrow
+            placement="bottom-start"
           >
-            {agentName}
-          </Typography>
+            <Typography
+              variant="h6"
+              sx={{
+                fontSize: { xs: '0.875rem', sm: '1rem', md: '1.1rem' },
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flexShrink: 1,
+                minWidth: 0,
+                fontWeight: 600,
+                letterSpacing: '-0.01em',
+                color: 'primary.main',
+                cursor: releaseData ? 'help' : 'default',
+              }}
+            >
+              {agentName}
+              {releaseData && (
+                <Box component="span" sx={{ ml: 0.75, fontSize: '0.65rem', fontWeight: 400, opacity: 0.6, verticalAlign: 'middle' }}>
+                  v{releaseData.version}
+                </Box>
+              )}
+            </Typography>
+          </Tooltip>
 
           {/* Model selector — next to agent name, all screen sizes */}
           {availableModels.length > 0 && (
