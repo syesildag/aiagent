@@ -624,8 +624,9 @@ async function main() {
                 reader.releaseLock();
               }
             } else {
-              console.log(`Assistant: ${response}\n`);
-              currentManager.addAssistantMessageToHistory(response);
+              const text = typeof response === 'string' ? response : 'kind' in response && response.kind === 'mixed' ? response.text : '';
+              console.log(`Assistant: ${text}\n`);
+              currentManager.addAssistantMessageToHistory(text);
             }
           } catch (error) {
             currentAbortController = null;
@@ -678,8 +679,9 @@ async function main() {
             }
           } else {
             // Handle non-streaming response (fallback)
-            console.log(`Assistant: ${response}\n`);
-            currentManager.addAssistantMessageToHistory(response);
+            const text = typeof response === 'string' ? response : 'kind' in response && response.kind === 'mixed' ? response.text : '';
+            console.log(`Assistant: ${text}\n`);
+            currentManager.addAssistantMessageToHistory(text);
           }
         } catch (error) {
           // Clear the abort controller
