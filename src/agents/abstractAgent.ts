@@ -81,6 +81,7 @@ export default abstract class AbstractAgent implements Agent {
      toolNameFilter?: string[],
      maxIterations?: number,
      freshContext?: boolean,
+     onContextUpdate?: (used: number, max: number) => void,
    ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');
@@ -111,6 +112,7 @@ export default abstract class AbstractAgent implements Agent {
             maxIterations,
             freshContext,
             modelOverride: this.getModelOverride(),
+            onContextUpdate,
          });
       } catch (error) {
          Logger.error(`MCP chat failed: ${error instanceof Error ? error.message : String(error)}`);

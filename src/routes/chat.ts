@@ -158,6 +158,13 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
      return decision;
    };
 
+   // Context usage callback: emits a single NDJSON event with token estimates
+   const onContextUpdate = (used: number, max: number): void => {
+     if (!res.writableEnded) {
+       res.write(JSON.stringify({ t: 'ctx', used, max }) + '\n');
+     }
+   };
+
    // Resolve or create a conversation for persistence
    const userLogin = sessionEntity?.getUserLogin();
    let activeConversationId = incomingConversationId ?? null;
@@ -186,7 +193,7 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
    }
 
    try {
-      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext);
+      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext, onContextUpdate);
       let finalContent: string | undefined;
 
       if (answer instanceof ReadableStream) {

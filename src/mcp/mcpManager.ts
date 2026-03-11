@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import { promises as fs } from 'fs';
 import Logger from '../utils/logger';
 import { config } from '../utils/config';
-import { ContentPart, LLMMessage, LLMProvider, OllamaProvider, Tool, isImageGenerationModel, isResponsesAPIImageModel, isImageGenerationProvider, isResponsesAPICapable } from './llmProviders';
+import { ContentPart, LLMMessage, LLMProvider, OllamaProvider, Tool, getModelMaxTokens, isImageGenerationModel, isResponsesAPIImageModel, isImageGenerationProvider, isResponsesAPICapable } from './llmProviders';
 import { IConversationHistory } from '../descriptions/conversationTypes';
 import { ConversationHistoryFactory } from '../utils/conversationHistoryFactory';
 import { ToolApprovalCallback } from './approvalManager';
@@ -158,6 +158,12 @@ export interface ChatWithLLMArgs {
    * Falls back to the globally configured model when not provided.
    */
   modelOverride?: string;
+  /**
+   * Optional callback invoked once per chat call, immediately after the full
+   * messages array (system + history) is assembled. Reports a rough token
+   * estimate so the caller can surface context-usage metrics.
+   */
+  onContextUpdate?: (used: number, max: number) => void;
 }
 
 export class MCPServerConnection extends EventEmitter {
@@ -969,7 +975,7 @@ export class MCPServerManager {
   }
 
   async chatWithLLM(args: ChatWithLLMArgs): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
-    const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, approvalCallback, toolNameFilter, freshContext, modelOverride } = args;
+    const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, approvalCallback, toolNameFilter, freshContext, modelOverride, onContextUpdate } = args;
     const previousModel = this.model;
     if (modelOverride) this.model = modelOverride;
     try {
@@ -1143,6 +1149,20 @@ export class MCPServerManager {
         },
         ...historyMessages
       ];
+
+      if (onContextUpdate) {
+        let charCount = 0;
+        for (const msg of messages) {
+          if (typeof msg.content === 'string') {
+            charCount += msg.content.length;
+          } else if (Array.isArray(msg.content)) {
+            for (const part of msg.content) {
+              if (part.type === 'text') charCount += (part as { type: string; text: string }).text.length;
+            }
+          }
+        }
+        onContextUpdate(Math.ceil(charCount / 4), getModelMaxTokens(this.model));
+      }
 
       const maxIterations = args.maxIterations ?? config.MAX_LLM_ITERATIONS;
       let currentIteration = 0;

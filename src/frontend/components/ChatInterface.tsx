@@ -43,6 +43,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Message, ToolApproval, isImageGenerationModel, isImageCapableModel } from '../types';
 import { ChatMessage } from './ChatMessage';
+import { ContextPieChart } from './ContextPieChart';
 import { ConversationSidebar } from './ConversationSidebar';
 import { ToolApprovalCard } from './ToolApprovalCard';
 
@@ -74,6 +75,7 @@ export const ChatInterface: React.FC = () => {
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
   const [compressingCount, setCompressingCount] = useState(0);
+  const [contextUsage, setContextUsage] = useState<{ used: number; max: number } | null>(null);
   const [releaseData, setReleaseData] = useState<{ version: string; date: string; sections: { heading: string; items: string[] }[] } | null>(null);
 
 
@@ -300,6 +302,7 @@ export const ChatInterface: React.FC = () => {
     setLoading(true);
     setError('');
     setLastFailedPrompt(null);
+    setContextUsage(null);
 
     sessionApprovedRef.current.clear();
 
@@ -365,7 +368,7 @@ export const ChatInterface: React.FC = () => {
             const trimmed = line.trim();
             if (!trimmed) continue;
             try {
-              const event = JSON.parse(trimmed) as { t: string; v?: string; id?: string; tool?: string; args?: Record<string, unknown>; desc?: string; schema?: ToolApproval['schema'] };
+              const event = JSON.parse(trimmed) as { t: string; v?: string; id?: string; tool?: string; args?: Record<string, unknown>; desc?: string; schema?: ToolApproval['schema']; used?: number; max?: number };
               if (event.t === 'error') {
                 // Server-side error surfaced over the NDJSON stream
                 setError(event.v ?? 'Server error');
@@ -407,6 +410,8 @@ export const ChatInterface: React.FC = () => {
                       : m,
                   ),
                 );
+              } else if (event.t === 'ctx' && event.used !== undefined) {
+                setContextUsage({ used: event.used, max: event.max ?? 0 });
               }
             } catch {
               // Fallback: treat unrecognised lines as raw text
@@ -626,6 +631,11 @@ export const ChatInterface: React.FC = () => {
                 ))}
               </Select>
             </FormControl>
+          )}
+
+          {/* Context usage pie chart */}
+          {contextUsage && (
+            <ContextPieChart used={contextUsage.used} max={contextUsage.max} size={28} />
           )}
 
           {/* Spacer */}

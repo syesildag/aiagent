@@ -25,6 +25,7 @@ export interface Agent {
      toolNameFilter?: string[],
      maxIterations?: number,
      freshContext?: boolean,
+     onContextUpdate?: (used: number, max: number) => void,
    ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult>;
    getSystemPrompt(): string;
    getName(): AgentName;
