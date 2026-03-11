@@ -10,7 +10,6 @@ const BUILTIN_COMMANDS = new Set([
   'help', 'login', 'model', 'status', 'refresh',
   'new', 'newchat', 'history', 'current', 'clearchat',
   'cancel', 'clear', 'exit', 'quit',
-  'compact',
 ]);
 
 export class SlashCommandRegistry {

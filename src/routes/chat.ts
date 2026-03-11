@@ -98,19 +98,6 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
    res.setHeader('Cache-Control', 'no-cache');
    res.flushHeaders();  // open the connection now so early writes (approvals) reach the client
 
-   // ── /cmpct built-in command ──────────────────────────────────────────────
-   if (prompt.trim().toLowerCase() === '/cmpct') {
-     try {
-       const summary = await agent.compactHistory();
-       res.write(JSON.stringify({ t: 'text', v: `**Conversation compacted.**\n\n**Summary:**\n${summary}` }) + '\n');
-     } catch (err) {
-       res.write(JSON.stringify({ t: 'error', v: `Compact failed: ${err instanceof Error ? err.message : String(err)}` }) + '\n');
-     }
-     res.end();
-     return;
-   }
-   // ── End /cmpct ──────────────────────────────────────────────────────────
-
    // ── Slash command processing ───────────────────────────────────────────────
    slashCommandRegistry.initialize();
    let effectivePrompt = prompt;
@@ -198,16 +185,8 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
       }
    }
 
-   // Context-meter callback: emits token usage stats as an NDJSON event so the
-   // frontend can render the context pie chart.
-   const onContextUpdate = (used: number, max: number): void => {
-     if (!res.writableEnded) {
-       res.write(JSON.stringify({ t: 'ctx', used, max }) + '\n');
-     }
-   };
-
    try {
-      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext, onContextUpdate);
+      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext);
       let finalContent: string | undefined;
 
       if (answer instanceof ReadableStream) {
