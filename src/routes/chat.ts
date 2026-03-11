@@ -171,6 +171,13 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
      return decision;
    };
 
+   // Context usage callback: emits a single NDJSON event with token estimates
+   const onContextUpdate = (used: number, max: number): void => {
+     if (!res.writableEnded) {
+       res.write(JSON.stringify({ t: 'ctx', used, max }) + '\n');
+     }
+   };
+
    // Resolve or create a conversation for persistence
    const userLogin = sessionEntity?.getUserLogin();
    let activeConversationId = incomingConversationId ?? null;
@@ -197,14 +204,6 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
          Logger.error(`Failed to persist conversation: ${err}`);
       }
    }
-
-   // Context-meter callback: emits token usage stats as an NDJSON event so the
-   // frontend can render the context pie chart.
-   const onContextUpdate = (used: number, max: number): void => {
-     if (!res.writableEnded) {
-       res.write(JSON.stringify({ t: 'ctx', used, max }) + '\n');
-     }
-   };
 
    try {
       const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext, onContextUpdate);
