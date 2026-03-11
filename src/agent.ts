@@ -25,6 +25,7 @@ export interface Agent {
      toolNameFilter?: string[],
      maxIterations?: number,
      freshContext?: boolean,
+     onContextUpdate?: (used: number, max: number) => void,
    ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult>;
    getSystemPrompt(): string;
    getName(): AgentName;
@@ -34,6 +35,7 @@ export interface Agent {
    setMCPManager(manager: MCPServerManager): void;
    getAllowedServerNames(): string[] | undefined;
    addAssistantMessageToHistory(content: string | undefined): void;
+   compactHistory(): Promise<string>;
 }
 
 const Agents: Record<string, Agent> = {};
