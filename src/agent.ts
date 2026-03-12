@@ -37,6 +37,8 @@ export interface Agent {
    getAllowedServerNames(): string[] | undefined;
    addAssistantMessageToHistory(content: string | undefined): void;
    compactHistory(): Promise<string>;
+   hasActiveConversation(): boolean;
+   restoreConversationHistory(messages: Array<{ role: string; content: string }>, userId?: string): Promise<void>;
 }
 
 const Agents: Record<string, Agent> = {};

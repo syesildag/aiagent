@@ -1430,6 +1430,32 @@ export class MCPServerManager {
   }
 
   /**
+   * Returns true when an in-memory conversation is already active.
+   */
+  hasActiveConversation(): boolean {
+    return this.conversationHistory.hasActiveConversation();
+  }
+
+  /**
+   * Restore a prior conversation from an external message list (e.g. DB records).
+   * Starts a fresh in-memory conversation and bulk-inserts the supplied messages
+   * so the LLM receives the full prior context on the next chatWithLLM call.
+   */
+  async restoreConversation(
+    messages: Array<{ role: string; content: string }>,
+    userId?: string,
+  ): Promise<void> {
+    await this.conversationHistory.startNewConversation(undefined, userId);
+    for (const msg of messages) {
+      await this.conversationHistory.addMessage({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      });
+    }
+    Logger.info(`Restored conversation with ${messages.length} messages for user=${userId ?? 'anonymous'}`);
+  }
+
+  /**
    * Get conversation count
    */
   async getConversationCount(): Promise<number> {

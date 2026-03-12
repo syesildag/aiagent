@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getAgentFromName } from '../agent';
 import type { ImageGenerationResult, MixedContentResult } from '../mcp/mcpManager';
 import { AiAgentConversationMessages } from "../entities/ai-agent-conversation-messages";
+import aiagentconversationmessagesRepository from "../entities/ai-agent-conversation-messages";
 import aiagentconversationsRepository, { AiAgentConversations } from "../entities/ai-agent-conversations";
 import { AiAgentSession } from "../entities/ai-agent-session";
 import { approvalManager } from '../mcp/approvalManager';
@@ -209,6 +210,24 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
          }
       } catch (err) {
          Logger.error(`Failed to persist conversation: ${err}`);
+      }
+   }
+
+   // If the client is continuing an existing DB conversation but the in-memory LLM
+   // context is empty (e.g. after a server restart), restore the prior messages so
+   // the agent retains full context.
+   if (incomingConversationId && !agent.hasActiveConversation()) {
+      try {
+         const priorMessages = await aiagentconversationmessagesRepository.findByConversationId(incomingConversationId);
+         if (priorMessages.length > 0) {
+            await agent.restoreConversationHistory(
+               priorMessages.map(m => ({ role: m.getRole(), content: m.getContent() })),
+               userLogin ?? undefined,
+            );
+            Logger.info(`Restored ${priorMessages.length} messages for conversationId=${incomingConversationId}`);
+         }
+      } catch (err) {
+         Logger.error(`Failed to restore conversation history: ${err}`);
       }
    }
 
