@@ -178,6 +178,13 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
      }
    };
 
+   // Compaction callback: notifies the frontend that history was auto-compacted
+   const onCompact = (): void => {
+     if (!res.writableEnded) {
+       res.write(JSON.stringify({ t: 'compact' }) + '\n');
+     }
+   };
+
    // Resolve or create a conversation for persistence
    const userLogin = sessionEntity?.getUserLogin();
    let activeConversationId = incomingConversationId ?? null;
@@ -206,7 +213,7 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
    }
 
    try {
-      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext, onContextUpdate);
+      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext, onContextUpdate, onCompact);
       let finalContent: string | undefined;
 
       if (answer instanceof ReadableStream) {

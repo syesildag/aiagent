@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import { promises as fs } from 'fs';
 import Logger from '../utils/logger';
 import { config } from '../utils/config';
-import { ContentPart, LLMMessage, LLMProvider, OllamaProvider, Tool, isImageGenerationModel, isResponsesAPIImageModel, isImageGenerationProvider, isResponsesAPICapable, estimateFullMessageTokens, getModelMaxTokens } from './llmProviders';
+import { ContentPart, LLMMessage, LLMProvider, OllamaProvider, Tool, getModelMaxTokens, estimateFullMessageTokens, isImageGenerationModel, isResponsesAPIImageModel, isImageGenerationProvider, isResponsesAPICapable } from './llmProviders';
 import { IConversationHistory } from '../descriptions/conversationTypes';
 import { ConversationHistoryFactory } from '../utils/conversationHistoryFactory';
 import { ToolApprovalCallback } from './approvalManager';
@@ -39,6 +39,8 @@ const VIRTUAL_TASK_TOOL_NAME = 'task';
 
 /** Fraction of the model's context window that triggers automatic history compaction. */
 const AUTO_COMPACT_THRESHOLD = 0.90;
+/** Number of most-recent messages to preserve verbatim after compaction. */
+const AUTO_COMPACT_KEEP_RECENT = 4;
 
 // MCP Protocol Types
 interface MCPRequest {
@@ -167,6 +169,11 @@ export interface ChatWithLLMArgs {
    * Used by the chat route to emit a {t:'ctx'} NDJSON event to the frontend.
    */
   onContextUpdate?: (used: number, max: number) => void;
+  /**
+   * Optional callback invoked immediately after auto-compaction completes.
+   * The caller uses this to emit a {t:'compact'} NDJSON event to the frontend.
+   */
+  onCompact?: () => void;
 }
 
 export class MCPServerConnection extends EventEmitter {
@@ -978,7 +985,7 @@ export class MCPServerManager {
   }
 
   async chatWithLLM(args: ChatWithLLMArgs): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
-    const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, approvalCallback, toolNameFilter, freshContext, modelOverride, onContextUpdate } = args;
+    const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, approvalCallback, toolNameFilter, freshContext, modelOverride, onContextUpdate, onCompact } = args;
     const previousModel = this.model;
     if (modelOverride) this.model = modelOverride;
     try {
@@ -1153,8 +1160,7 @@ export class MCPServerManager {
         ...historyMessages
       ];
 
-      // Estimate token usage and notify the caller (for context meter display).
-      // Also auto-compact if usage exceeds the threshold.
+      // Estimate token usage, auto-compact if over threshold, then notify caller.
       const modelMaxTokens = getModelMaxTokens(this.model);
       const estimatedTokens = messages.reduce((sum, m) => sum + estimateFullMessageTokens(m), 0);
       const usageRatio = estimatedTokens / modelMaxTokens;
@@ -1162,12 +1168,9 @@ export class MCPServerManager {
       if (usageRatio >= AUTO_COMPACT_THRESHOLD) {
         Logger.warn(`Context usage ${Math.round(usageRatio * 100)}% exceeds threshold — auto-compacting history`);
         await this.compactHistory();
-        // Re-build messages with the compacted history
-        const compactedConversation = await this.conversationHistory.getCurrentConversation();
-        messages = [
-          { role: 'system', content: effectiveSystemPrompt },
-          ...compactedConversation,
-        ];
+        onCompact?.();
+        const compacted = await this.conversationHistory.getCurrentConversation();
+        messages = [{ role: 'system', content: effectiveSystemPrompt }, ...compacted];
         const compactedTokens = messages.reduce((sum, m) => sum + estimateFullMessageTokens(m), 0);
         onContextUpdate?.(compactedTokens, modelMaxTokens);
       } else {
@@ -1441,41 +1444,63 @@ export class MCPServerManager {
   }
 
   /**
-   * Summarize the current conversation history, clear it, and re-seed with the summary.
-   * Returns the summary text. Used by the /compact command and auto-compact logic.
+   * Summarize the older portion of conversation history, clear it, and re-seed
+   * with the summary plus the most recent messages. Used by the auto-compact
+   * trigger and can also be called manually.
    */
   async compactHistory(): Promise<string> {
     const messages = await this.conversationHistory.getCurrentConversation();
-    if (messages.length === 0) {
-      return 'No conversation history to compact.';
+    if (messages.length <= AUTO_COMPACT_KEEP_RECENT) {
+      return 'Not enough history to compact.';
     }
 
-    const historyText = messages
+    const toSummarize = messages.slice(0, -AUTO_COMPACT_KEEP_RECENT);
+    const recentMessages = messages.slice(-AUTO_COMPACT_KEEP_RECENT);
+
+    const historyText = toSummarize
       .map(m => `${m.role}: ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`)
       .join('\n');
 
     const summaryResponse = await this.llmProvider.chat({
       model: this.model,
-      stream: false,
       messages: [
         {
           role: 'system',
-          content: 'Summarize the following conversation concisely in 3-5 sentences, preserving the most important context, decisions, and facts discussed.',
+          content: 'You are a conversation summarizer. Produce a concise summary of the conversation that preserves all key facts, decisions, and context needed to continue the conversation. Be thorough but brief.'
         },
-        { role: 'user', content: historyText },
+        {
+          role: 'user',
+          content: `Summarize this conversation:\n\n${historyText}`
+        }
       ],
+      tools: [],
+      stream: false
     });
 
-    const summary = summaryResponse.message.content as string;
+    const summary = typeof summaryResponse === 'string'
+      ? summaryResponse
+      : (summaryResponse as any).text ?? JSON.stringify(summaryResponse);
 
     await this.conversationHistory.clearHistory();
     await this.conversationHistory.startNewConversation();
+
+    await this.conversationHistory.addMessage({
+      role: 'user',
+      content: '[Conversation history was automatically compacted to free context space.]'
+    });
     await this.conversationHistory.addMessage({
       role: 'assistant',
-      content: `[Conversation summary — context compacted]\n${summary}`,
+      content: `Summary of previous conversation:\n\n${summary}`
     });
 
-    Logger.info('Conversation history compacted');
+    for (const msg of recentMessages) {
+      await this.conversationHistory.addMessage({
+        role: msg.role as 'user' | 'assistant' | 'system' | 'tool',
+        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+      });
+    }
+
+    Logger.info(`Context auto-compacted: summarized ${toSummarize.length} messages, kept ${recentMessages.length} recent`);
     return summary;
   }
 }
