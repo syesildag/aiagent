@@ -305,7 +305,7 @@ function estimateTokens(text: string): number {
  */
 const IMAGE_TOKEN_ESTIMATE = 1275; // worst-case high-detail 1024×1024 OpenAI tile cost
 
-function estimateFullMessageTokens(msg: LLMMessage): number {
+export function estimateFullMessageTokens(msg: LLMMessage): number {
   let text = '';
   let imageCount = 0;
   if (typeof msg.content === 'string') {

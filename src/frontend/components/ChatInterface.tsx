@@ -412,6 +412,16 @@ export const ChatInterface: React.FC = () => {
                 );
               } else if (event.t === 'ctx' && event.used !== undefined) {
                 setContextUsage({ used: event.used, max: event.max ?? 0 });
+              } else if (event.t === 'compact') {
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    id: crypto.randomUUID(),
+                    role: 'system' as const,
+                    content: '↻ Context was compacted — earlier messages summarized to free space.',
+                    timestamp: new Date(),
+                  },
+                ]);
               }
             } catch {
               // Fallback: treat unrecognised lines as raw text

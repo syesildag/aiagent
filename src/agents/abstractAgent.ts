@@ -82,6 +82,7 @@ export default abstract class AbstractAgent implements Agent {
      maxIterations?: number,
      freshContext?: boolean,
      onContextUpdate?: (used: number, max: number) => void,
+     onCompact?: () => void,
    ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');
@@ -113,11 +114,19 @@ export default abstract class AbstractAgent implements Agent {
             freshContext,
             modelOverride: this.getModelOverride(),
             onContextUpdate,
+            onCompact,
          });
       } catch (error) {
          Logger.error(`MCP chat failed: ${error instanceof Error ? error.message : String(error)}`);
          throw error;
       }
+   }
+
+   async compactHistory(): Promise<string> {
+      if (!this.mcpManager) {
+         throw new Error('MCP manager not initialized');
+      }
+      return this.mcpManager.compactHistory();
    }
 
    // Helper method for agents to get available tools for specific servers
