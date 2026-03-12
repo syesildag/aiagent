@@ -129,6 +129,20 @@ export default abstract class AbstractAgent implements Agent {
       return this.mcpManager.compactHistory();
    }
 
+   hasActiveConversation(): boolean {
+      return this.mcpManager?.hasActiveConversation() ?? false;
+   }
+
+   async restoreConversationHistory(
+      messages: Array<{ role: string; content: string }>,
+      userId?: string,
+   ): Promise<void> {
+      if (!this.mcpManager) {
+         throw new Error('MCP manager not initialized');
+      }
+      return this.mcpManager.restoreConversation(messages, userId);
+   }
+
    // Helper method for agents to get available tools for specific servers
    getAvailableTools(serverNames?: string[]): string[] {
       if (!this.mcpManager) {
