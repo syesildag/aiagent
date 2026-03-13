@@ -1038,6 +1038,7 @@ export const ChatInterface: React.FC = () => {
               fullWidth
               multiline
               maxRows={4}
+              autoFocus
               placeholder={isImageOnlyModel ? 'Describe the image you want to generate...' : isImageCapable ? 'Ask anything, or say "draw" to generate an image...' : 'Type your message...'}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
