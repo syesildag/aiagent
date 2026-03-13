@@ -72,7 +72,7 @@
         "OPENMESSAGES_DATA_DIR": "${OPENMESSAGES_DATA_DIR}",
         "OPENMESSAGES_PORT": "${OPENMESSAGES_PORT}"
       },
-      "enabled": true
+      "enabled": false
     }
   ]
 }

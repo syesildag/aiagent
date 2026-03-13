@@ -48,7 +48,7 @@ export function loadAgentDefinitions(agentsDir: string): Map<string, AgentDefini
   if (!fs.existsSync(agentsDir)) return agents;
 
   for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
-    if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+    if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name === 'README.md') continue;
 
     const filePath = path.join(agentsDir, entry.name);
     try {
