@@ -36,7 +36,6 @@ export interface Agent {
    setMCPManager(manager: MCPServerManager): void;
    getAllowedServerNames(): string[] | undefined;
    addAssistantMessageToHistory(content: string | undefined): void;
-   compactHistory(): Promise<string>;
    hasActiveConversation(): boolean;
    restoreConversationHistory(messages: Array<{ role: string; content: string }>, userId?: string): Promise<void>;
 }

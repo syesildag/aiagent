@@ -122,13 +122,6 @@ export default abstract class AbstractAgent implements Agent {
       }
    }
 
-   async compactHistory(): Promise<string> {
-      if (!this.mcpManager) {
-         throw new Error('MCP manager not initialized');
-      }
-      return this.mcpManager.compactHistory();
-   }
-
    hasActiveConversation(): boolean {
       return this.mcpManager?.hasActiveConversation() ?? false;
    }

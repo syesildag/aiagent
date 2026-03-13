@@ -99,19 +99,6 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
    res.setHeader('Cache-Control', 'no-cache');
    res.flushHeaders();  // open the connection now so early writes (approvals) reach the client
 
-   // ── /cmpct built-in command ──────────────────────────────────────────────
-   if (prompt.trim().toLowerCase() === '/cmpct') {
-     try {
-       const summary = await agent.compactHistory();
-       res.write(JSON.stringify({ t: 'text', v: `**Conversation compacted.**\n\n**Summary:**\n${summary}` }) + '\n');
-     } catch (err) {
-       res.write(JSON.stringify({ t: 'error', v: `Compact failed: ${err instanceof Error ? err.message : String(err)}` }) + '\n');
-     }
-     res.end();
-     return;
-   }
-   // ── End /cmpct ──────────────────────────────────────────────────────────
-
    // ── Slash command processing ───────────────────────────────────────────────
    slashCommandRegistry.initialize();
    let effectivePrompt = prompt;
