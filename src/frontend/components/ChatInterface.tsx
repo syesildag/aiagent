@@ -1034,11 +1034,6 @@ export const ChatInterface: React.FC = () => {
               </Tooltip>
             )}
 
-            {/* Context meter — shown once we have token data from the server */}
-            {contextUsage && (
-              <ContextMeter used={contextUsage.used} max={contextUsage.max} />
-            )}
-
             <TextField
               fullWidth
               multiline
