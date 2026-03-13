@@ -164,9 +164,9 @@ export interface ChatWithLLMArgs {
    */
   modelOverride?: string;
   /**
-   * Optional callback invoked after the conversation history is assembled,
-   * reporting estimated token usage vs. model maximum for this request.
-   * Used by the chat route to emit a {t:'ctx'} NDJSON event to the frontend.
+   * Optional callback invoked once per chat call, immediately after the full
+   * messages array (system + history) is assembled. Reports a rough token
+   * estimate so the caller can surface context-usage metrics.
    */
   onContextUpdate?: (used: number, max: number) => void;
   /**
