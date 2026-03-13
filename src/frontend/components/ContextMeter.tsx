@@ -4,15 +4,13 @@ import { Tooltip, useTheme } from '@mui/material';
 interface ContextMeterProps {
   used: number;
   max: number;
-  onCompact?: () => void;
 }
 
 /**
  * Small SVG donut chart showing context window usage.
  * Color shifts green → yellow → orange → red as usage rises.
- * Clicking it triggers the /cmpct action.
  */
-export default function ContextMeter({ used, max, onCompact }: ContextMeterProps) {
+export default function ContextMeter({ used, max }: ContextMeterProps) {
   const theme = useTheme();
   const pct = max > 0 ? Math.min(used / max, 1) : 0;
   const pctDisplay = Math.round(pct * 100);
@@ -38,7 +36,7 @@ export default function ContextMeter({ used, max, onCompact }: ContextMeterProps
 
   const usedK = used >= 1000 ? `${(used / 1000).toFixed(1)}k` : String(used);
   const maxK = max >= 1000 ? `${(max / 1000).toFixed(1)}k` : String(max);
-  const tooltipTitle = `Context: ${usedK} / ${maxK} tokens (${pctDisplay}%)${pct >= 0.85 ? ' — type /cmpct to free context' : ''}`;
+  const tooltipTitle = `Context: ${usedK} / ${maxK} tokens (${pctDisplay}%)`;
 
   return (
     <Tooltip title={tooltipTitle} placement="top">
@@ -46,9 +44,8 @@ export default function ContextMeter({ used, max, onCompact }: ContextMeterProps
         width={28}
         height={28}
         viewBox="0 0 28 28"
-        onClick={onCompact}
         style={{
-          cursor: onCompact ? 'pointer' : 'default',
+          cursor: 'default',
           flexShrink: 0,
           display: 'block',
         }}

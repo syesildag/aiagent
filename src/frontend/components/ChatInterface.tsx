@@ -40,11 +40,9 @@ import {
     Typography
 } from '@mui/material';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { Message, ToolApproval, isImageGenerationModel, isImageCapableModel } from '../types';
 import { ChatMessage } from './ChatMessage';
-import { ContextPieChart } from './ContextPieChart';
 import { ConversationSidebar } from './ConversationSidebar';
 import { ToolApprovalCard } from './ToolApprovalCard';
 import ContextMeter from './ContextMeter';
@@ -647,7 +645,7 @@ export const ChatInterface: React.FC = () => {
 
           {/* Context usage pie chart */}
           {contextUsage && (
-            <ContextPieChart used={contextUsage.used} max={contextUsage.max} size={28} />
+            <ContextMeter used={contextUsage.used} max={contextUsage.max} />
           )}
 
           {/* Spacer */}
@@ -1048,14 +1046,7 @@ export const ChatInterface: React.FC = () => {
 
             {/* Context meter — shown once we have token data from the server */}
             {contextUsage && (
-              <ContextMeter
-                used={contextUsage.used}
-                max={contextUsage.max}
-                onCompact={() => {
-                  flushSync(() => setInputMessage('/cmpct'));
-                  handleSendMessage();
-                }}
-              />
+              <ContextMeter used={contextUsage.used} max={contextUsage.max} />
             )}
 
             <TextField
