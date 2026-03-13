@@ -62,6 +62,7 @@ Welcome to the comprehensive documentation for the AI Agent system. This documen
 - **[Time Server Summary](time-server-summary.md)**: Time MCP server overview
 - **[Time Server Details](time-server.md)**: Detailed time server implementation
 - **[Weather Server](weather-server.md)**: Weather MCP server implementation
+- **[Google Messages Server](GOOGLE-MESSAGES-SERVER.md)**: Free SMS/RCS via Android phone using OpenMessage
 - **[Helm Refactor Changes](helm-refactor-changes.md)**: Kubernetes Helm chart updates
 
 ## Quick Reference
