@@ -66,7 +66,7 @@
     },
     {
       "name": "google-messages",
-      "command": "/home/freebox/workspace/openmessage",
+      "command": "/home/freebox/workspace/openmessage/openmessage",
       "args": ["serve"],
       "env": {
         "OPENMESSAGES_DATA_DIR": "${OPENMESSAGES_DATA_DIR}",
