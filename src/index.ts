@@ -14,6 +14,7 @@ import { initFromPath } from "./utils/initFromPath";
 import JobFactory from "./utils/jobFactory";
 import Logger from "./utils/logger";
 import { closeDatabase } from "./utils/pgClient";
+import { loadDynamicJobs } from "./utils/dynamicJobLoader";
 import { sessionMiddleware } from './middleware/session';
 import { authRouter } from './routes/auth';
 import { chatRouter } from './routes/chat';
@@ -231,4 +232,4 @@ async function scheduleJobs() {
    });
 }
 
-scheduleJobs();
+scheduleJobs().then(() => loadDynamicJobs());

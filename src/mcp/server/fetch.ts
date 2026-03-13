@@ -96,9 +96,10 @@ async function fetchAndExtract(
     throw new Error("Could not extract article content from this page.");
   }
 
+  const rawText = article.textContent ?? '';
   const trimmed =
-    article.textContent.replace(/\s+/g, " ").trim().slice(0, maxChars) +
-    (article.textContent.length > maxChars ? "…" : "");
+    rawText.replace(/\s+/g, " ").trim().slice(0, maxChars) +
+    (rawText.length > maxChars ? "…" : "");
 
   return {
     title: article.title ?? "",

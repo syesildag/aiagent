@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getAgentFromName } from '../agent';
 import type { ImageGenerationResult, MixedContentResult } from '../mcp/mcpManager';
 import { AiAgentConversationMessages } from "../entities/ai-agent-conversation-messages";
+import aiagentconversationmessagesRepository from "../entities/ai-agent-conversation-messages";
 import aiagentconversationsRepository, { AiAgentConversations } from "../entities/ai-agent-conversations";
 import { AiAgentSession } from "../entities/ai-agent-session";
 import { approvalManager } from '../mcp/approvalManager';
@@ -171,6 +172,20 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
      return decision;
    };
 
+   // Context usage callback: emits a single NDJSON event with token estimates
+   const onContextUpdate = (used: number, max: number): void => {
+     if (!res.writableEnded) {
+       res.write(JSON.stringify({ t: 'ctx', used, max }) + '\n');
+     }
+   };
+
+   // Compaction callback: notifies the frontend that history was auto-compacted
+   const onCompact = (): void => {
+     if (!res.writableEnded) {
+       res.write(JSON.stringify({ t: 'compact' }) + '\n');
+     }
+   };
+
    // Resolve or create a conversation for persistence
    const userLogin = sessionEntity?.getUserLogin();
    let activeConversationId = incomingConversationId ?? null;
@@ -198,16 +213,26 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
       }
    }
 
-   // Context-meter callback: emits token usage stats as an NDJSON event so the
-   // frontend can render the context pie chart.
-   const onContextUpdate = (used: number, max: number): void => {
-     if (!res.writableEnded) {
-       res.write(JSON.stringify({ t: 'ctx', used, max }) + '\n');
-     }
-   };
+   // If the client is continuing an existing DB conversation but the in-memory LLM
+   // context is empty (e.g. after a server restart), restore the prior messages so
+   // the agent retains full context.
+   if (incomingConversationId && !agent.hasActiveConversation()) {
+      try {
+         const priorMessages = await aiagentconversationmessagesRepository.findByConversationId(incomingConversationId);
+         if (priorMessages.length > 0) {
+            await agent.restoreConversationHistory(
+               priorMessages.map(m => ({ role: m.getRole(), content: m.getContent() })),
+               userLogin ?? undefined,
+            );
+            Logger.info(`Restored ${priorMessages.length} messages for conversationId=${incomingConversationId}`);
+         }
+      } catch (err) {
+         Logger.error(`Failed to restore conversation history: ${err}`);
+      }
+   }
 
    try {
-      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext, onContextUpdate);
+      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext, onContextUpdate, onCompact);
       let finalContent: string | undefined;
 
       if (answer instanceof ReadableStream) {

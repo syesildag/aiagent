@@ -38,6 +38,20 @@ interface ChatMessageProps {
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = false, onSpeak, onStopSpeaking }) => {
+  if (message.role === 'system') {
+    return (
+      <ListItem sx={{ py: 1, px: 0 }}>
+        <Box sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
+          <Typography variant="caption" sx={{ color: 'text.disabled', whiteSpace: 'nowrap', fontSize: '0.7rem' }}>
+            {message.content}
+          </Typography>
+          <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
+        </Box>
+      </ListItem>
+    );
+  }
+
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
 

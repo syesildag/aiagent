@@ -48,6 +48,28 @@ function formatJob(row: JobRow): string {
    }, null, 2);
 }
 
+/**
+ * Basic structural validation for cron expressions.
+ * Accepts 5-field (minute hour dom month dow) or 6-field
+ * (second minute hour dom month dow) expressions.
+ */
+function isValidCronString(spec: string): boolean {
+   const fields = spec.trim().split(/\s+/);
+   return fields.length === 5 || fields.length === 6;
+}
+
+/**
+ * Converts an arbitrary string to a lowercase slug with only
+ * alphanumeric characters and hyphens, for auto-generated job names.
+ */
+function toSlug(value: string): string {
+   return value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 50);
+}
+
 // ---------------------------------------------------------------------------
 // MCP server
 // ---------------------------------------------------------------------------
@@ -199,6 +221,163 @@ async function main(): Promise<void> {
             } catch (err) {
                const msg = err instanceof Error ? err.message : String(err);
                Logger.error(`[jobs-server] disable_job error: ${msg}`);
+               return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
+            }
+         }
+      );
+
+      // -----------------------------------------------------------------------
+      // create_agent_job
+      // -----------------------------------------------------------------------
+      server.registerTool(
+         "create_agent_job",
+         {
+            title: "Create Agent Job",
+            description:
+               "Creates a new scheduled agent job at runtime. The job is persisted to the " +
+               "database and will be picked up by the main process within the polling interval " +
+               "(~5 minutes) without requiring a server restart. " +
+               "The schedule must be a valid cron expression (5 or 6 space-separated fields, " +
+               "e.g. '0 8 * * *' for daily at 08:00).",
+            inputSchema: z.object({
+               agentName: z.string().min(1).describe(
+                  "Name of the registered agent to run (e.g. 'general')"
+               ),
+               prompt: z.string().min(1).describe(
+                  "The prompt to send to the agent on each scheduled run"
+               ),
+               schedule: z.string().min(1).describe(
+                  "Cron expression for the schedule, e.g. '0 8 * * *' for daily at 08:00"
+               ),
+               name: z.string().min(1).optional().describe(
+                  "Unique job name. Auto-generated as 'agent-job-{agentName}-{slug}' if omitted"
+               ),
+               enabled: z.boolean().default(true).describe(
+                  "Whether the job should start enabled (default true)"
+               ),
+            }).shape,
+         } as any,
+         async (args) => {
+            const { agentName, prompt, schedule, enabled } = args as unknown as {
+               agentName: string;
+               prompt: string;
+               schedule: string;
+               name?: string;
+               enabled: boolean;
+            };
+            let { name } = args as unknown as { name?: string };
+
+            try {
+               if (!isValidCronString(schedule)) {
+                  return {
+                     content: [{
+                        type: "text" as const,
+                        text:
+                           `Invalid schedule: "${schedule}". Must be a cron expression with ` +
+                           `5 or 6 space-separated fields (e.g. "0 8 * * *").`,
+                     }],
+                  };
+               }
+
+               if (!name) {
+                  name = `agent-job-${toSlug(agentName)}-${toSlug(prompt)}`;
+               }
+
+               const existing = await queryDatabase(
+                  "SELECT name FROM ai_agent_jobs WHERE name = $1",
+                  [name]
+               );
+               if (existing.length > 0) {
+                  return {
+                     content: [{
+                        type: "text" as const,
+                        text:
+                           `A job named "${name}" already exists. ` +
+                           `Provide a different name or omit it to auto-generate one.`,
+                     }],
+                  };
+               }
+
+               const params = { type: 'dynamic', agentName, prompt, schedule };
+               await queryDatabase(
+                  "INSERT INTO ai_agent_jobs (name, enabled, params) VALUES ($1, $2, $3)",
+                  [name, enabled, JSON.stringify(params)]
+               );
+
+               Logger.info(`[jobs-server] Created dynamic agent job: ${name}`);
+               return {
+                  content: [{
+                     type: "text" as const,
+                     text:
+                        `Dynamic agent job "${name}" created.\n` +
+                        `Agent:    ${agentName}\n` +
+                        `Schedule: ${schedule}\n` +
+                        `Enabled:  ${enabled}\n\n` +
+                        `The job will be picked up within ~5 minutes (or on next server restart).`,
+                  }],
+               };
+            } catch (err) {
+               const msg = err instanceof Error ? err.message : String(err);
+               Logger.error(`[jobs-server] create_agent_job error: ${msg}`);
+               return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
+            }
+         }
+      );
+
+      // -----------------------------------------------------------------------
+      // delete_agent_job
+      // -----------------------------------------------------------------------
+      server.registerTool(
+         "delete_agent_job",
+         {
+            title: "Delete Agent Job",
+            description:
+               "Deletes a dynamic agent job that was created via create_agent_job. " +
+               "Static jobs defined in code cannot be deleted with this tool. " +
+               "The running schedule in the main process will stop firing within the next polling cycle (~5 minutes).",
+            inputSchema: z.object({
+               name: z.string().min(1).describe("The unique name of the dynamic job to delete"),
+            }).shape,
+         } as any,
+         async (args) => {
+            const { name } = args as unknown as { name: string };
+
+            try {
+               const rows = await queryDatabase(
+                  "SELECT id, name, params FROM ai_agent_jobs WHERE name = $1",
+                  [name]
+               );
+
+               if (rows.length === 0) {
+                  return { content: [{ type: "text" as const, text: `Job not found: "${name}"` }] };
+               }
+
+               const row = rows[0] as { id: number; name: string; params: Record<string, unknown> | null };
+               if (row.params?.type !== 'dynamic') {
+                  return {
+                     content: [{
+                        type: "text" as const,
+                        text:
+                           `Cannot delete job "${name}": it is a static job. ` +
+                           `Only dynamic jobs created via create_agent_job can be deleted.`,
+                     }],
+                  };
+               }
+
+               await queryDatabase("DELETE FROM ai_agent_jobs WHERE name = $1", [name]);
+
+               Logger.info(`[jobs-server] Deleted dynamic agent job: ${name}`);
+               return {
+                  content: [{
+                     type: "text" as const,
+                     text:
+                        `Dynamic agent job "${name}" deleted. ` +
+                        `It will stop firing within the next polling cycle (~5 minutes).`,
+                  }],
+               };
+            } catch (err) {
+               const msg = err instanceof Error ? err.message : String(err);
+               Logger.error(`[jobs-server] delete_agent_job error: ${msg}`);
                return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
             }
          }

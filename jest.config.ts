@@ -12,6 +12,8 @@ const config: Config = {
   moduleNameMapper: {
     '^react-markdown$': '<rootDir>/src/__mocks__/react-markdown.tsx',
     '^remark-gfm$': '<rootDir>/src/__mocks__/remark-gfm.ts',
+    '^rehype-raw$': '<rootDir>/src/__mocks__/rehype-raw.ts',
+    '^rehype-sanitize$': '<rootDir>/src/__mocks__/rehype-sanitize.ts',
   },
   globals: {
     'ts-jest': {

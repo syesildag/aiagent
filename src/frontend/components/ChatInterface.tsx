@@ -44,6 +44,7 @@ import { flushSync } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { Message, ToolApproval, isImageGenerationModel, isImageCapableModel } from '../types';
 import { ChatMessage } from './ChatMessage';
+import { ContextPieChart } from './ContextPieChart';
 import { ConversationSidebar } from './ConversationSidebar';
 import { ToolApprovalCard } from './ToolApprovalCard';
 import ContextMeter from './ContextMeter';
@@ -74,9 +75,9 @@ export const ChatInterface: React.FC = () => {
   );
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
-  const [contextUsage, setContextUsage] = useState<{ used: number; max: number } | null>(null);
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
   const [compressingCount, setCompressingCount] = useState(0);
+  const [contextUsage, setContextUsage] = useState<{ used: number; max: number } | null>(null);
   const [releaseData, setReleaseData] = useState<{ version: string; date: string; sections: { heading: string; items: string[] }[] } | null>(null);
 
 
@@ -303,6 +304,7 @@ export const ChatInterface: React.FC = () => {
     setLoading(true);
     setError('');
     setLastFailedPrompt(null);
+    setContextUsage(null);
 
     sessionApprovedRef.current.clear();
 
@@ -410,8 +412,18 @@ export const ChatInterface: React.FC = () => {
                       : m,
                   ),
                 );
-              } else if (event.t === 'ctx' && typeof event.used === 'number' && typeof event.max === 'number') {
-                setContextUsage({ used: event.used, max: event.max });
+              } else if (event.t === 'ctx' && event.used !== undefined) {
+                setContextUsage({ used: event.used, max: event.max ?? 0 });
+              } else if (event.t === 'compact') {
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    id: crypto.randomUUID(),
+                    role: 'system' as const,
+                    content: '↻ Context was compacted — earlier messages summarized to free space.',
+                    timestamp: new Date(),
+                  },
+                ]);
               }
             } catch {
               // Fallback: treat unrecognised lines as raw text
@@ -631,6 +643,11 @@ export const ChatInterface: React.FC = () => {
                 ))}
               </Select>
             </FormControl>
+          )}
+
+          {/* Context usage pie chart */}
+          {contextUsage && (
+            <ContextPieChart used={contextUsage.used} max={contextUsage.max} size={28} />
           )}
 
           {/* Spacer */}
