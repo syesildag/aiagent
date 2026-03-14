@@ -77,6 +77,11 @@ export const ChatInterface: React.FC = () => {
   const [compressingCount, setCompressingCount] = useState(0);
   const [contextUsage, setContextUsage] = useState<{ used: number; max: number } | null>(null);
   const [releaseData, setReleaseData] = useState<{ version: string; date: string; sections: { heading: string; items: string[] }[] } | null>(null);
+  const [availableCommands, setAvailableCommands] = useState<{ name: string; description?: string; argumentHint?: string }[]>([]);
+  const [cmdSuggestions, setCmdSuggestions] = useState<{ name: string; description?: string; argumentHint?: string }[]>([]);
+  const [cmdMenuOpen, setCmdMenuOpen] = useState(false);
+  const [selectedCmdIdx, setSelectedCmdIdx] = useState(0);
+  const inputContainerRef = useRef<HTMLDivElement>(null);
 
 
   const toggleAutoSpeak = () => {
@@ -138,6 +143,11 @@ export const ChatInterface: React.FC = () => {
     fetch('/version')
       .then(res => res.ok ? res.json() : null)
       .then(data => { if (data?.version) setReleaseData(data); })
+      .catch(() => {/* non-critical */});
+
+    fetch('/commands')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data) setAvailableCommands(data.commands ?? []); })
       .catch(() => {/* non-critical */});
   }, [agentName]);
 
@@ -544,7 +554,33 @@ export const ChatInterface: React.FC = () => {
     }
   }, [session]);
 
+  const acceptCmdSuggestion = useCallback((cmd: { name: string; argumentHint?: string }) => {
+    setInputMessage(`/${cmd.name} `);
+    setCmdMenuOpen(false);
+  }, []);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (cmdMenuOpen) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedCmdIdx(i => (i + 1) % cmdSuggestions.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedCmdIdx(i => (i - 1 + cmdSuggestions.length) % cmdSuggestions.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        acceptCmdSuggestion(cmdSuggestions[selectedCmdIdx]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setCmdMenuOpen(false);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -1034,29 +1070,87 @@ export const ChatInterface: React.FC = () => {
               </Tooltip>
             )}
 
-            <TextField
-              fullWidth
-              multiline
-              maxRows={4}
-              autoFocus
-              placeholder={isImageOnlyModel ? 'Describe the image you want to generate...' : isImageCapable ? 'Ask anything...' : 'Type your message...'}
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={loading}
-              variant="outlined"
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 3,
-                  bgcolor: 'background.paper',
-                  fontSize: '0.9375rem',
-                  transition: 'box-shadow 0.2s',
-                  '&.Mui-focused': {
-                    boxShadow: (t) => `0 0 0 3px ${t.palette.mode === 'dark' ? 'rgba(255,107,107,0.15)' : 'rgba(232,85,85,0.12)'}`,
+            <Box ref={inputContainerRef} sx={{ flex: 1, minWidth: 0 }}>
+              <TextField
+                fullWidth
+                multiline
+                maxRows={4}
+                autoFocus
+                placeholder={isImageOnlyModel ? 'Describe the image you want to generate...' : isImageCapable ? 'Ask anything...' : 'Type your message...'}
+                value={inputMessage}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setInputMessage(val);
+                  if (val.startsWith('/') && !val.includes(' ')) {
+                    const query = val.slice(1).toLowerCase();
+                    const filtered = availableCommands.filter(c =>
+                      c.name.toLowerCase().startsWith(query)
+                    );
+                    setCmdSuggestions(filtered);
+                    setCmdMenuOpen(filtered.length > 0);
+                    setSelectedCmdIdx(0);
+                  } else {
+                    setCmdMenuOpen(false);
+                  }
+                }}
+                onKeyDown={handleKeyDown}
+                disabled={loading}
+                variant="outlined"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 3,
+                    bgcolor: 'background.paper',
+                    fontSize: '0.9375rem',
+                    transition: 'box-shadow 0.2s',
+                    '&.Mui-focused': {
+                      boxShadow: (t) => `0 0 0 3px ${t.palette.mode === 'dark' ? 'rgba(255,107,107,0.15)' : 'rgba(232,85,85,0.12)'}`,
+                    },
                   },
-                },
-              }}
-            />
+                }}
+              />
+              <Menu
+                open={cmdMenuOpen}
+                anchorEl={inputContainerRef.current}
+                onClose={() => setCmdMenuOpen(false)}
+                anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+                transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                disableAutoFocus
+                disableEnforceFocus
+                PaperProps={{
+                  sx: {
+                    width: inputContainerRef.current?.offsetWidth ?? 'auto',
+                    maxHeight: 300,
+                    overflow: 'auto',
+                  },
+                }}
+              >
+                {cmdSuggestions.map((cmd, i) => (
+                  <MenuItem
+                    key={cmd.name}
+                    selected={i === selectedCmdIdx}
+                    onMouseEnter={() => setSelectedCmdIdx(i)}
+                    onClick={() => acceptCmdSuggestion(cmd)}
+                    dense
+                  >
+                    <Box>
+                      <Typography variant="body2" component="span" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                        /{cmd.name}
+                      </Typography>
+                      {cmd.argumentHint && (
+                        <Typography variant="caption" component="span" sx={{ ml: 0.5, color: 'text.secondary', fontFamily: 'monospace' }}>
+                          {cmd.argumentHint}
+                        </Typography>
+                      )}
+                      {cmd.description && (
+                        <Typography variant="caption" display="block" sx={{ color: 'text.secondary', mt: 0.25 }}>
+                          {cmd.description}
+                        </Typography>
+                      )}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Menu>
+            </Box>
             {loading ? (
               <Tooltip title="Cancel">
                 <span>

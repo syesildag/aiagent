@@ -51,6 +51,42 @@ agentsRouter.get("/info/:agent", asyncHandler(async (req: Request, res: Response
    });
 }));
 
+// MCP tools cache status — unauthenticated, returns formatted markdown
+agentsRouter.get("/mcp-status", asyncHandler(async (_req: Request, res: Response) => {
+   const manager = getGlobalMCPManager();
+   if (!manager) {
+      res.type('text').send('MCP manager not initialised yet.');
+      return;
+   }
+
+   const serverStatus = manager.getServerStatus();
+   const cacheValid = manager.isToolsCacheValid();
+   const cachedCount = manager.getCachedToolsCount();
+   const toolsByServer = manager.getToolsByServer();
+
+   const lines: string[] = [];
+   lines.push('## MCP Tools Cache');
+   lines.push(`- **Cache valid:** ${cacheValid}`);
+   lines.push(`- **Total cached tools:** ${cachedCount}`);
+   lines.push('');
+
+   for (const [serverName, info] of Object.entries(serverStatus)) {
+      const serverTools = toolsByServer[serverName] ?? [];
+      lines.push(`### ${serverName} (${info.running ? 'running' : 'stopped'})`);
+      lines.push(`- Tools: ${info.tools.length} | Resources: ${info.resources.length} | Prompts: ${info.prompts.length}`);
+      if (serverTools.length > 0) {
+         lines.push('');
+         lines.push('**Cached tools:**');
+         for (const tool of serverTools) {
+            lines.push(`- \`${tool.function.name}\` — ${tool.function.description}`);
+         }
+      }
+      lines.push('');
+   }
+
+   res.type('text').send(lines.join('\n'));
+}));
+
 // Model switch endpoint - changes the active model
 agentsRouter.post("/model/:agent", asyncHandler(async (req: Request, res: Response) => {
    if (!res.locals.session) {
