@@ -1,6 +1,6 @@
 ---
 description: Store a note into long-term memory for future conversations
-allowed-tools: mcp__memory__memory_create
+allowed-tools: memory
 ---
 
 ## Task

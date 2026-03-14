@@ -1,6 +1,6 @@
 ---
 description: List long-term memories, optionally filtered by type or tag
-allowed-tools: mcp__memory__memory_list, mcp__memory__memory_search
+allowed-tools: memory
 ---
 
 ## Task

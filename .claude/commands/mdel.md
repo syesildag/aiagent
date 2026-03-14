@@ -1,6 +1,6 @@
 ---
 description: Remove a note from long-term memory
-allowed-tools: mcp__memory__memory_search, mcp__memory__memory_delete
+allowed-tools: memory
 ---
 
 ## Task
