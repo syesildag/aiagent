@@ -11,7 +11,7 @@
  *   get_job_info       — return a single job's details by name
  *   enable_job         — set enabled=true for a job by name
  *   disable_job        — set enabled=false for a job by name
- *   update_job_prompt  — update the prompt of a dynamic agent job by name
+ *   update_job_prompt  — update the prompt and/or schedule of a dynamic agent job
  *
  * Note: changes take effect at the job's next scheduled tick in the main
  * process (no server restart required).
@@ -333,19 +333,49 @@ async function main(): Promise<void> {
          {
             title: "Update Job Prompt",
             description:
-               "Updates the prompt of an existing dynamic agent job. " +
+               "Updates the prompt and/or schedule of an existing dynamic agent job. " +
+               "At least one of prompt or schedule must be provided. " +
                "Only jobs created via create_agent_job can be updated — static code-defined jobs " +
                "are not affected by DB changes. " +
-               "The new prompt takes effect after the next server restart.",
+               "Changes take effect after the next server restart.",
             inputSchema: z.object({
                name: z.string().min(1).describe("The unique name of the dynamic job to update"),
-               prompt: z.string().min(1).describe("The new prompt to send to the agent on each scheduled run"),
+               prompt: z.string().min(1).optional().describe(
+                  "The new prompt to send to the agent on each scheduled run"
+               ),
+               schedule: z.string().min(1).optional().describe(
+                  "New cron expression for the schedule, e.g. '0 8 * * *' for daily at 08:00"
+               ),
             }).shape,
          } as any,
          async (args) => {
-            const { name, prompt } = args as unknown as { name: string; prompt: string };
+            const { name, prompt, schedule } = args as unknown as {
+               name: string;
+               prompt?: string;
+               schedule?: string;
+            };
 
             try {
+               if (!prompt && !schedule) {
+                  return {
+                     content: [{
+                        type: "text" as const,
+                        text: "At least one of prompt or schedule must be provided.",
+                     }],
+                  };
+               }
+
+               if (schedule && !isValidCronString(schedule)) {
+                  return {
+                     content: [{
+                        type: "text" as const,
+                        text:
+                           `Invalid schedule: "${schedule}". Must be a cron expression with ` +
+                           `5 or 6 space-separated fields (e.g. "0 8 * * *").`,
+                     }],
+                  };
+               }
+
                const rows = await queryDatabase(
                   "SELECT id, name, params FROM ai_agent_jobs WHERE name = $1",
                   [name]
@@ -367,19 +397,31 @@ async function main(): Promise<void> {
                   };
                }
 
+               // Build parameterised jsonb_set chain for whichever fields were supplied
+               const queryParams: unknown[] = [name];
+               let paramsExpr = "params";
+               if (prompt) {
+                  queryParams.push(prompt);
+                  paramsExpr = `jsonb_set(${paramsExpr}, '{prompt}', to_jsonb($${queryParams.length}::text))`;
+               }
+               if (schedule) {
+                  queryParams.push(schedule);
+                  paramsExpr = `jsonb_set(${paramsExpr}, '{schedule}', to_jsonb($${queryParams.length}::text))`;
+               }
+
                await queryDatabase(
-                  "UPDATE ai_agent_jobs SET params = jsonb_set(params, '{prompt}', to_jsonb($2::text)), " +
-                  "updated_at = NOW() WHERE name = $1",
-                  [name, prompt]
+                  `UPDATE ai_agent_jobs SET params = ${paramsExpr}, updated_at = NOW() WHERE name = $1`,
+                  queryParams
                );
 
-               Logger.info(`[jobs-server] Updated prompt for dynamic agent job: ${name}`);
+               const updated = [prompt && "prompt", schedule && "schedule"].filter(Boolean).join(" and ");
+               Logger.info(`[jobs-server] Updated ${updated} for dynamic agent job: ${name}`);
                return {
                   content: [{
                      type: "text" as const,
                      text:
-                        `Prompt updated for job "${name}". ` +
-                        `The new prompt will take effect after the next server restart.`,
+                        `Updated ${updated} for job "${name}". ` +
+                        `Changes will take effect after the next server restart.`,
                   }],
                };
             } catch (err) {
