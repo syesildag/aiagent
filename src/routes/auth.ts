@@ -54,6 +54,16 @@ authRouter.post("/login", asyncHandler(async (req: Request, res: Response) => {
    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ session }));
 }));
 
+// Session validation endpoint: returns 200 if the session token is still valid, 401 otherwise.
+// The session middleware has already done the DB lookup and expiry check before this handler runs.
+authRouter.post("/session/validate", asyncHandler(async (_req: Request, res: Response) => {
+   if (!res.locals.session) {
+      sendAuthenticationRequired(res);
+      return;
+   }
+   res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ valid: true }));
+}));
+
 // Logout endpoint: deletes session from database
 authRouter.post("/logout", asyncHandler(async (req: Request, res: Response) => {
    // If session is still set (valid), delete it. If it was already gone (expired

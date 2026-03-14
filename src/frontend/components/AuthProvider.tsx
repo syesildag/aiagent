@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { AuthContext } from '../context/AuthContext';
 
 interface AuthProviderProps {
@@ -21,18 +21,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     sessionStorage.getItem('username')
   );
 
+  // Validate the session stored in sessionStorage against the backend on mount.
+  // If it has expired (401), clear it so the user sees the login screen instead
+  // of a broken ChatInterface. Fails open on network errors.
+  useEffect(() => {
+    if (!session) return;
+    fetch('/session/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session }),
+    })
+      .then((res) => {
+        if (res.status === 401) logout();
+      })
+      .catch(() => {/* network error — fail open */});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally run once on mount only
+
   const login = useCallback(async (username: string, password: string) => {
     const credentials = btoa(`${username}:${password}`);
-    const response = await fetch('/login', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${credentials}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch('/login', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${credentials}`,
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+      });
+    } catch {
+      throw new Error('Connection error — please try again');
+    }
 
     if (!response.ok) {
-      throw new Error('Authentication failed');
+      throw new Error(response.status === 401 ? 'Invalid username or password' : 'Login failed');
     }
 
     const data = await response.json();
