@@ -42,7 +42,10 @@ npm run buildEntityGen -- --table table_name --output src/entities
 npm run buildEntityGen -- --schema public --output src/entities
 
 # Add a user
-node dist/src/scripts/addUser.js <username> <password>
+npm run addUser -- <username> <password>
+
+# Set/unset admin flag for a user
+npm run setUserAdmin -- <username> <true|false>
 ```
 
 Development mode (`NODE_ENV=development`) uses HTTP instead of HTTPS, so no SSL certificates are required.
