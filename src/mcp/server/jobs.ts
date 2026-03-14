@@ -7,10 +7,11 @@
  * jobs whose state is persisted in the ai_agent_jobs PostgreSQL table.
  *
  * Tools:
- *   list_jobs        — return all registered jobs with their current state
- *   get_job_info     — return a single job's details by name
- *   enable_job       — set enabled=true for a job by name
- *   disable_job      — set enabled=false for a job by name
+ *   list_jobs          — return all registered jobs with their current state
+ *   get_job_info       — return a single job's details by name
+ *   enable_job         — set enabled=true for a job by name
+ *   disable_job        — set enabled=false for a job by name
+ *   update_job_prompt  — update the prompt of a dynamic agent job by name
  *
  * Note: changes take effect at the job's next scheduled tick in the main
  * process (no server restart required).
@@ -319,6 +320,71 @@ async function main(): Promise<void> {
             } catch (err) {
                const msg = err instanceof Error ? err.message : String(err);
                Logger.error(`[jobs-server] create_agent_job error: ${msg}`);
+               return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
+            }
+         }
+      );
+
+      // -----------------------------------------------------------------------
+      // update_job_prompt
+      // -----------------------------------------------------------------------
+      server.registerTool(
+         "update_job_prompt",
+         {
+            title: "Update Job Prompt",
+            description:
+               "Updates the prompt of an existing dynamic agent job. " +
+               "Only jobs created via create_agent_job can be updated — static code-defined jobs " +
+               "are not affected by DB changes. " +
+               "The new prompt takes effect after the next server restart.",
+            inputSchema: z.object({
+               name: z.string().min(1).describe("The unique name of the dynamic job to update"),
+               prompt: z.string().min(1).describe("The new prompt to send to the agent on each scheduled run"),
+            }).shape,
+         } as any,
+         async (args) => {
+            const { name, prompt } = args as unknown as { name: string; prompt: string };
+
+            try {
+               const rows = await queryDatabase(
+                  "SELECT id, name, params FROM ai_agent_jobs WHERE name = $1",
+                  [name]
+               );
+
+               if (rows.length === 0) {
+                  return { content: [{ type: "text" as const, text: `Job not found: "${name}"` }] };
+               }
+
+               const row = rows[0] as { id: number; name: string; params: Record<string, unknown> | null };
+               if (row.params?.type !== 'dynamic') {
+                  return {
+                     content: [{
+                        type: "text" as const,
+                        text:
+                           `Cannot update job "${name}": it is a static job. ` +
+                           `Only dynamic jobs created via create_agent_job can be updated.`,
+                     }],
+                  };
+               }
+
+               await queryDatabase(
+                  "UPDATE ai_agent_jobs SET params = jsonb_set(params, '{prompt}', to_jsonb($2::text)), " +
+                  "updated_at = NOW() WHERE name = $1",
+                  [name, prompt]
+               );
+
+               Logger.info(`[jobs-server] Updated prompt for dynamic agent job: ${name}`);
+               return {
+                  content: [{
+                     type: "text" as const,
+                     text:
+                        `Prompt updated for job "${name}". ` +
+                        `The new prompt will take effect after the next server restart.`,
+                  }],
+               };
+            } catch (err) {
+               const msg = err instanceof Error ? err.message : String(err);
+               Logger.error(`[jobs-server] update_job_prompt error: ${msg}`);
                return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
             }
          }
