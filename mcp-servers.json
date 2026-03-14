@@ -61,7 +61,8 @@
       "command": "node",
       "args": [
         "./node_modules/@playwright/mcp/cli.js",
-        "--browser", "chromium"
+        "--browser", "chromium",
+        "--headless"
       ],
       "env": {},
       "enabled": false
