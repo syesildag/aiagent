@@ -2,6 +2,7 @@ import { ChildProcess, spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import { promises as fs } from 'fs';
 import Logger from '../utils/logger';
+import { MCPSSEConnection } from './mcpSSEConnection.js';
 import { config } from '../utils/config';
 import { ContentPart, LLMMessage, LLMProvider, OllamaProvider, Tool, getModelMaxTokens, estimateFullMessageTokens, isImageGenerationModel, isResponsesAPIImageModel, isImageGenerationProvider, isResponsesAPICapable } from './llmProviders';
 import { IConversationHistory } from '../descriptions/conversationTypes';
@@ -105,10 +106,14 @@ interface MCPServerCapabilities {
 
 export interface MCPServer {
   name: string;
-  command: string;
+  command?: string;
   args?: string[];
   env?: Record<string, string>;
   enabled: boolean;
+  /** Transport protocol — defaults to 'stdio'. */
+  protocol?: 'stdio' | 'sse';
+  /** Base URL for SSE-based MCP servers, e.g. 'http://localhost:7007/mcp'. */
+  httpUrl?: string;
 }
 
 export interface MCPConfig {
@@ -192,6 +197,10 @@ export class MCPServerConnection extends EventEmitter {
   async start(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
+        if (!this.server.command) {
+          reject(new Error(`[${this.server.name}] command is required for stdio protocol`));
+          return;
+        }
         this.process = spawn(this.server.command, this.server.args || [], {
           env: { ...process.env, ...this.server.env },
           stdio: ['pipe', 'pipe', 'pipe']
@@ -430,7 +439,7 @@ export type SubAgentRunner = (
 
 export class MCPServerManager {
   private servers: MCPServer[] = [];
-  private connections: Map<string, MCPServerConnection> = new Map();
+  private connections: Map<string, MCPServerConnection | MCPSSEConnection> = new Map();
   private configPath: string;
   private llmProvider: LLMProvider;
   private model: string;
@@ -519,7 +528,9 @@ export class MCPServerManager {
           continue;
         }
         
-        const connection = new MCPServerConnection(server);
+        const connection = server.protocol === 'sse'
+          ? new MCPSSEConnection(server)
+          : new MCPServerConnection(server);
         await connection.start();
         this.connections.set(server.name, connection);
         Logger.info(`Started MCP server: ${server.name}`);

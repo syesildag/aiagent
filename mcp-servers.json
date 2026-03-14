@@ -66,13 +66,12 @@
     },
     {
       "name": "google-messages",
-      "command": "/home/freebox/workspace/openmessage/openmessage",
-      "args": ["serve"],
+      "protocol": "sse",
+      "httpUrl": "http://localhost:7007/mcp",
       "env": {
-        "OPENMESSAGES_DATA_DIR": "${OPENMESSAGES_DATA_DIR}",
         "OPENMESSAGES_PORT": "${OPENMESSAGES_PORT}"
       },
-      "enabled": false
+      "enabled": true
     }
   ]
 }
