@@ -1,7 +1,7 @@
 import { Request, Response, Router } from "express";
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
-import { getAgentFromName } from '../agent';
+import { getAgentFromName, getGlobalMCPManager } from '../agent';
 import type { ImageGenerationResult, MixedContentResult } from '../mcp/mcpManager';
 import { AiAgentConversationMessages } from "../entities/ai-agent-conversation-messages";
 import aiagentconversationmessagesRepository from "../entities/ai-agent-conversation-messages";
@@ -115,6 +115,44 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
        cmdFreshContext = cmd.freshContext;
 
        if (cmd.disableModelInvocation) {
+         // Special case: mcp-status builds its response directly from the in-process
+         // MCPServerManager to avoid a deadlock (execSync bash capture + self-HTTP call
+         // would block the event loop before the server could respond to itself).
+         if (parsed.name === 'mcp-status') {
+           const manager = getGlobalMCPManager();
+           let text: string;
+           if (!manager) {
+             text = 'MCP manager not initialised yet.';
+           } else {
+             const serverStatus = manager.getServerStatus();
+             const cacheValid = manager.isToolsCacheValid();
+             const cachedCount = manager.getCachedToolsCount();
+             const toolsByServer = manager.getToolsByServer();
+             const lines: string[] = [
+               '## MCP Tools Cache',
+               `- **Cache valid:** ${cacheValid}`,
+               `- **Total cached tools:** ${cachedCount}`,
+               '',
+             ];
+             for (const [serverName, info] of Object.entries(serverStatus)) {
+               const serverTools = toolsByServer[serverName] ?? [];
+               lines.push(`### ${serverName} (${info.running ? 'running' : 'stopped'})`);
+               lines.push(`- Tools: ${info.tools.length} | Resources: ${info.resources.length} | Prompts: ${info.prompts.length}`);
+               if (serverTools.length > 0) {
+                 lines.push('', '**Cached tools:**');
+                 for (const tool of serverTools) {
+                   lines.push(`- \`${tool.function.name}\` — ${tool.function.description}`);
+                 }
+               }
+               lines.push('');
+             }
+             text = lines.join('\n');
+           }
+           res.write(JSON.stringify({ t: 'text', v: text }) + '\n');
+           res.end();
+           return;
+         }
+
          // Return the processed body directly without calling the LLM
          const body = processCommand(cmd, parsed.args, slashCommandRegistry.getSkills());
          res.write(JSON.stringify({ t: 'text', v: body }) + '\n');
