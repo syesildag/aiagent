@@ -15,6 +15,7 @@ import {
 import {
     Alert,
     AppBar,
+    Autocomplete,
     Box,
     Button,
 
@@ -23,7 +24,6 @@ import {
     DialogContent,
     DialogTitle,
     Divider,
-    FormControl,
     IconButton,
     List,
     ListItem,
@@ -32,8 +32,6 @@ import {
     Menu,
     MenuItem,
     Paper,
-    Select,
-    SelectChangeEvent,
     TextField,
     Toolbar,
     Tooltip,
@@ -163,8 +161,7 @@ export const ChatInterface: React.FC = () => {
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
 
-  const handleModelChange = (e: SelectChangeEvent<string>) => {
-    const model = e.target.value;
+  const handleModelChange = (model: string) => {
     fetch(`/model/${agentName}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -611,26 +608,37 @@ export const ChatInterface: React.FC = () => {
 
           {/* Model selector — next to agent name, all screen sizes */}
           {availableModels.length > 0 && (
-            <FormControl size="small" sx={{ mx: 1, minWidth: { xs: 100, sm: 160 }, flexShrink: 0 }}>
-              <Select
-                value={currentModel}
-                onChange={handleModelChange}
-                disabled={loading}
-                sx={{
-                  color: 'text.secondary',
-                  fontSize: { xs: '0.7rem', sm: '0.8rem' },
-                  fontFamily: "'Outfit', sans-serif",
-                  '.MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
-                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main' },
-                  '.MuiSvgIcon-root': { color: 'text.secondary' },
-                  borderRadius: 1.5,
-                }}
-              >
-                {availableModels.map(m => (
-                  <MenuItem key={m} value={m} sx={{ fontSize: '0.8rem', fontFamily: "'Outfit', sans-serif" }}>{m}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Autocomplete
+              freeSolo
+              size="small"
+              disabled={loading}
+              options={availableModels}
+              value={currentModel}
+              onChange={(_e, newValue) => {
+                if (newValue) handleModelChange(newValue);
+              }}
+              onBlur={(e) => {
+                const val = (e.target as HTMLInputElement).value.trim();
+                if (val && val !== currentModel) handleModelChange(val);
+              }}
+              sx={{ mx: 1, minWidth: { xs: 100, sm: 200 }, flexShrink: 0 }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  sx={{
+                    '.MuiOutlinedInput-root': {
+                      color: 'text.secondary',
+                      fontSize: { xs: '0.7rem', sm: '0.8rem' },
+                      fontFamily: "'Outfit', sans-serif",
+                      borderRadius: 1.5,
+                      '.MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
+                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main' },
+                    },
+                    '.MuiSvgIcon-root': { color: 'text.secondary' },
+                  }}
+                />
+              )}
+            />
           )}
 
           {/* Context usage pie chart */}
