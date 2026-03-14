@@ -1039,7 +1039,7 @@ export const ChatInterface: React.FC = () => {
               multiline
               maxRows={4}
               autoFocus
-              placeholder={isImageOnlyModel ? 'Describe the image you want to generate...' : isImageCapable ? 'Ask anything, or say "draw" to generate an image...' : 'Type your message...'}
+              placeholder={isImageOnlyModel ? 'Describe the image you want to generate...' : isImageCapable ? 'Ask anything...' : 'Type your message...'}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyDown={handleKeyDown}

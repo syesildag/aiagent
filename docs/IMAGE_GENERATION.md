@@ -36,7 +36,7 @@ An oil painting of a cat wearing a astronaut suit
 ### Chat Models with Image Generation (gpt-4.1, gpt-4o, o3, gpt-5)
 
 1. Select `gpt-4.1` (or another supported model) from the model picker.
-2. The input placeholder changes to **"Ask anything, or say 'draw' to generate an image..."**.
+2. The input placeholder changes to **"Ask anything..."**.
 3. Regular chat works as normal — the model responds with text.
 4. When you ask the model to draw or generate something, it uses the `image_generation` built-in tool and returns an image alongside any explanatory text.
 5. MCP tool calls (e.g. web search, memory) continue to work normally in the same conversation.
