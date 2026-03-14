@@ -60,7 +60,8 @@
       "name": "playwright",
       "command": "node",
       "args": [
-        "./node_modules/@playwright/mcp/cli.js"
+        "./node_modules/@playwright/mcp/cli.js",
+        "--browser", "chromium"
       ],
       "env": {},
       "enabled": true
