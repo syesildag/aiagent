@@ -227,29 +227,47 @@ export default async function deleteExpiredSessions() {
 
 ```typescript
 export class AiAgentUser extends Entity<number> {
-   private username: string;
-   private email: string;
-   private passwordHash: string;
-   private createdAt: Date;
-   
+   private id?: number;
+   private login: string;
+   private password: string;
+   private hashVersion: string;
+   private isAdmin: boolean;   // admin capability flag
+   private createdAt?: Date;
+   private updatedAt?: Date;
+
    // Getters and setters...
 }
 ```
+
+### Admin Capability
+
+The `is_admin` boolean column on `ai_agent_user` (added in migration `007_add_admin_to_user.sql`) grants elevated privileges within the system. Its primary effect is on the **jobs MCP server**:
+
+| Capability | Non-admin | Admin |
+|---|---|---|
+| View own dynamic jobs | ✓ | ✓ |
+| View all users' jobs | ✗ | ✓ |
+| View static/system jobs | ✓ | ✓ |
+| Enable/disable own dynamic jobs | ✓ | ✓ |
+| Enable/disable any job | ✗ | ✓ |
+| Create dynamic jobs | ✓ (owned by self) | ✓ (owned by self) |
+| Update/delete own dynamic jobs | ✓ | ✓ |
+| Update/delete any dynamic job | ✗ | ✓ |
+
+Users are non-admin by default (`is_admin = false`). To grant admin rights, update the user directly in PostgreSQL:
+
+```sql
+UPDATE ai_agent_user SET is_admin = true WHERE login = 'username';
+```
+
+The admin flag is resolved per chat request: `AbstractAgent.chat()` fetches the current user record and passes `isAdmin` to the MCP layer, which injects it as hidden context into jobs tool calls.
 
 ### Creating Users
 
 ```bash
 # Using script
 npm run build
-node dist/scripts/addUser.js
-```
-
-**Interactive prompts:**
-```
-Enter username: johndoe
-Enter email: john@example.com
-Enter password: ********
-User created successfully!
+node dist/scripts/addUser.js <username> <password>
 ```
 
 ### User Script Implementation

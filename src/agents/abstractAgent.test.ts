@@ -13,6 +13,12 @@ jest.mock('../utils/slashCommandRegistry', () => ({
     getSkillsSystemPromptBlock: jest.fn().mockReturnValue(''),
   },
 }));
+jest.mock('../entities/ai-agent-user', () => ({
+  __esModule: true,
+  default: {
+    findByLogin: jest.fn().mockResolvedValue(null),
+  },
+}));
 
 // Concrete test implementation of AbstractAgent
 class TestAgent extends AbstractAgent {
@@ -215,6 +221,12 @@ describe('AbstractAgent', () => {
         approvalCallback: undefined,
         toolNameFilter: undefined,
         userLogin: undefined,
+        isAdmin: false,
+        maxIterations: undefined,
+        freshContext: undefined,
+        modelOverride: undefined,
+        onContextUpdate: undefined,
+        onCompact: undefined,
       });
       expect(response).toBe('Response');
     });
@@ -236,6 +248,12 @@ describe('AbstractAgent', () => {
         approvalCallback: undefined,
         toolNameFilter: undefined,
         userLogin: undefined,
+        isAdmin: false,
+        maxIterations: undefined,
+        freshContext: undefined,
+        modelOverride: undefined,
+        onContextUpdate: undefined,
+        onCompact: undefined,
       });
     });
 
@@ -255,6 +273,12 @@ describe('AbstractAgent', () => {
         approvalCallback: undefined,
         toolNameFilter: undefined,
         userLogin: undefined,
+        isAdmin: false,
+        maxIterations: undefined,
+        freshContext: undefined,
+        modelOverride: undefined,
+        onContextUpdate: undefined,
+        onCompact: undefined,
       });
     });
 
@@ -275,6 +299,12 @@ describe('AbstractAgent', () => {
         approvalCallback: undefined,
         toolNameFilter: undefined,
         userLogin: undefined,
+        isAdmin: false,
+        maxIterations: undefined,
+        freshContext: undefined,
+        modelOverride: undefined,
+        onContextUpdate: undefined,
+        onCompact: undefined,
       });
     });
 

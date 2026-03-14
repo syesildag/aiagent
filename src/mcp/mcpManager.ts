@@ -136,6 +136,7 @@ export interface ChatWithLLMArgs {
     name?: string;
   }[];
   userLogin?: string;
+  isAdmin?: boolean;
   /**
    * Optional callback invoked before executing a dangerous MCP tool.
    * Return true to allow execution, false to deny it.
@@ -754,6 +755,7 @@ export class MCPServerManager {
   private async handleToolCall(
     toolCall: any,
     approvalCallback?: ToolApprovalCallback,
+    userContext?: { userLogin?: string; isAdmin?: boolean },
   ): Promise<string> {
     // Defensive check for tool call structure
     if (!toolCall?.function) {
@@ -835,7 +837,15 @@ export class MCPServerManager {
       } else {
         // Regular tool call
         const toolName = methodParts.join('_');
-        const result = await connection.callTool(toolName, parsedArgs);
+        let argsToSend = parsedArgs ?? {};
+        if (serverName === 'jobs' && userContext) {
+          argsToSend = {
+            ...argsToSend,
+            _userLogin: userContext.userLogin ?? null,
+            _isAdmin:   userContext.isAdmin  ?? false,
+          };
+        }
+        const result = await connection.callTool(toolName, argsToSend);
         return JSON.stringify(result, null, 2);
       }
     } catch (error) {
@@ -907,8 +917,10 @@ export class MCPServerManager {
     tools: Tool[];
     approvalCallback?: ToolApprovalCallback;
     abortSignal?: AbortSignal;
+    userLogin?: string;
+    isAdmin?: boolean;
   }): Promise<{ text: string; imageUrls: string[] }> {
-    const { model, systemPrompt, history, tools, approvalCallback, abortSignal } = params;
+    const { model, systemPrompt, history, tools, approvalCallback, abortSignal, userLogin, isAdmin } = params;
     const provider = this.llmProvider as unknown as import('./llmProviders').ResponsesAPICapable;
 
     // Convert MCP tools to Responses API function format
@@ -978,7 +990,7 @@ export class MCPServerManager {
             type: 'function' as const,
             function: { name: item.name, arguments: item.arguments },
           };
-          const result = await this.handleToolCall(toolCallAdapter, approvalCallback);
+          const result = await this.handleToolCall(toolCallAdapter, approvalCallback, { userLogin, isAdmin });
           functionCallOutputs.push({
             type: 'function_call_output',
             call_id: item.call_id,
@@ -997,7 +1009,7 @@ export class MCPServerManager {
   }
 
   async chatWithLLM(args: ChatWithLLMArgs): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
-    const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, approvalCallback, toolNameFilter, freshContext, modelOverride, onContextUpdate, onCompact } = args;
+    const { message, customSystemPrompt, abortSignal, serverNames, stream, attachments, userLogin, isAdmin, approvalCallback, toolNameFilter, freshContext, modelOverride, onContextUpdate, onCompact } = args;
     const previousModel = this.model;
     if (modelOverride) this.model = modelOverride;
     try {
@@ -1032,6 +1044,8 @@ export class MCPServerManager {
           tools: this.convertMCPToolsToLLMFormat(),
           approvalCallback,
           abortSignal,
+          userLogin,
+          isAdmin,
         });
         return result.imageUrls.length > 0
           ? { kind: 'mixed', text: result.text, imageUrls: result.imageUrls }
@@ -1250,7 +1264,7 @@ export class MCPServerManager {
             }
 
             Logger.debug(`Calling tool: ${JSON.stringify(toolCall)}`);
-            const result = await this.handleToolCall(toolCall, approvalCallback);
+            const result = await this.handleToolCall(toolCall, approvalCallback, { userLogin, isAdmin });
             Logger.debug(`Tool call result for ${toolCall.function.name}: ${result}`);
             return result;
           })

@@ -37,17 +37,20 @@ This means:
 
 ```sql
 CREATE TABLE ai_agent_jobs (
-    id         SERIAL PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL UNIQUE,  -- stable job identifier
-    enabled    BOOLEAN NOT NULL DEFAULT TRUE,
-    params     JSONB,                         -- agentName, prompt, schedule, etc.
+    id          SERIAL PRIMARY KEY,
+    name        VARCHAR(255) NOT NULL UNIQUE,  -- stable job identifier
+    enabled     BOOLEAN NOT NULL DEFAULT TRUE,
+    params      JSONB,                         -- agentName, prompt, schedule, type, etc.
+    user_login  CHARACTER VARYING,             -- owning user; NULL for static/system jobs
     last_run_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-Migration: `database/migrations/006_add_jobs_table.sql`
+Migrations:
+- `database/migrations/006_add_jobs_table.sql` — initial table
+- `database/migrations/008_add_user_login_to_jobs.sql` — adds `user_login` column
 
 ## DbJobFactory
 
@@ -157,59 +160,19 @@ A subprocess MCP server that reads and writes the `ai_agent_jobs` table. The gen
 
 ### Tools
 
-#### `list_jobs`
+All tools enforce access control based on the calling user's `is_admin` flag. See [JOBS-SERVER.md — Access Control](JOBS-SERVER.md#access-control) for the full permission matrix.
 
-Returns all registered jobs with their current state.
+| Tool | Purpose |
+|---|---|
+| `list_jobs` | List visible jobs (all for admins; own + static for non-admins) |
+| `get_job_info` | Get details of a single visible job |
+| `enable_job` | Set `enabled = true` (own jobs for non-admins; any for admins) |
+| `disable_job` | Set `enabled = false` (own jobs for non-admins; any for admins) |
+| `create_agent_job` | Create a new dynamic job; `user_login` is set to the calling user |
+| `update_job_prompt` | Update `prompt`/`schedule` of a dynamic job |
+| `delete_agent_job` | Delete a dynamic job |
 
-```
-Input:  (none)
-Output: JSON array of job objects
-```
-
-Example response:
-
-```json
-{
-  "id": 1,
-  "name": "agent-job-general-exampleagentjob",
-  "enabled": false,
-  "params": {
-    "agentName": "general",
-    "prompt": "Summarize your capabilities in one sentence.",
-    "schedule": "RecurrenceRule(hour=0, minute=0, second=0)"
-  },
-  "lastRunAt": null,
-  "createdAt": "2026-03-08T10:00:00.000Z",
-  "updatedAt": "2026-03-08T10:00:00.000Z"
-}
-```
-
-#### `get_job_info`
-
-Returns a single job's details by name.
-
-```
-Input:  { name: string }
-Output: Job object or "Job not found: ..." message
-```
-
-#### `enable_job`
-
-Enables a job. Takes effect at the job's next scheduled tick.
-
-```
-Input:  { name: string }
-Output: Confirmation message
-```
-
-#### `disable_job`
-
-Disables a job. The timer continues to fire but the body is skipped.
-
-```
-Input:  { name: string }
-Output: Confirmation message
-```
+For full argument details and example responses, see [JOBS-SERVER.md](JOBS-SERVER.md).
 
 ### Configuration (`mcp-servers.json`)
 
@@ -276,6 +239,9 @@ const job = await aiAgentJobRepository.findByName("my-job-name");
 // Save changes (e.g. toggle enabled)
 job.setEnabled(false);
 await aiAgentJobRepository.save(job);
+
+// Check ownership
+const owner = job.getUserLogin(); // string | undefined — null for static jobs
 ```
 
 The repository follows the same decorator-based ORM pattern as all other entities. See [ENTITY_CREATION_GUIDE.md](ENTITY_CREATION_GUIDE.md) for details.

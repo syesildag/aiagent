@@ -32,9 +32,26 @@ interface JobRow {
    name: string;
    enabled: boolean;
    params: Record<string, unknown> | null;
+   user_login: string | null;
    last_run_at: string | null;
    created_at: string;
    updated_at: string;
+}
+
+interface UserContext {
+   userLogin: string | null;
+   isAdmin: boolean;
+}
+
+function extractUserContext(args: Record<string, unknown>): { ctx: UserContext; cleanArgs: Record<string, unknown> } {
+   const { _userLogin, _isAdmin, ...cleanArgs } = args as any;
+   return {
+      ctx: {
+         userLogin: typeof _userLogin === 'string' ? _userLogin : null,
+         isAdmin:   typeof _isAdmin  === 'boolean' ? _isAdmin  : false,
+      },
+      cleanArgs,
+   };
 }
 
 function formatJob(row: JobRow): string {
@@ -43,6 +60,7 @@ function formatJob(row: JobRow): string {
       name: row.name,
       enabled: row.enabled,
       params: row.params ?? {},
+      userLogin: row.user_login ?? null,
       lastRunAt: row.last_run_at ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -94,13 +112,19 @@ async function main(): Promise<void> {
                "last run time, and configuration params.",
             inputSchema: z.object({}).shape,
          } as any,
-         async () => {
+         async (args) => {
+            const { ctx } = extractUserContext(args as unknown as Record<string, unknown>);
             try {
-               const result = await queryDatabase(
-                  "SELECT id, name, enabled, params, last_run_at, created_at, updated_at " +
-                  "FROM ai_agent_jobs ORDER BY name ASC"
-               );
-               const rows: JobRow[] = result;
+               const rows: JobRow[] = ctx.isAdmin
+                  ? await queryDatabase(
+                     "SELECT id, name, enabled, params, user_login, last_run_at, created_at, updated_at " +
+                     "FROM ai_agent_jobs ORDER BY name ASC"
+                  )
+                  : await queryDatabase(
+                     "SELECT id, name, enabled, params, user_login, last_run_at, created_at, updated_at " +
+                     "FROM ai_agent_jobs WHERE user_login IS NULL OR user_login = $1 ORDER BY name ASC",
+                     [ctx.userLogin]
+                  );
                if (rows.length === 0) {
                   return { content: [{ type: "text" as const, text: "No jobs registered." }] };
                }
@@ -128,17 +152,22 @@ async function main(): Promise<void> {
             }).shape,
          } as any,
          async (args) => {
-            const { name } = args as unknown as { name: string };
+            const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);
+            const { name } = cleanArgs as { name: string };
             try {
                const result = await queryDatabase(
-                  "SELECT id, name, enabled, params, last_run_at, created_at, updated_at " +
+                  "SELECT id, name, enabled, params, user_login, last_run_at, created_at, updated_at " +
                   "FROM ai_agent_jobs WHERE name = $1",
                   [name]
                );
                if (result.length === 0) {
                   return { content: [{ type: "text" as const, text: `Job not found: "${name}"` }] };
                }
-               return { content: [{ type: "text" as const, text: formatJob(result[0] as JobRow) }] };
+               const row = result[0] as JobRow;
+               if (!ctx.isAdmin && row.user_login !== null && row.user_login !== ctx.userLogin) {
+                  return { content: [{ type: "text" as const, text: `Job not found: "${name}"` }] };
+               }
+               return { content: [{ type: "text" as const, text: formatJob(row) }] };
             } catch (err) {
                const msg = err instanceof Error ? err.message : String(err);
                Logger.error(`[jobs-server] get_job_info error: ${msg}`);
@@ -162,16 +191,29 @@ async function main(): Promise<void> {
             }).shape,
          } as any,
          async (args) => {
-            const { name } = args as unknown as { name: string };
+            const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);
+            const { name } = cleanArgs as { name: string };
             try {
-               const result = await queryDatabase(
-                  "UPDATE ai_agent_jobs SET enabled = TRUE, updated_at = NOW() " +
-                  "WHERE name = $1 RETURNING id, name, enabled, updated_at",
+               const rows = await queryDatabase(
+                  "SELECT id, name, user_login FROM ai_agent_jobs WHERE name = $1",
                   [name]
                );
-               if (result.length === 0) {
+               if (rows.length === 0) {
                   return { content: [{ type: "text" as const, text: `Job not found: "${name}"` }] };
                }
+               const row = rows[0] as { id: number; name: string; user_login: string | null };
+               if (!ctx.isAdmin) {
+                  if (row.user_login === null) {
+                     return { content: [{ type: "text" as const, text: `Permission denied: cannot modify static job "${name}".` }] };
+                  }
+                  if (row.user_login !== ctx.userLogin) {
+                     return { content: [{ type: "text" as const, text: `Permission denied: job "${name}" belongs to another user.` }] };
+                  }
+               }
+               await queryDatabase(
+                  "UPDATE ai_agent_jobs SET enabled = TRUE, updated_at = NOW() WHERE name = $1",
+                  [name]
+               );
                Logger.info(`[jobs-server] Enabled job: ${name}`);
                return {
                   content: [{
@@ -202,16 +244,29 @@ async function main(): Promise<void> {
             }).shape,
          } as any,
          async (args) => {
-            const { name } = args as unknown as { name: string };
+            const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);
+            const { name } = cleanArgs as { name: string };
             try {
-               const result = await queryDatabase(
-                  "UPDATE ai_agent_jobs SET enabled = FALSE, updated_at = NOW() " +
-                  "WHERE name = $1 RETURNING id, name, enabled, updated_at",
+               const rows = await queryDatabase(
+                  "SELECT id, name, user_login FROM ai_agent_jobs WHERE name = $1",
                   [name]
                );
-               if (result.length === 0) {
+               if (rows.length === 0) {
                   return { content: [{ type: "text" as const, text: `Job not found: "${name}"` }] };
                }
+               const row = rows[0] as { id: number; name: string; user_login: string | null };
+               if (!ctx.isAdmin) {
+                  if (row.user_login === null) {
+                     return { content: [{ type: "text" as const, text: `Permission denied: cannot modify static job "${name}".` }] };
+                  }
+                  if (row.user_login !== ctx.userLogin) {
+                     return { content: [{ type: "text" as const, text: `Permission denied: job "${name}" belongs to another user.` }] };
+                  }
+               }
+               await queryDatabase(
+                  "UPDATE ai_agent_jobs SET enabled = FALSE, updated_at = NOW() WHERE name = $1",
+                  [name]
+               );
                Logger.info(`[jobs-server] Disabled job: ${name}`);
                return {
                   content: [{
@@ -259,14 +314,15 @@ async function main(): Promise<void> {
             }).shape,
          } as any,
          async (args) => {
-            const { agentName, prompt, schedule, enabled } = args as unknown as {
+            const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);
+            const { agentName, prompt, schedule, enabled } = cleanArgs as {
                agentName: string;
                prompt: string;
                schedule: string;
                name?: string;
                enabled: boolean;
             };
-            let { name } = args as unknown as { name?: string };
+            let { name } = cleanArgs as { name?: string };
 
             try {
                if (!isValidCronString(schedule)) {
@@ -301,8 +357,8 @@ async function main(): Promise<void> {
 
                const params = { type: 'dynamic', agentName, prompt, schedule };
                await queryDatabase(
-                  "INSERT INTO ai_agent_jobs (name, enabled, params) VALUES ($1, $2, $3)",
-                  [name, enabled, JSON.stringify(params)]
+                  "INSERT INTO ai_agent_jobs (name, enabled, params, user_login) VALUES ($1, $2, $3, $4)",
+                  [name, enabled, JSON.stringify(params), ctx.userLogin]
                );
 
                Logger.info(`[jobs-server] Created dynamic agent job: ${name}`);
@@ -349,7 +405,8 @@ async function main(): Promise<void> {
             }).shape,
          } as any,
          async (args) => {
-            const { name, prompt, schedule } = args as unknown as {
+            const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);
+            const { name, prompt, schedule } = cleanArgs as {
                name: string;
                prompt?: string;
                schedule?: string;
@@ -377,7 +434,7 @@ async function main(): Promise<void> {
                }
 
                const rows = await queryDatabase(
-                  "SELECT id, name, params FROM ai_agent_jobs WHERE name = $1",
+                  "SELECT id, name, params, user_login FROM ai_agent_jobs WHERE name = $1",
                   [name]
                );
 
@@ -385,7 +442,15 @@ async function main(): Promise<void> {
                   return { content: [{ type: "text" as const, text: `Job not found: "${name}"` }] };
                }
 
-               const row = rows[0] as { id: number; name: string; params: Record<string, unknown> | null };
+               const row = rows[0] as { id: number; name: string; params: Record<string, unknown> | null; user_login: string | null };
+               if (!ctx.isAdmin) {
+                  if (row.user_login === null) {
+                     return { content: [{ type: "text" as const, text: `Permission denied: cannot modify static job "${name}".` }] };
+                  }
+                  if (row.user_login !== ctx.userLogin) {
+                     return { content: [{ type: "text" as const, text: `Permission denied: job "${name}" belongs to another user.` }] };
+                  }
+               }
                if (row.params?.type !== 'dynamic') {
                   return {
                      content: [{
@@ -448,11 +513,12 @@ async function main(): Promise<void> {
             }).shape,
          } as any,
          async (args) => {
-            const { name } = args as unknown as { name: string };
+            const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);
+            const { name } = cleanArgs as { name: string };
 
             try {
                const rows = await queryDatabase(
-                  "SELECT id, name, params FROM ai_agent_jobs WHERE name = $1",
+                  "SELECT id, name, params, user_login FROM ai_agent_jobs WHERE name = $1",
                   [name]
                );
 
@@ -460,7 +526,15 @@ async function main(): Promise<void> {
                   return { content: [{ type: "text" as const, text: `Job not found: "${name}"` }] };
                }
 
-               const row = rows[0] as { id: number; name: string; params: Record<string, unknown> | null };
+               const row = rows[0] as { id: number; name: string; params: Record<string, unknown> | null; user_login: string | null };
+               if (!ctx.isAdmin) {
+                  if (row.user_login === null) {
+                     return { content: [{ type: "text" as const, text: `Permission denied: cannot modify static job "${name}".` }] };
+                  }
+                  if (row.user_login !== ctx.userLogin) {
+                     return { content: [{ type: "text" as const, text: `Permission denied: job "${name}" belongs to another user.` }] };
+                  }
+               }
                if (row.params?.type !== 'dynamic') {
                   return {
                      content: [{

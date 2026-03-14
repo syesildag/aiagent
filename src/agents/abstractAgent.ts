@@ -3,6 +3,7 @@ import { Agent, AgentName } from "../agent";
 import { MCPServerManager, ImageGenerationResult, MixedContentResult } from "../mcp/mcpManager";
 import { ToolApprovalCallback } from "../mcp/approvalManager";
 import { AiAgentSession } from "../entities/ai-agent-session";
+import aiagentuserRepository from "../entities/ai-agent-user";
 import Logger from "../utils/logger";
 import { slashCommandRegistry } from "../utils/slashCommandRegistry";
 
@@ -100,6 +101,11 @@ export default abstract class AbstractAgent implements Agent {
 
          const serverNames = this.getAllowedServerNames();
          const userLogin = this.session?.getUserLogin();
+         let isAdmin = false;
+         if (userLogin) {
+            const user = await aiagentuserRepository.findByLogin(userLogin);
+            isAdmin = user?.getIsAdmin() ?? false;
+         }
          return await this.mcpManager.chatWithLLM({
             message: prompt,
             customSystemPrompt: systemPrompt,
@@ -108,6 +114,7 @@ export default abstract class AbstractAgent implements Agent {
             stream,
             attachments,
             userLogin,
+            isAdmin,
             approvalCallback,
             toolNameFilter,
             maxIterations,

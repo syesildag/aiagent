@@ -10,15 +10,17 @@ export class AiAgentJob extends Entity {
    private name: string;
    private enabled: boolean;
    private params?: Record<string, unknown>;
+   private userLogin?: string;
    private lastRunAt?: Date;
    private createdAt?: Date;
    private updatedAt?: Date;
 
-   constructor({ id, name, enabled, params, lastRunAt, createdAt, updatedAt }: {
+   constructor({ id, name, enabled, params, userLogin, lastRunAt, createdAt, updatedAt }: {
       id?: number;
       name: string;
       enabled: boolean;
       params?: Record<string, unknown>;
+      userLogin?: string;
       lastRunAt?: Date;
       createdAt?: Date;
       updatedAt?: Date;
@@ -28,6 +30,7 @@ export class AiAgentJob extends Entity {
       this.name = name;
       this.enabled = enabled;
       this.params = params;
+      this.userLogin = userLogin;
       this.lastRunAt = lastRunAt;
       this.createdAt = createdAt;
       this.updatedAt = updatedAt;
@@ -53,6 +56,11 @@ export class AiAgentJob extends Entity {
       return this.params;
    }
 
+   @Column({ columnName: 'user_login' })
+   public getUserLogin(): string | undefined {
+      return this.userLogin;
+   }
+
    @Column({ columnName: 'last_run_at' })
    public getLastRunAt(): Date | undefined {
       return this.lastRunAt;
@@ -70,6 +78,10 @@ export class AiAgentJob extends Entity {
 
    public setEnabled(enabled: boolean) {
       this.enabled = enabled;
+   }
+
+   public setUserLogin(userLogin: string | undefined): void {
+      this.userLogin = userLogin;
    }
 
    public setLastRunAt(lastRunAt: Date) {

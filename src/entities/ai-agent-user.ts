@@ -20,16 +20,18 @@ export class AiAgentUser extends Entity<number> {
    private login: string;
    private password: string;
    private hashVersion: string;
+   private isAdmin: boolean;
    private createdAt?: Date;
    private updatedAt?: Date;
    private sessions?: AiAgentSession[];
 
-   constructor({ id, login, password, hashVersion, createdAt, updatedAt, sessions }: { id?: number, login: string, password: string, hashVersion?: string, createdAt?: Date, updatedAt?: Date, sessions?: AiAgentSession[] }) {
+   constructor({ id, login, password, hashVersion, isAdmin, createdAt, updatedAt, sessions }: { id?: number, login: string, password: string, hashVersion?: string, isAdmin?: boolean, createdAt?: Date, updatedAt?: Date, sessions?: AiAgentSession[] }) {
       super();
       this.id = id;
       this.login = login;
       this.password = password;
       this.hashVersion = hashVersion ?? 'hmac';
+      this.isAdmin = isAdmin ?? false;
       this.createdAt = createdAt;
       this.updatedAt = updatedAt;
       this.sessions = sessions;
@@ -55,6 +57,11 @@ export class AiAgentUser extends Entity<number> {
       return this.hashVersion;
    }
 
+   @Column({ columnName: 'is_admin', notNull: true, hasDefault: true })
+   public getIsAdmin(): boolean {
+      return this.isAdmin;
+   }
+
    @Column({ columnName: 'created_at', notNull: true, hasDefault: true })
    public getCreatedAt(): Date | undefined {
       return this.createdAt;
@@ -76,6 +83,10 @@ export class AiAgentUser extends Entity<number> {
 
    public setHashVersion(hashVersion: string): void {
       this.hashVersion = hashVersion;
+   }
+
+   public setIsAdmin(isAdmin: boolean): void {
+      this.isAdmin = isAdmin;
    }
 
    public setCreatedAt(createdAt?: Date) {
