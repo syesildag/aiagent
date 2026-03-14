@@ -21,6 +21,7 @@ const DANGEROUS_TOOL_PATTERNS: RegExp[] = [
   /(^|_)drop($|_)/i,
   /(^|_)truncate($|_)/i,
   /(^|_)execute($|_)/i,
+  /(^|_)evaluate($|_)/i,
   /(^|_)run($|_)/i,
   /(^|_)send($|_)/i,
   /(^|_)write($|_)/i,
