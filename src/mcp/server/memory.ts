@@ -207,7 +207,7 @@ server.registerResource(
     try {
       const memoryType = Array.isArray(type) ? type[0] : type;
       // Using repository pattern with ordering support
-      const memories = await aiagentmemoriesRepository.findByTypeOrderByCreatedAtDesc(memoryType);
+      const memories = await aiagentmemoriesRepository.findAllByTypeOrderByCreatedAtDesc(memoryType);
       
       if (!memories) {
         return {
@@ -445,19 +445,19 @@ server.registerTool(
 
       if (type && !tags && !user_login) {
         // Simple type filter - use repository pattern
-        memories = await aiagentmemoriesRepository.findByTypeOrderByCreatedAtDesc(type);
+        memories = await aiagentmemoriesRepository.findAllByTypeOrderByCreatedAtDesc(type);
         if (memories && limit < memories.length) {
           memories = memories.slice(0, limit);
         }
       } else if (user_login && type && !tags) {
         // User + type filter - use repository pattern
-        memories = await aiagentmemoriesRepository.findByUserLoginAndTypeOrderByCreatedAtDesc(user_login, type);
+        memories = await aiagentmemoriesRepository.findAllByUserLoginAndTypeOrderByCreatedAtDesc(user_login, type);
         if (memories && limit < memories.length) {
           memories = memories.slice(0, limit);
         }
       } else if (user_login && !type && !tags) {
         // User-only filter - use repository pattern
-        memories = await aiagentmemoriesRepository.findByUserLoginOrderByCreatedAtDesc(user_login);
+        memories = await aiagentmemoriesRepository.findAllByUserLoginOrderByCreatedAtDesc(user_login);
         if (memories && limit < memories.length) {
           memories = memories.slice(0, limit);
         }

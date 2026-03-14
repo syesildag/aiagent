@@ -119,17 +119,17 @@ class AiAgentMemoriesRepository extends AbstractRepository<AiAgentMemories> {
 
    // Custom finder methods
    @Find()
-   public async findByTypeOrderByCreatedAtDesc(type: string): Promise<AiAgentMemories[]> {
+   public async findAllByTypeOrderByCreatedAtDesc(type: string): Promise<AiAgentMemories[]> {
       return [];
    }
 
    @Find()
-   public async findByUserLoginOrderByCreatedAtDesc(userLogin: string): Promise<AiAgentMemories[]> {
+   public async findAllByUserLoginOrderByCreatedAtDesc(userLogin: string): Promise<AiAgentMemories[]> {
       return [];
    }
 
    @Find()
-   public async findByUserLoginAndTypeOrderByCreatedAtDesc(userLogin: string, type: string): Promise<AiAgentMemories[]> {
+   public async findAllByUserLoginAndTypeOrderByCreatedAtDesc(userLogin: string, type: string): Promise<AiAgentMemories[]> {
       return [];
    }
 
