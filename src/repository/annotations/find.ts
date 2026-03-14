@@ -28,6 +28,9 @@ export function Find(fromCache?: boolean) {
          fieldsPart = methodName.substring(findBy.length);
       } else if (methodName.startsWith(findAll)) {
          fieldsPart = methodName.substring(findAll.length);
+         if (fieldsPart.startsWith('By')) {
+            fieldsPart = fieldsPart.substring(2);
+         }
       } else {
          fieldsPart = '';
       }
