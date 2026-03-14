@@ -5,7 +5,7 @@ allowed-tools: mcp__memory__memory_list, mcp__memory__memory_search
 
 ## Task
 
-$ARGUMENTS
+**$ARGUMENTS**
 
 - If no argument is provided: call `memory_list` with no filters to return all memories.
 - If an argument is provided: call `memory_search` with the argument as the query to return semantically relevant memories.
