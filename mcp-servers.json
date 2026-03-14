@@ -64,7 +64,7 @@
         "--browser", "chromium"
       ],
       "env": {},
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "jobs",
