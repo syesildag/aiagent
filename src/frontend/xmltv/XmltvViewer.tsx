@@ -22,7 +22,6 @@ import {
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
   Logout as LogoutIcon,
-  Menu as MenuIcon,
   MyLocation as NowIcon,
   Refresh as RefreshIcon,
   Search as SearchIcon,
@@ -77,7 +76,7 @@ function getCategoryAccent(categories: string[]): string {
       if (lc.includes(key)) return color;
     }
   }
-  return 'rgba(255,255,255,0.15)';
+  return 'rgba(140,140,160,0.5)';
 }
 
 // ─── RatingBadge ─────────────────────────────────────────────────────────────
@@ -238,6 +237,8 @@ interface ProgrammeBlockProps {
 
 const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd }) => {
   const [hovered, setHovered] = useState(false);
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
 
   const visStart = prog.start < dayStart ? dayStart : prog.start;
   const visStop  = prog.stop  > dayEnd   ? dayEnd   : prog.stop;
@@ -338,15 +339,15 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
           bgcolor: isCurrent
             ? 'rgba(255,107,107,0.1)'
             : hovered
-              ? 'rgba(255,255,255,0.055)'
-              : 'rgba(255,255,255,0.025)',
+              ? (isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.06)')
+              : (isDark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.03)'),
           borderRadius: '4px',
           border: `1px solid ${
             isCurrent
               ? 'rgba(255,107,107,0.35)'
               : hovered
-                ? 'rgba(255,255,255,0.12)'
-                : 'rgba(255,255,255,0.06)'
+                ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.15)')
+                : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)')
           }`,
           borderLeft: `2px solid ${isCurrent ? '#ff6b6b' : accent}`,
           px: 0.75,
@@ -368,7 +369,9 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
               fontWeight: isCurrent ? 600 : 500,
               lineHeight: 1.3,
               flex: 1,
-              color: isCurrent ? '#ffe4e4' : 'rgba(228,228,248,0.92)',
+              color: isCurrent
+                ? (isDark ? '#ffe4e4' : '#b91c1c')
+                : (isDark ? 'rgba(228,228,248,0.92)' : 'rgba(20,20,30,0.88)'),
               fontSize: '0.72rem',
             }}
           >
@@ -383,7 +386,9 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
             variant="caption"
             noWrap
             sx={{
-              color: isCurrent ? 'rgba(255,228,228,0.6)' : 'rgba(200,200,230,0.5)',
+              color: isCurrent
+                ? (isDark ? 'rgba(255,228,228,0.6)' : 'rgba(150,0,0,0.6)')
+                : (isDark ? 'rgba(200,200,230,0.5)' : 'rgba(40,40,60,0.6)'),
               fontSize: '0.62rem',
               lineHeight: 1.2,
               fontStyle: 'italic',
@@ -399,7 +404,9 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
             <Typography
               noWrap
               sx={{
-                color: isCurrent ? 'rgba(255,228,228,0.55)' : 'rgba(180,180,210,0.45)',
+                color: isCurrent
+                  ? (isDark ? 'rgba(255,228,228,0.55)' : 'rgba(120,0,0,0.55)')
+                  : (isDark ? 'rgba(180,180,210,0.45)' : 'rgba(60,60,80,0.5)'),
                 fontSize: '0.6rem',
                 fontFamily: '"Courier New", monospace',
                 letterSpacing: '0.03em',
@@ -411,14 +418,14 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
             {prog.hasSubtitles && (
               <Box sx={{
                 fontSize: '0.48rem', lineHeight: 1, px: 0.4, py: 0.1, borderRadius: '2px',
-                border: '1px solid rgba(255,255,255,0.15)',
-                color: 'rgba(255,255,255,0.3)',
+                border: isDark ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(0,0,0,0.2)',
+                color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.35)',
               }}>
                 CC
               </Box>
             )}
             {widthMin >= 90 && formattedEpisode && (
-              <Typography sx={{ fontSize: '0.6rem', color: 'rgba(180,180,210,0.4)', fontFamily: '"Courier New", monospace', lineHeight: 1 }}>
+              <Typography sx={{ fontSize: '0.6rem', color: isDark ? 'rgba(180,180,210,0.4)' : 'rgba(60,60,80,0.5)', fontFamily: '"Courier New", monospace', lineHeight: 1 }}>
                 {formattedEpisode}
               </Typography>
             )}
@@ -635,15 +642,6 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
           flexShrink: 0,
           minHeight: 48,
         }}>
-          {/* Hamburger — mobile only */}
-          <IconButton
-            size="small"
-            onClick={() => setSidebarOpen(o => !o)}
-            sx={{ order: 1, display: { sm: 'none' }, color: 'text.secondary', mr: 0.25 }}
-          >
-            <MenuIcon sx={{ fontSize: 18 }} />
-          </IconButton>
-
           {/* Title */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, order: 1 }}>
             <Typography sx={{
@@ -861,6 +859,32 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
         {!loading && !error && (
           <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
+            {/* Edge toggle button — mirrors ConversationSidebar pattern */}
+            <Tooltip title={sidebarOpen ? 'Hide channels' : 'Show channels'}>
+              <IconButton
+                onClick={() => setSidebarOpen(o => !o)}
+                size="small"
+                sx={{
+                  position: 'fixed',
+                  left: sidebarOpen && !isMobile ? CHANNEL_COL_WIDTH - 16 : 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  zIndex: theme => theme.zIndex.drawer + 1,
+                  bgcolor: 'background.paper',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  boxShadow: 2,
+                  transition: 'left 225ms cubic-bezier(0.4, 0, 0.6, 1)',
+                  borderRadius: 1.5,
+                  p: '5px',
+                  display: { xs: 'flex', sm: 'none' },
+                  '&:hover': { borderColor: 'primary.main', color: 'primary.main' },
+                }}
+              >
+                {sidebarOpen ? <ChevronLeftIcon sx={{ fontSize: 16 }} /> : <ChevronRightIcon sx={{ fontSize: 16 }} />}
+              </IconButton>
+            </Tooltip>
+
             {/* ── Mobile: swipeable drawer ── */}
             {isMobile && (
               <SwipeableDrawer
@@ -870,12 +894,14 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
                 onClose={() => setSidebarOpen(false)}
                 swipeAreaWidth={20}
                 disableSwipeToOpen={false}
-                PaperProps={{
-                  sx: {
-                    width: CHANNEL_COL_WIDTH,
-                    bgcolor: panelBg,
-                    borderRight: `1px solid ${panelBorderColor}`,
-                    overflowX: 'hidden',
+                slotProps={{
+                  paper: {
+                    sx: {
+                      width: CHANNEL_COL_WIDTH,
+                      bgcolor: panelBg,
+                      borderRight: `1px solid ${panelBorderColor}`,
+                      overflowX: 'hidden',
+                    },
                   },
                 }}
               >
