@@ -64,6 +64,10 @@ const envSchema = z.object({
   // --- MCP ---
   MCP_SERVERS_PATH: z.string().min(1).default('./mcp-servers.json'),
 
+  // --- XMLTV ---
+  // Directory where the downloaded XMLTV files are stored (mirrors the shell script default)
+  XMLTV_PATH: z.string().default('logs'),
+
   // --- Conversation history ---
   // When unset, all messages in the current conversation are forwarded to the LLM
   // and the built-in handleTokenLimits() mechanism trims based on the model's context window.
@@ -141,6 +145,7 @@ function validateEnvironment(): Environment {
       OPENWEATHERMAP_API_KEY: undefined,
       TAVILY_API_KEY: undefined,
       GITHUB_COPILOT_CLIENT_ID: 'Ov23liwtwZwa1bIdrSWG',
+      XMLTV_PATH: 'logs',
     } as Environment;
   }
 

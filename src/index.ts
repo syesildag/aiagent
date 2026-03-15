@@ -22,6 +22,7 @@ import { agentsRouter } from './routes/agents';
 import { conversationsRouter } from './routes/conversations';
 import { pwaRouter } from './routes/pwa';
 import { healthRouter } from './routes/health';
+import { xmltvRouter } from './routes/xmltv';
 
 // This array will hold references to the job factories, preventing them from being garbage collected.
 const activeJobs: JobFactory[] = [];
@@ -100,6 +101,7 @@ app.use('/chat', chatRouter);
 app.use(agentsRouter);
 app.use('/conversations', conversationsRouter);
 app.use(pwaRouter);
+app.use(xmltvRouter);
 app.use(healthRouter);
 
 // Error-handling middleware — must be registered AFTER all routes so Express

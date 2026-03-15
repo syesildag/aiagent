@@ -3,7 +3,10 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
   mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
-  entry: './src/frontend/index.tsx',
+  entry: {
+    main: './src/frontend/index.tsx',
+    xmltv: './src/frontend/xmltv/index.tsx',
+  },
   output: {
     path: path.resolve(__dirname, 'dist/static'),
     filename: '[name].js',
@@ -43,6 +46,14 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: './src/frontend/templates/index.html',
       filename: path.resolve(__dirname, 'dist/src/frontend/templates/index.html'),
+      chunks: ['vendors', 'main'],
+      inject: 'body',
+      scriptLoading: 'defer',
+    }),
+    new HtmlWebpackPlugin({
+      template: './src/frontend/templates/xmltv.html',
+      filename: path.resolve(__dirname, 'dist/src/frontend/templates/xmltv.html'),
+      chunks: ['vendors', 'xmltv'],
       inject: 'body',
       scriptLoading: 'defer',
     }),
