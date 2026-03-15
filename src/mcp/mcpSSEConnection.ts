@@ -32,6 +32,8 @@ interface MCPResponse {
 }
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const RECONNECT_DELAY_MS = 3_000;
+const MAX_RECONNECT_ATTEMPTS = 5;
 
 // ---------------------------------------------------------------------------
 // MCPSSEConnection
@@ -59,6 +61,7 @@ export class MCPSSEConnection extends EventEmitter {
   private resources: MCPResource[] = [];
   private prompts: MCPPrompt[] = [];
   private running = false;
+  private reconnectAttempts = 0;
 
   constructor(private server: MCPServer) {
     super();
@@ -85,11 +88,13 @@ export class MCPSSEConnection extends EventEmitter {
 
     await this.initialize();
     this.running = true;
+    this.reconnectAttempts = 0;
     Logger.info(`[${this.server.name}] SSE connection established`);
   }
 
   stop(): void {
     this.running = false;
+    this.reconnectAttempts = 0;
     this.sseAbort?.abort();
     this.sseAbort = null;
     this.messageEndpointUrl = null;
@@ -216,17 +221,21 @@ export class MCPSSEConnection extends EventEmitter {
         }
 
         Logger.info(`[${this.server.name}] SSE stream ended`);
-        this.running = false;
-        this.emit('exit', 0);
+        this.messageEndpointUrl = null;
+        if (this.running) {
+          this.scheduleReconnect();
+        }
       })
       .catch((err: Error) => {
         if (err.name === 'AbortError') return; // intentional stop()
         Logger.error(`[${this.server.name}] SSE error: ${err.message}`);
+        this.messageEndpointUrl = null;
         // If we haven't resolved the endpoint yet, reject the start() promise
         clearTimeout(endpointTimeout);
         onError(err);
-        this.running = false;
-        this.emit('exit', 1);
+        if (this.running) {
+          this.scheduleReconnect();
+        }
       });
   }
 
@@ -318,6 +327,42 @@ export class MCPSSEConnection extends EventEmitter {
           reject(err);
         });
     });
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      Logger.error(`[${this.server.name}] Max reconnect attempts reached — giving up`);
+      this.running = false;
+      this.emit('exit', 1);
+      return;
+    }
+
+    this.reconnectAttempts++;
+    Logger.info(`[${this.server.name}] Reconnecting in ${RECONNECT_DELAY_MS}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+
+    setTimeout(async () => {
+      if (!this.running) return; // stop() was called while waiting
+
+      const httpUrl = this.server.httpUrl!;
+      this.sseAbort = new AbortController();
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            reject(new Error(`[${this.server.name}] Timed out waiting for SSE endpoint on reconnect`));
+          }, REQUEST_TIMEOUT_MS);
+          this.connectSSE(httpUrl, resolve, reject, timeoutId);
+        });
+        await this.initialize();
+        this.reconnectAttempts = 0;
+        Logger.info(`[${this.server.name}] Reconnected successfully`);
+      } catch (err) {
+        Logger.error(`[${this.server.name}] Reconnect failed: ${err}`);
+        if (this.running) {
+          this.scheduleReconnect();
+        }
+      }
+    }, RECONNECT_DELAY_MS);
   }
 
   private async sendNotification(method: string, params?: unknown): Promise<void> {
