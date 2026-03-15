@@ -37,6 +37,11 @@ const envSchema = z.object({
   // When unset, all messages in the current conversation are forwarded to the LLM
   // and the built-in handleTokenLimits() mechanism trims based on the model's context window.
   CONVERSATION_HISTORY_WINDOW_SIZE: z.string().transform(Number).pipe(z.number().min(1)).optional(),
+  // Token-based history window: keep only the most recent messages whose combined
+  // token estimate fits within this budget. Takes precedence over CONVERSATION_HISTORY_WINDOW_SIZE.
+  // Default of 8 000 leaves ~24 k tokens free for the system prompt, tools, and current turn
+  // on the smallest supported model (qwen3:4b, 32 768-token context).
+  CONVERSATION_HISTORY_TOKEN_BUDGET: z.string().transform(Number).pipe(z.number().min(500)).default('8000'),
   // Maximum number of past conversations retained in memory/DB. Defaults to 100.
   MAX_CONVERSATIONS: z.string().transform(Number).pipe(z.number().min(1)).default('100'),
   USE_DB_CONVERSATION_HISTORY: z.string().transform((val) => val === 'true').default('false'),
@@ -88,6 +93,7 @@ function validateEnvironment(): Environment {
       MCP_SERVERS_PATH: './mcp-servers.json',
       MAX_LLM_ITERATIONS: 2,
       CONVERSATION_HISTORY_WINDOW_SIZE: undefined,
+      CONVERSATION_HISTORY_TOKEN_BUDGET: 8000,
       MAX_CONVERSATIONS: 100,
       EMBEDDING_PROVIDER: 'auto',
       EMBEDDING_MODEL_OPENAI: 'text-embedding-3-small',

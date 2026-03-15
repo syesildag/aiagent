@@ -4,7 +4,7 @@ import { promises as fs } from 'fs';
 import Logger from '../utils/logger';
 import { MCPSSEConnection } from './mcpSSEConnection.js';
 import { config } from '../utils/config';
-import { ContentPart, LLMMessage, LLMProvider, OllamaProvider, Tool, getModelMaxTokens, estimateFullMessageTokens, isImageGenerationModel, isResponsesAPIImageModel, isImageGenerationProvider, isResponsesAPICapable } from './llmProviders';
+import { ContentPart, LLMMessage, LLMProvider, OllamaProvider, Tool, getModelMaxTokens, estimateTokens, estimateFullMessageTokens, trimConversationToTokenBudget, isImageGenerationModel, isResponsesAPIImageModel, isImageGenerationProvider, isResponsesAPICapable } from './llmProviders';
 import { IConversationHistory } from '../descriptions/conversationTypes';
 import { ConversationHistoryFactory } from '../utils/conversationHistoryFactory';
 import { ToolApprovalCallback } from './approvalManager';
@@ -1099,10 +1099,7 @@ export class MCPServerManager {
       const parallelToolInstruction = '\n\nWhen multiple independent tool calls are needed to answer a request, issue ALL of them in a single response as a batch rather than one at a time. This significantly reduces latency.';
       const effectiveSystemPrompt = customSystemPrompt + userInstruction + parallelToolInstruction;
 
-      // Trim history to the configured window to avoid exceeding LLM token limits.
-      // Keep the last N messages (pairs of user+assistant) from the conversation.
-      // When CONVERSATION_HISTORY_WINDOW_SIZE is unset the full history is forwarded
-      // and handleTokenLimits() inside the LLM provider trims to the model's context window.
+      // Trim history to the configured token budget, keeping the most recent messages.
       // When freshContext is true (stateless slash commands), skip prior history entirely
       // so accumulated chat messages don't eat the token budget before tool results arrive.
       let trimmedConversation: typeof conversationMessages;
@@ -1111,16 +1108,23 @@ export class MCPServerManager {
         trimmedConversation = conversationMessages.slice(-1);
         Logger.debug('chatWithLLM: fresh-context mode — prior conversation history excluded');
       } else {
-        const windowSize = config.CONVERSATION_HISTORY_WINDOW_SIZE;
-        trimmedConversation =
-          windowSize !== undefined && conversationMessages.length > windowSize
-            ? conversationMessages.slice(-windowSize)
-            : conversationMessages;
+        trimmedConversation = trimConversationToTokenBudget(
+          conversationMessages,
+          config.CONVERSATION_HISTORY_TOKEN_BUDGET,
+          msg => estimateTokens(msg.content + (msg.toolCalls ? JSON.stringify(msg.toolCalls) : ''))
+        );
       }
 
       // Build messages; if an image was provided, replace the last user message with
       // a multimodal content array so vision models can process it.
-      let historyMessages: LLMMessage[] = [...trimmedConversation];
+      // Map stored Message fields (toolCalls, toolCallId) back to LLM wire format
+      // (tool_calls, tool_call_id). A plain spread would silently drop them.
+      let historyMessages: LLMMessage[] = trimmedConversation.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+        ...(msg.toolCalls  ? { tool_calls: msg.toolCalls as LLMMessage['tool_calls'] }    : {}),
+        ...(msg.toolCallId ? { tool_call_id: msg.toolCallId } : {}),
+      }));
       if (attachments && attachments.length > 0) {
         const lastUserIdx = historyMessages.map(m => m.role).lastIndexOf('user');
         if (lastUserIdx !== -1) {
@@ -1280,6 +1284,11 @@ export class MCPServerManager {
           content: response.message.content as string|| '',
           tool_calls: response.message.tool_calls
         });
+        await this.conversationHistory.addMessage({
+          role: 'assistant',
+          content: response.message.content as string || '',
+          toolCalls: response.message.tool_calls
+        });
 
         // Add individual tool result messages
         for (let i = 0; i < response.message.tool_calls.length; i++) {
@@ -1288,6 +1297,11 @@ export class MCPServerManager {
             role: 'tool',
             content: toolResults[i],
             tool_call_id: toolCall.id
+          });
+          await this.conversationHistory.addMessage({
+            role: 'tool',
+            content: toolResults[i],
+            toolCallId: toolCall.id
           });
         }
 

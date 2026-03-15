@@ -327,6 +327,48 @@ export function estimateFullMessageTokens(msg: LLMMessage): number {
 }
 
 /**
+ * Trim a conversation array so that the total estimated token count stays within
+ * the given budget, keeping the most recent messages.
+ *
+ * The function walks from the tail backwards, accumulating token estimates until
+ * the budget is exhausted.  It then returns the suffix that fits, preserving
+ * message order.  No messages are modified — only the oldest ones are dropped.
+ *
+ * Generic so it works with both LLMMessage[] and the internal Message[] type used
+ * by conversation history — callers supply the per-message estimator function.
+ *
+ * @param messages - Full conversation history (chronological order)
+ * @param tokenBudget - Maximum total tokens allowed across all returned messages
+ * @param estimateFn - Function that estimates tokens for a single message
+ * @returns The most-recent subset of messages that fits within the budget
+ */
+export function trimConversationToTokenBudget<T>(
+  messages: T[],
+  tokenBudget: number,
+  estimateFn: (msg: T) => number
+): T[] {
+  let accumulated = 0;
+  let cutIndex = messages.length; // index of the first kept message
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msgTokens = estimateFn(messages[i]);
+    if (accumulated + msgTokens > tokenBudget) {
+      break;
+    }
+    accumulated += msgTokens;
+    cutIndex = i;
+  }
+
+  const trimmed = messages.slice(cutIndex);
+  if (cutIndex > 0) {
+    Logger.debug(
+      `trimConversationToTokenBudget: dropped ${cutIndex} message(s), kept ${trimmed.length}, ~${accumulated} tokens (budget=${tokenBudget})`
+    );
+  }
+  return trimmed;
+}
+
+/**
  * Strip image_url (and other binary) content parts from every message, replacing them
  * with a short text placeholder.  Used as a last-resort fallback so that a 413 retry
  * can succeed even when the original attachment is too large to forward.
