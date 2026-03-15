@@ -9,9 +9,11 @@ import {
   GlobalStyles,
   IconButton,
   InputAdornment,
+  SwipeableDrawer,
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
   useTheme,
 } from '@mui/material';
 import {
@@ -20,6 +22,7 @@ import {
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
   Logout as LogoutIcon,
+  Menu as MenuIcon,
   MyLocation as NowIcon,
   Refresh as RefreshIcon,
   Search as SearchIcon,
@@ -435,6 +438,7 @@ interface XmltvViewerProps {
 const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   const theme = useTheme();
   const { logout, darkMode, toggleDarkMode } = useAuth();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [channels, setChannels]     = useState<Channel[]>([]);
   const [programmes, setProgrammes] = useState<Programme[]>([]);
@@ -459,6 +463,9 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   }, [pinnedChannelIds]);
 
   const [hoveredChannelId, setHoveredChannelId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => typeof window !== 'undefined' ? window.innerWidth >= 600 : true
+  );
 
   // Split-panel refs
   const leftPanelRef  = useRef<HTMLDivElement>(null);
@@ -567,6 +574,41 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
 
   const isDark = theme.palette.mode === 'dark';
   const rowHoverBg = isDark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.025)';
+  const panelBorderColor = isDark ? 'rgba(255,255,255,0.06)' : theme.palette.divider;
+  const panelBg = isDark ? '#0e0e1c' : 'background.paper';
+
+  // Shared channel list used in both drawer (mobile) and persistent panel (desktop)
+  const channelListContent = displayChannels.map(channel => (
+    <Box
+      key={channel.id}
+      onMouseEnter={() => setHoveredChannelId(channel.id)}
+      onMouseLeave={() => setHoveredChannelId(null)}
+      sx={{
+        height: ROW_HEIGHT, minHeight: ROW_HEIGHT,
+        display: 'flex', alignItems: 'center', gap: 1.25, px: 1.5,
+        borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : theme.palette.divider}`,
+        bgcolor: hoveredChannelId === channel.id ? rowHoverBg : 'transparent',
+        overflow: 'hidden',
+        transition: 'background-color 0.1s',
+      }}
+    >
+      {channel.icon ? (
+        <Box component="img" src={channel.icon} alt=""
+          sx={{ width: 28, height: 28, objectFit: 'contain', flexShrink: 0, opacity: 0.9 }} />
+      ) : (
+        <Box sx={{
+          width: 28, height: 28, flexShrink: 0, borderRadius: '6px',
+          bgcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Typography sx={{ fontSize: '0.7rem', opacity: 0.3 }}>📺</Typography>
+        </Box>
+      )}
+      <Typography noWrap sx={{ fontWeight: 500, fontSize: '0.75rem', color: isDark ? 'rgba(220,220,245,0.8)' : 'text.primary' }}>
+        {channel.displayName}
+      </Typography>
+    </Box>
+  ));
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -587,29 +629,38 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
 
         {/* ── Toolbar ── */}
         <Box sx={{
-          display: 'flex', alignItems: 'center', gap: 0.5, px: 2, py: 0.75,
+          display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5, px: 2, py: 0.75,
           bgcolor: isDark ? '#0e0e1c' : 'background.paper',
-          borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : theme.palette.divider}`,
+          borderBottom: `1px solid ${panelBorderColor}`,
           flexShrink: 0,
           minHeight: 48,
         }}>
+          {/* Hamburger — mobile only */}
+          <IconButton
+            size="small"
+            onClick={() => setSidebarOpen(o => !o)}
+            sx={{ order: 1, display: { sm: 'none' }, color: 'text.secondary', mr: 0.25 }}
+          >
+            <MenuIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+
           {/* Title */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 'auto' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, order: 1 }}>
             <Typography sx={{
-              fontWeight: 800,
-              fontSize: '0.9rem',
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: 'primary.main',
-              lineHeight: 1,
+              fontWeight: 800, fontSize: '0.9rem', letterSpacing: '0.12em',
+              textTransform: 'uppercase', color: 'primary.main', lineHeight: 1,
             }}>
               TV Guide
             </Typography>
           </Box>
 
-          {/* Day navigation */}
+          {/* Day navigation — second row on mobile */}
           <Box sx={{
             display: 'flex', alignItems: 'center', gap: 0.25,
+            order: { xs: 3, sm: 2 },
+            width: { xs: '100%', sm: 'auto' },
+            justifyContent: { xs: 'center', sm: 'flex-start' },
+            pb: { xs: 0.5, sm: 0 },
             bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
             border: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}`,
             borderRadius: '8px',
@@ -621,8 +672,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
             </IconButton>
             <Typography sx={{
               minWidth: 120, textAlign: 'center', fontWeight: 600,
-              fontSize: '0.78rem', letterSpacing: '0.02em',
-              color: 'text.primary',
+              fontSize: '0.78rem', letterSpacing: '0.02em', color: 'text.primary',
             }}>
               {formatDayLabel(selectedDay)}
             </Typography>
@@ -635,10 +685,12 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
           {/* Action buttons */}
           <Box sx={{
             display: 'flex', alignItems: 'center', gap: 0.25,
+            order: { xs: 2, sm: 3 },
+            ml: { xs: 0, sm: 0.5 },
             bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
             border: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}`,
             borderRadius: '8px',
-            px: 0.25, ml: 0.5,
+            px: 0.25,
           }}>
             <Tooltip title="Go to now">
               <IconButton size="small" onClick={scrollToNow}
@@ -809,63 +861,48 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
         {!loading && !error && (
           <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-            {/* ── Left panel: channel names ── */}
-            <Box
-              ref={leftPanelRef}
-              sx={{
-                width: CHANNEL_COL_WIDTH, minWidth: CHANNEL_COL_WIDTH, flexShrink: 0,
-                display: 'flex', flexDirection: 'column',
-                overflowY: 'hidden', overflowX: 'hidden',
-                borderRight: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : theme.palette.divider}`,
-                bgcolor: isDark ? '#0e0e1c' : 'background.paper',
-                zIndex: 2,
-              }}
-            >
-              {/* Corner spacer */}
-              <Box sx={{
-                height: HEADER_HEIGHT, minHeight: HEADER_HEIGHT, flexShrink: 0,
-                borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : theme.palette.divider}`,
-              }} />
+            {/* ── Mobile: swipeable drawer ── */}
+            {isMobile && (
+              <SwipeableDrawer
+                anchor="left"
+                open={sidebarOpen}
+                onOpen={() => setSidebarOpen(true)}
+                onClose={() => setSidebarOpen(false)}
+                swipeAreaWidth={20}
+                disableSwipeToOpen={false}
+                PaperProps={{
+                  sx: {
+                    width: CHANNEL_COL_WIDTH,
+                    bgcolor: panelBg,
+                    borderRight: `1px solid ${panelBorderColor}`,
+                    overflowX: 'hidden',
+                  },
+                }}
+              >
+                <Box sx={{ height: HEADER_HEIGHT, minHeight: HEADER_HEIGHT, flexShrink: 0,
+                  borderBottom: `1px solid ${panelBorderColor}` }} />
+                {channelListContent}
+              </SwipeableDrawer>
+            )}
 
-              {displayChannels.map(channel => (
-                <Box
-                  key={channel.id}
-                  onMouseEnter={() => setHoveredChannelId(channel.id)}
-                  onMouseLeave={() => setHoveredChannelId(null)}
-                  sx={{
-                    height: ROW_HEIGHT, minHeight: ROW_HEIGHT,
-                    display: 'flex', alignItems: 'center', gap: 1.25, px: 1.5,
-                    borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : theme.palette.divider}`,
-                    bgcolor: hoveredChannelId === channel.id ? rowHoverBg : 'transparent',
-                    overflow: 'hidden',
-                    transition: 'background-color 0.1s',
-                  }}
-                >
-                  {channel.icon ? (
-                    <Box
-                      component="img"
-                      src={channel.icon}
-                      alt=""
-                      sx={{ width: 28, height: 28, objectFit: 'contain', flexShrink: 0, opacity: 0.9 }}
-                    />
-                  ) : (
-                    <Box sx={{
-                      width: 28, height: 28, flexShrink: 0, borderRadius: '6px',
-                      bgcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Typography sx={{ fontSize: '0.7rem', opacity: 0.3 }}>📺</Typography>
-                    </Box>
-                  )}
-                  <Typography
-                    noWrap
-                    sx={{ fontWeight: 500, fontSize: '0.75rem', color: isDark ? 'rgba(220,220,245,0.8)' : 'text.primary' }}
-                  >
-                    {channel.displayName}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
+            {/* ── Desktop: persistent left panel ── */}
+            {!isMobile && sidebarOpen && (
+              <Box
+                ref={leftPanelRef}
+                sx={{
+                  width: CHANNEL_COL_WIDTH, minWidth: CHANNEL_COL_WIDTH, flexShrink: 0,
+                  display: 'flex', flexDirection: 'column',
+                  overflowY: 'hidden', overflowX: 'hidden',
+                  borderRight: `1px solid ${panelBorderColor}`,
+                  bgcolor: panelBg,
+                  zIndex: 2,
+                }}
+              >
+                <Box sx={{ height: HEADER_HEIGHT, minHeight: HEADER_HEIGHT, flexShrink: 0,
+                  borderBottom: `1px solid ${panelBorderColor}` }} />
+                {channelListContent}
+              </Box>
+            )}
 
             {/* ── Right panel: scrollable time grid ── */}
             <Box
