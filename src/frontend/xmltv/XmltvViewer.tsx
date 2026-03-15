@@ -676,19 +676,19 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
                 zIndex: 1,
                 width: 28,
                 height: 28,
-                bgcolor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
-                border: isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(0,0,0,0.1)',
-                color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)',
+                bgcolor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)',
+                border: isDark ? '1px solid rgba(255,255,255,0.20)' : '1px solid rgba(0,0,0,0.20)',
+                color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)',
                 borderRadius: '50%',
                 transition: 'background-color 0.15s, color 0.15s, border-color 0.15s',
                 '&:hover': {
-                  bgcolor: isDark ? 'rgba(255,107,107,0.15)' : 'rgba(220,0,0,0.08)',
-                  borderColor: isDark ? 'rgba(255,107,107,0.4)' : 'rgba(200,0,0,0.25)',
+                  bgcolor: isDark ? 'rgba(255,107,107,0.20)' : 'rgba(220,0,0,0.20)',
+                  borderColor: isDark ? 'rgba(255,107,107,0.50)' : 'rgba(200,0,0,0.50)',
                   color: isDark ? '#ff6b6b' : '#c62828',
                 },
               }}
             >
-              <CloseIcon sx={{ fontSize: '0.85rem' }} />
+              <CloseIcon sx={{ fontSize: '0.9rem' }} />
             </IconButton>
 
             {mobileProg.thumbnail && (

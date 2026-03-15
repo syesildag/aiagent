@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Close Button — Opacity Explorer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0b0b16;
+    --surface: #12121f;
+    --surface2: #1a1a2e;
+    --border: rgba(255,255,255,0.07);
+    --text: rgba(220,220,248,0.9);
+    --text-dim: rgba(180,180,210,0.45);
+    --accent: #ff6b6b;
+    --accent-dim: rgba(255,107,107,0.15);
+    --panel-w: 300px;
+  }
+
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── Controls panel ── */
+  #controls {
+    width: var(--panel-w);
+    min-width: var(--panel-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .panel-header {
+    padding: 18px 18px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .panel-header h1 {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .panel-header p {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    margin-top: 3px;
+    line-height: 1.4;
+  }
+
+  .section {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-label {
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .control-row:last-child { margin-bottom: 0; }
+
+  .ctrl-label {
+    font-size: 0.72rem;
+    color: var(--text);
+    flex: 1;
+  }
+  .ctrl-value {
+    font-size: 0.68rem;
+    font-family: 'Courier New', monospace;
+    color: var(--accent);
+    min-width: 36px;
+    text-align: right;
+    margin-left: 8px;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 3px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    outline: none;
+    margin-top: 5px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(255,107,107,0.5);
+  }
+
+  /* Presets */
+  .presets {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .preset-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.66rem;
+    padding: 6px 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+    font-family: inherit;
+  }
+  .preset-btn:hover {
+    border-color: rgba(255,107,107,0.35);
+    background: var(--accent-dim);
+    color: #ff9a9a;
+  }
+  .preset-btn.active {
+    border-color: rgba(255,107,107,0.5);
+    background: rgba(255,107,107,0.12);
+    color: #ff9a9a;
+  }
+
+  /* Context toggle */
+  .ctx-toggle {
+    display: flex;
+    gap: 6px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ctx-btn {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-size: 0.65rem;
+    padding: 5px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .ctx-btn.active {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.15);
+    color: var(--text);
+  }
+
+  /* ── Right: preview + prompt ── */
+  #right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #preview-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: background 0.3s;
+  }
+
+  /* Mock dialog */
+  .mock-dialog {
+    width: 300px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    position: relative;
+  }
+  .mock-dialog.dark-dialog {
+    background: #1c1c2e;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .mock-dialog.light-dialog {
+    background: #ffffff;
+    border: 1px solid rgba(0,0,0,0.1);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.2);
+  }
+
+  .mock-thumbnail {
+    width: 100%;
+    height: 130px;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    letter-spacing: -0.05em;
+    color: rgba(255,255,255,0.15);
+    font-family: system-ui;
+  }
+  .mock-thumbnail.light-thumb {
+    background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  }
+
+  .mock-content {
+    padding: 14px;
+    position: relative;
+  }
+
+  .mock-title-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 5px;
+  }
+
+  .mock-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  .mock-dialog.dark-dialog .mock-title { color: rgba(220,220,248,0.95); }
+  .mock-dialog.light-dialog .mock-title { color: rgba(20,20,30,0.9); }
+
+  .mock-rating {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px; height: 16px;
+    border-radius: 3px;
+    font-size: 0.48rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    background: rgba(239,68,68,0.15);
+    border: 1px solid rgba(239,68,68,0.35);
+    color: #ef4444;
+  }
+
+  .mock-meta {
+    font-size: 0.62rem;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 6px;
+    letter-spacing: 0.03em;
+  }
+  .dark-dialog .mock-meta { color: rgba(180,180,210,0.5); }
+  .light-dialog .mock-meta { color: rgba(60,60,80,0.55); }
+
+  .mock-desc {
+    font-size: 0.72rem;
+    line-height: 1.5;
+  }
+  .dark-dialog .mock-desc { color: rgba(200,200,230,0.75); }
+  .light-dialog .mock-desc { color: rgba(30,30,50,0.75); }
+
+  .mock-cat {
+    display: inline-block;
+    font-size: 0.58rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-right: 4px;
+    background: rgba(56,189,248,0.1);
+    border: 1px solid rgba(56,189,248,0.25);
+    color: #38bdf8;
+    margin-bottom: 6px;
+  }
+
+  /* THE CLOSE BUTTON */
+  .close-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-style: solid;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+    line-height: 1;
+    font-size: 14px;
+    background: none;
+    padding: 0;
+  }
+  .close-btn::before { content: '\00d7'; }
+
+  /* ── Prompt output ── */
+  #prompt-area {
+    flex-shrink: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 14px 18px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  #prompt-text {
+    flex: 1;
+    font-size: 0.72rem;
+    font-family: 'Courier New', monospace;
+    color: var(--text-dim);
+    line-height: 1.55;
+    letter-spacing: 0.01em;
+  }
+  #copy-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-size: 0.65rem;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  #copy-btn:hover {
+    border-color: rgba(255,107,107,0.35);
+    color: #ff9a9a;
+    background: var(--accent-dim);
+  }
+  #copy-btn.copied {
+    border-color: rgba(52,211,153,0.4);
+    color: #34d399;
+    background: rgba(52,211,153,0.08);
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Controls ── -->
+<div id="controls">
+  <div class="panel-header">
+    <h1>Close Button</h1>
+    <p>Opacity &amp; style for the mobile programme detail dialog.</p>
+  </div>
+
+  <!-- Presets -->
+  <div class="presets">
+    <button class="preset-btn" onclick="applyPreset('ghost')" id="pre-ghost">Ghost</button>
+    <button class="preset-btn" onclick="applyPreset('subtle')" id="pre-subtle">Subtle</button>
+    <button class="preset-btn" onclick="applyPreset('visible')" id="pre-visible">Visible</button>
+    <button class="preset-btn" onclick="applyPreset('bold')" id="pre-bold">Bold</button>
+    <button class="preset-btn" onclick="applyPreset('minimal')" id="pre-minimal">Minimal</button>
+    <button class="preset-btn active" onclick="applyPreset('current')" id="pre-current">Current</button>
+  </div>
+
+  <!-- Resting state -->
+  <div class="section">
+    <div class="section-label">Resting state</div>
+
+    <div class="control-row">
+      <span class="ctrl-label">Icon opacity</span>
+      <span class="ctrl-value" id="val-icon-opacity">50%</span>
+    </div>
+    <input type="range" id="r-icon-opacity" min="10" max="100" step="5" value="50" oninput="sync()">
+
+    <div class="control-row" style="margin-top:10px">
+      <span class="ctrl-label">Background opacity</span>
+      <span class="ctrl-value" id="val-bg-opacity">7%</span>
+    </div>
+    <input type="range" id="r-bg-opacity" min="0" max="40" step="1" value="7" oninput="sync()">
+
+    <div class="control-row" style="margin-top:10px">
+      <span class="ctrl-label">Border opacity</span>
+      <span class="ctrl-value" id="val-border-opacity">12%</span>
+    </div>
+    <input type="range" id="r-border-opacity" min="0" max="50" step="1" value="12" oninput="sync()">
+  </div>
+
+  <!-- Hover state -->
+  <div class="section">
+    <div class="section-label">Hover state</div>
+
+    <div class="control-row">
+      <span class="ctrl-label">Icon opacity</span>
+      <span class="ctrl-value" id="val-hover-icon-opacity">100%</span>
+    </div>
+    <input type="range" id="r-hover-icon-opacity" min="30" max="100" step="5" value="100" oninput="sync()">
+
+    <div class="control-row" style="margin-top:10px">
+      <span class="ctrl-label">BG opacity (red tint)</span>
+      <span class="ctrl-value" id="val-hover-bg-opacity">15%</span>
+    </div>
+    <input type="range" id="r-hover-bg-opacity" min="0" max="40" step="1" value="15" oninput="sync()">
+
+    <div class="control-row" style="margin-top:10px">
+      <span class="ctrl-label">Border opacity (red)</span>
+      <span class="ctrl-value" id="val-hover-border-opacity">40%</span>
+    </div>
+    <input type="range" id="r-hover-border-opacity" min="0" max="80" step="5" value="40" oninput="sync()">
+  </div>
+
+  <!-- Size -->
+  <div class="section">
+    <div class="section-label">Size</div>
+
+    <div class="control-row">
+      <span class="ctrl-label">Button size</span>
+      <span class="ctrl-value" id="val-size">28px</span>
+    </div>
+    <input type="range" id="r-size" min="20" max="40" step="2" value="28" oninput="sync()">
+
+    <div class="control-row" style="margin-top:10px">
+      <span class="ctrl-label">Icon size</span>
+      <span class="ctrl-value" id="val-icon-size">0.85rem</span>
+    </div>
+    <input type="range" id="r-icon-size" min="0.6" max="1.2" step="0.05" value="0.85" oninput="sync()">
+  </div>
+
+  <!-- Context toggle -->
+  <div class="ctx-toggle">
+    <button class="ctx-btn active" id="ctx-dark" onclick="setContext('dark')">Dark</button>
+    <button class="ctx-btn" id="ctx-light" onclick="setContext('light')">Light</button>
+    <button class="ctx-btn" id="ctx-nothumb" onclick="setContext('nothumb')">No thumb</button>
+  </div>
+
+  <!-- View state toggle -->
+  <div class="ctx-toggle">
+    <button class="ctx-btn active" id="stv-rest" onclick="setViewState('rest')">Resting</button>
+    <button class="ctx-btn" id="stv-hover" onclick="setViewState('hover')">Hovering</button>
+  </div>
+</div>
+
+<!-- ── Right panel ── -->
+<div id="right">
+  <div id="preview-area">
+    <div class="mock-dialog dark-dialog" id="mock-dialog">
+      <div class="mock-thumbnail" id="mock-thumb">&#128250; TF1</div>
+      <div class="mock-content" id="mock-content">
+        <button class="close-btn" id="close-btn"></button>
+        <div class="mock-title-row" id="mock-title-row">
+          <div class="mock-title">Les Experts : Manhattan</div>
+          <div class="mock-rating">16</div>
+        </div>
+        <div class="mock-meta">21:05 &#8211; 22:55 &middot; S14 E8</div>
+        <div>
+          <span class="mock-cat">S&#233;rie</span>
+          <span class="mock-cat">Policier</span>
+        </div>
+        <div class="mock-desc">Mac Taylor et son &#233;quipe enqu&#234;tent sur la mort myst&#233;rieuse d&#8217;un agent du FBI.</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="prompt-area">
+    <div id="prompt-text">Loading&#8230;</div>
+    <button id="copy-btn" onclick="copyPrompt()">Copy</button>
+  </div>
+</div>
+
+<script>
+var state = {
+  iconOpacity: 50,
+  bgOpacity: 7,
+  borderOpacity: 12,
+  hoverIconOpacity: 100,
+  hoverBgOpacity: 15,
+  hoverBorderOpacity: 40,
+  size: 28,
+  iconSize: 0.85,
+  context: 'dark',
+  viewState: 'rest'
+};
+
+var DEFAULTS = {
+  iconOpacity: 50,
+  bgOpacity: 7,
+  borderOpacity: 12,
+  hoverIconOpacity: 100,
+  hoverBgOpacity: 15,
+  hoverBorderOpacity: 40,
+  size: 28,
+  iconSize: 0.85
+};
+
+var PRESETS = {
+  ghost:   { iconOpacity: 20, bgOpacity: 0,  borderOpacity: 0,  hoverIconOpacity: 80,  hoverBgOpacity: 10, hoverBorderOpacity: 25, size: 26, iconSize: 0.8 },
+  subtle:  { iconOpacity: 35, bgOpacity: 4,  borderOpacity: 7,  hoverIconOpacity: 90,  hoverBgOpacity: 12, hoverBorderOpacity: 35, size: 28, iconSize: 0.85 },
+  visible: { iconOpacity: 65, bgOpacity: 12, borderOpacity: 20, hoverIconOpacity: 100, hoverBgOpacity: 20, hoverBorderOpacity: 50, size: 28, iconSize: 0.9 },
+  bold:    { iconOpacity: 85, bgOpacity: 18, borderOpacity: 30, hoverIconOpacity: 100, hoverBgOpacity: 25, hoverBorderOpacity: 65, size: 32, iconSize: 1.0 },
+  minimal: { iconOpacity: 25, bgOpacity: 0,  borderOpacity: 0,  hoverIconOpacity: 70,  hoverBgOpacity: 8,  hoverBorderOpacity: 20, size: 24, iconSize: 0.75 },
+  current: { iconOpacity: 50, bgOpacity: 7,  borderOpacity: 12, hoverIconOpacity: 100, hoverBgOpacity: 15, hoverBorderOpacity: 40, size: 28, iconSize: 0.85 }
+};
+
+function applyPreset(name) {
+  var p = PRESETS[name];
+  state.iconOpacity = p.iconOpacity;
+  state.bgOpacity = p.bgOpacity;
+  state.borderOpacity = p.borderOpacity;
+  state.hoverIconOpacity = p.hoverIconOpacity;
+  state.hoverBgOpacity = p.hoverBgOpacity;
+  state.hoverBorderOpacity = p.hoverBorderOpacity;
+  state.size = p.size;
+  state.iconSize = p.iconSize;
+
+  document.getElementById('r-icon-opacity').value = state.iconOpacity;
+  document.getElementById('r-bg-opacity').value = state.bgOpacity;
+  document.getElementById('r-border-opacity').value = state.borderOpacity;
+  document.getElementById('r-hover-icon-opacity').value = state.hoverIconOpacity;
+  document.getElementById('r-hover-bg-opacity').value = state.hoverBgOpacity;
+  document.getElementById('r-hover-border-opacity').value = state.hoverBorderOpacity;
+  document.getElementById('r-size').value = state.size;
+  document.getElementById('r-icon-size').value = state.iconSize;
+
+  document.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
+  var preBtn = document.getElementById('pre-' + name);
+  if (preBtn) preBtn.classList.add('active');
+
+  updateAll();
+}
+
+function setContext(ctx) {
+  state.context = ctx;
+  document.querySelectorAll('.ctx-btn').forEach(function(b) {
+    if (b.id.startsWith('ctx-')) b.classList.remove('active');
+  });
+  var el = document.getElementById('ctx-' + ctx);
+  if (el) el.classList.add('active');
+  updateAll();
+}
+
+function setViewState(vs) {
+  state.viewState = vs;
+  document.querySelectorAll('.ctx-btn').forEach(function(b) {
+    if (b.id.startsWith('stv-')) b.classList.remove('active');
+  });
+  var el = document.getElementById('stv-' + vs);
+  if (el) el.classList.add('active');
+  updateAll();
+}
+
+function sync() {
+  state.iconOpacity = parseInt(document.getElementById('r-icon-opacity').value, 10);
+  state.bgOpacity = parseInt(document.getElementById('r-bg-opacity').value, 10);
+  state.borderOpacity = parseInt(document.getElementById('r-border-opacity').value, 10);
+  state.hoverIconOpacity = parseInt(document.getElementById('r-hover-icon-opacity').value, 10);
+  state.hoverBgOpacity = parseInt(document.getElementById('r-hover-bg-opacity').value, 10);
+  state.hoverBorderOpacity = parseInt(document.getElementById('r-hover-border-opacity').value, 10);
+  state.size = parseInt(document.getElementById('r-size').value, 10);
+  state.iconSize = parseFloat(document.getElementById('r-icon-size').value);
+  document.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
+  updateAll();
+}
+
+function renderPreview() {
+  var isDark = state.context !== 'light';
+  var noThumb = state.context === 'nothumb';
+  var isHover = state.viewState === 'hover';
+
+  var dialog = document.getElementById('mock-dialog');
+  var thumb = document.getElementById('mock-thumb');
+  var titleRow = document.getElementById('mock-title-row');
+  var btn = document.getElementById('close-btn');
+
+  dialog.className = 'mock-dialog ' + (isDark ? 'dark-dialog' : 'light-dialog');
+  thumb.style.display = noThumb ? 'none' : '';
+  thumb.className = 'mock-thumbnail' + (isDark ? '' : ' light-thumb');
+  titleRow.style.paddingRight = noThumb ? '38px' : '0';
+
+  var sz = state.size;
+  btn.style.width = sz + 'px';
+  btn.style.height = sz + 'px';
+  btn.style.borderRadius = '50%';
+  btn.style.fontSize = state.iconSize + 'rem';
+
+  if (isHover) {
+    var hBgAlpha = state.hoverBgOpacity / 100;
+    var hBorderAlpha = state.hoverBorderOpacity / 100;
+    btn.style.background = isDark
+      ? 'rgba(255,107,107,' + hBgAlpha + ')'
+      : 'rgba(220,0,0,' + hBgAlpha + ')';
+    btn.style.borderColor = isDark
+      ? 'rgba(255,107,107,' + hBorderAlpha + ')'
+      : 'rgba(200,0,0,' + hBorderAlpha + ')';
+    btn.style.borderWidth = '1px';
+    btn.style.color = isDark ? '#ff6b6b' : '#c62828';
+    btn.style.opacity = state.hoverIconOpacity / 100;
+  } else {
+    var rBgAlpha = state.bgOpacity / 100;
+    var rBorderAlpha = state.borderOpacity / 100;
+    var rIconAlpha = state.iconOpacity / 100;
+    btn.style.background = isDark
+      ? 'rgba(255,255,255,' + rBgAlpha + ')'
+      : 'rgba(0,0,0,' + rBgAlpha + ')';
+    btn.style.borderColor = isDark
+      ? 'rgba(255,255,255,' + rBorderAlpha + ')'
+      : 'rgba(0,0,0,' + rBorderAlpha + ')';
+    btn.style.borderWidth = '1px';
+    btn.style.color = isDark
+      ? 'rgba(255,255,255,' + rIconAlpha + ')'
+      : 'rgba(0,0,0,' + rIconAlpha + ')';
+    btn.style.opacity = '1';
+  }
+
+  document.getElementById('preview-area').style.background = isDark
+    ? 'linear-gradient(135deg, #06060f 0%, #0d0d1e 100%)'
+    : 'linear-gradient(135deg, #e8eaf0 0%, #d4d8e8 100%)';
+
+  document.getElementById('val-icon-opacity').textContent = state.iconOpacity + '%';
+  document.getElementById('val-bg-opacity').textContent = state.bgOpacity + '%';
+  document.getElementById('val-border-opacity').textContent = state.borderOpacity + '%';
+  document.getElementById('val-hover-icon-opacity').textContent = state.hoverIconOpacity + '%';
+  document.getElementById('val-hover-bg-opacity').textContent = state.hoverBgOpacity + '%';
+  document.getElementById('val-hover-border-opacity').textContent = state.hoverBorderOpacity + '%';
+  document.getElementById('val-size').textContent = state.size + 'px';
+  document.getElementById('val-icon-size').textContent = state.iconSize.toFixed(2) + 'rem';
+}
+
+function updatePrompt() {
+  var parts = [];
+  var D = DEFAULTS;
+
+  if (state.iconOpacity !== D.iconOpacity)
+    parts.push('resting icon at ' + state.iconOpacity + '% opacity');
+  if (state.bgOpacity !== D.bgOpacity)
+    parts.push('background at ' + state.bgOpacity + '%');
+  if (state.borderOpacity !== D.borderOpacity)
+    parts.push('border at ' + state.borderOpacity + '%');
+  if (state.hoverIconOpacity !== D.hoverIconOpacity)
+    parts.push('hover icon at ' + state.hoverIconOpacity + '%');
+  if (state.hoverBgOpacity !== D.hoverBgOpacity)
+    parts.push('hover red background at ' + state.hoverBgOpacity + '%');
+  if (state.hoverBorderOpacity !== D.hoverBorderOpacity)
+    parts.push('hover red border at ' + state.hoverBorderOpacity + '%');
+  if (state.size !== D.size)
+    parts.push('button size ' + state.size + 'px');
+  if (state.iconSize !== D.iconSize)
+    parts.push('icon ' + state.iconSize.toFixed(2) + 'rem');
+
+  var el = document.getElementById('prompt-text');
+  if (parts.length === 0) {
+    el.textContent = 'No changes from defaults — adjust sliders or pick a preset.';
+  } else {
+    el.textContent = 'Update the close button in the mobile programme dialog: ' + parts.join(', ') + '.';
+  }
+}
+
+function updateAll() {
+  renderPreview();
+  updatePrompt();
+}
+
+function copyPrompt() {
+  var text = document.getElementById('prompt-text').textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    var btn = document.getElementById('copy-btn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 1800);
+  });
+}
+
+applyPreset('current');
+</script>
+</body>
+</html>
