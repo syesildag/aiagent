@@ -89,6 +89,13 @@ export const ChatInterface: React.FC = () => {
   const [cmdMenuOpen, setCmdMenuOpen] = useState(false);
   const [selectedCmdIdx, setSelectedCmdIdx] = useState(0);
   const inputContainerRef = useRef<HTMLDivElement>(null);
+  const menuListRef = useRef<HTMLUListElement>(null);
+
+  useEffect(() => {
+    if (!cmdMenuOpen || !menuListRef.current) return;
+    const item = menuListRef.current.children[selectedCmdIdx] as HTMLElement | undefined;
+    item?.scrollIntoView({ block: 'nearest' });
+  }, [selectedCmdIdx, cmdMenuOpen]);
 
 
   const toggleAutoSpeak = () => {
@@ -1157,7 +1164,7 @@ export const ChatInterface: React.FC = () => {
                 modifiers={[{ name: 'offset', options: { offset: [0, 4] } }]}
               >
                 <Paper elevation={4} sx={{ maxHeight: 300, overflow: 'auto' }}>
-                  <MenuList dense>
+                  <MenuList dense ref={menuListRef}>
                     {cmdSuggestions.map((cmd, i) => (
                       <MenuItem
                         key={cmd.name}
