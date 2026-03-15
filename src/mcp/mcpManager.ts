@@ -1556,7 +1556,3 @@ export class MCPServerManager {
     return summary;
   }
 }
-
-// Export singleton instance
-const mcpManager = new MCPServerManager();
-export default mcpManager;
