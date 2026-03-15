@@ -38,7 +38,14 @@ const app = express();
 app.use(helmet(isDevelopment() ? {
    contentSecurityPolicy: false,
    strictTransportSecurity: false,
-} : {}));
+} : {
+   contentSecurityPolicy: {
+      directives: {
+         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+         'img-src': ["'self'", 'data:', 'https:'],
+      },
+   },
+}));
 // CORS: restrict to origins listed in ALLOWED_ORIGINS (comma-separated).
 // Defaults to same-origin only when the env var is absent/empty.
 const buildCorsOptions = (): cors.CorsOptions => {
