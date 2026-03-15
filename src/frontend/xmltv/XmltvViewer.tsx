@@ -6,6 +6,9 @@ import {
   Box,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogContent,
+  Divider,
   GlobalStyles,
   IconButton,
   InputAdornment,
@@ -233,11 +236,11 @@ interface ProgrammeBlockProps {
   prog: Programme;
   dayStart: Date;
   dayEnd: Date;
+  onMobileOpen: (prog: Programme) => void;
 }
 
-const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd }) => {
+const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd, onMobileOpen }) => {
   const [hovered, setHovered] = useState(false);
-  const [tooltipOpen, setTooltipOpen] = useState(false);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -329,7 +332,7 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
 
   return (
     <Tooltip
-      title={tooltipContent}
+      title={isMobile ? '' : tooltipContent}
       arrow
       placement="top"
       slotProps={{
@@ -340,19 +343,11 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
           ],
         },
       }}
-      {...(isMobile ? {
-        open: tooltipOpen,
-        onClose: () => setTooltipOpen(false),
-        disableHoverListener: true,
-        disableTouchListener: true,
-        disableFocusListener: true,
-      } : {
-        enterDelay: 600,
-        enterNextDelay: 300,
-      })}
+      enterDelay={600}
+      enterNextDelay={300}
     >
       <Box
-        onClick={() => { if (isMobile) setTooltipOpen(o => !o); }}
+        onClick={(e) => { if (isMobile) { e.stopPropagation(); onMobileOpen(prog); } }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         sx={{
@@ -495,6 +490,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   }, [pinnedChannelIds]);
 
   const [hoveredChannelId, setHoveredChannelId] = useState<string | null>(null);
+  const [mobileProg, setMobileProg] = useState<Programme | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(
     () => typeof window !== 'undefined' ? window.innerWidth >= 600 : true
   );
@@ -657,6 +653,72 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
           50%       { box-shadow: 0 0 7px 2px rgba(255,107,107,0.45); opacity: 0.8; }
         }
       `} />
+
+      {/* ── Mobile programme detail dialog ── */}
+      <Dialog
+        open={mobileProg !== null}
+        onClose={() => setMobileProg(null)}
+        fullWidth
+        maxWidth="xs"
+        slotProps={{ paper: { sx: { m: 2, borderRadius: '12px' } } }}
+      >
+        {mobileProg && (
+          <DialogContent sx={{ p: 2 }}>
+            {mobileProg.thumbnail && (
+              <Box component="img" src={mobileProg.thumbnail} alt={mobileProg.title}
+                sx={{ width: '100%', borderRadius: '8px', mb: 1.5, display: 'block', objectFit: 'cover', maxHeight: 160 }} />
+            )}
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '1rem', lineHeight: 1.3, flex: 1 }}>
+                {mobileProg.title}
+              </Typography>
+              {mobileProg.rating && <RatingBadge rating={mobileProg.rating} />}
+            </Box>
+            {mobileProg.subTitle && (
+              <Typography variant="body2" sx={{ opacity: 0.7, mb: 0.5, fontStyle: 'italic' }}>
+                {mobileProg.subTitle}
+              </Typography>
+            )}
+            <Typography variant="caption" sx={{ display: 'block', opacity: 0.55, fontFamily: '"Courier New", monospace', letterSpacing: '0.04em', mb: 1 }}>
+              {formatTime(mobileProg.start)} – {formatTime(mobileProg.stop)}
+              {mobileProg.episodeNum ? ` · ${formatEpisodeNum(mobileProg.episodeNum)}` : ''}
+              {mobileProg.date ? ` · ${mobileProg.date}` : ''}
+            </Typography>
+            {mobileProg.categories.length > 0 && (
+              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1 }}>
+                {mobileProg.categories.slice(0, 4).map(cat => (
+                  <Box key={cat} sx={{
+                    fontSize: '0.65rem', px: 0.75, py: 0.2, borderRadius: '4px',
+                    bgcolor: getCategoryAccent([cat]) + '22',
+                    border: `1px solid ${getCategoryAccent([cat])}44`,
+                    color: getCategoryAccent([cat]),
+                    lineHeight: 1.6,
+                  }}>
+                    {cat}
+                  </Box>
+                ))}
+              </Box>
+            )}
+            {mobileProg.desc && (
+              <>
+                <Divider sx={{ my: 1 }} />
+                <Typography variant="body2" sx={{ lineHeight: 1.6, opacity: 0.85 }}>
+                  {mobileProg.desc}
+                </Typography>
+              </>
+            )}
+            {[
+              ...mobileProg.credits.directors.length  ? [`Dir: ${mobileProg.credits.directors.slice(0, 2).join(', ')}`]  : [],
+              ...mobileProg.credits.presenters.length ? [mobileProg.credits.presenters.slice(0, 2).join(', ')]            : [],
+              ...mobileProg.credits.actors.length     ? [`Cast: ${mobileProg.credits.actors.slice(0, 3).join(', ')}`]     : [],
+            ].map((line, i) => (
+              <Typography key={i} variant="caption" sx={{ display: 'block', opacity: 0.55, fontStyle: 'italic', mt: 0.5 }}>
+                {line}
+              </Typography>
+            ))}
+          </DialogContent>
+        )}
+      </Dialog>
 
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh', bgcolor: 'background.default' }}>
 
@@ -889,6 +951,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
             {isMobile && (
               <Box
                 ref={leftPanelRef}
+                onClick={() => { if (mobileProg) setMobileProg(null); }}
                 sx={{
                   width: MOBILE_ICON_COL_WIDTH, minWidth: MOBILE_ICON_COL_WIDTH, flexShrink: 0,
                   display: 'flex', flexDirection: 'column',
@@ -950,6 +1013,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
             <Box
               ref={rightPanelRef}
               onScroll={handleRightScroll}
+              onClick={() => { if (mobileProg) setMobileProg(null); }}
               sx={{
                 flex: 1, overflowX: 'auto', overflowY: 'auto',
                 // Subtle vertical grid lines aligned with time slots
@@ -1064,7 +1128,13 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
                     }}
                   >
                     {progs.map((p, i) => (
-                      <ProgrammeBlock key={i} prog={p} dayStart={dayStart} dayEnd={dayEnd} />
+                      <ProgrammeBlock
+                        key={i}
+                        prog={p}
+                        dayStart={dayStart}
+                        dayEnd={dayEnd}
+                        onMobileOpen={setMobileProg}
+                      />
                     ))}
                     {showNowLine && (
                       <Box sx={{
