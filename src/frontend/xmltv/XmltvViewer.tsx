@@ -360,7 +360,18 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
 
   // Filter state
   const [filterInput, setFilterInput]           = useState('');
-  const [pinnedChannelIds, setPinnedChannelIds] = useState<Set<string>>(new Set());
+  const [pinnedChannelIds, setPinnedChannelIds] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('xmltv_pinned_channels');
+      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('xmltv_pinned_channels', JSON.stringify([...pinnedChannelIds]));
+  }, [pinnedChannelIds]);
   const [hoveredChannelId, setHoveredChannelId] = useState<string | null>(null);
 
   // Split-panel refs
