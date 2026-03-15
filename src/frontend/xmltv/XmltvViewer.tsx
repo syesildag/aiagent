@@ -676,19 +676,21 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
                 zIndex: 1,
                 width: 28,
                 height: 28,
-                bgcolor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)',
-                border: isDark ? '1px solid rgba(255,255,255,0.20)' : '1px solid rgba(0,0,0,0.20)',
-                color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)',
+                width: 32,
+                height: 32,
+                bgcolor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)',
+                border: isDark ? '1px solid rgba(255,255,255,0.30)' : '1px solid rgba(0,0,0,0.30)',
+                color: isDark ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.85)',
                 borderRadius: '50%',
                 transition: 'background-color 0.15s, color 0.15s, border-color 0.15s',
                 '&:hover': {
-                  bgcolor: isDark ? 'rgba(255,107,107,0.20)' : 'rgba(220,0,0,0.20)',
-                  borderColor: isDark ? 'rgba(255,107,107,0.50)' : 'rgba(200,0,0,0.50)',
+                  bgcolor: isDark ? 'rgba(255,107,107,0.25)' : 'rgba(220,0,0,0.25)',
+                  borderColor: isDark ? 'rgba(255,107,107,0.65)' : 'rgba(200,0,0,0.65)',
                   color: isDark ? '#ff6b6b' : '#c62828',
                 },
               }}
             >
-              <CloseIcon sx={{ fontSize: '0.9rem' }} />
+              <CloseIcon sx={{ fontSize: '1rem' }} />
             </IconButton>
 
             {mobileProg.thumbnail && (
