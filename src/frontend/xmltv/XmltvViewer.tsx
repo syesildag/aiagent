@@ -218,6 +218,14 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
 
   const tooltipContent = (
     <Box sx={{ maxWidth: 300, p: 0.5 }}>
+      {prog.thumbnail && (
+        <Box
+          component="img"
+          src={prog.thumbnail}
+          alt={prog.title}
+          sx={{ width: '100%', borderRadius: 1, mb: 0.75, display: 'block', objectFit: 'cover', maxHeight: 140 }}
+        />
+      )}
       <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.25 }}>{prog.title}</Typography>
       {prog.subTitle && (
         <Typography variant="caption" sx={{ display: 'block', opacity: 0.85, mb: 0.25 }}>
