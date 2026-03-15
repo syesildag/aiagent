@@ -45,7 +45,7 @@ xmltvRouter.get('/xmltv/manifest.json', (_req: Request, res: Response) => {
     scope: '/',
     icons: [
       {
-        src: '/static/icons/icon.svg',
+        src: '/static/icons/xmltv-icon.svg',
         sizes: 'any',
         type: 'image/svg+xml',
         purpose: 'any',
