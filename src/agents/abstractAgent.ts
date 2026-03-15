@@ -83,7 +83,7 @@ export default abstract class AbstractAgent implements Agent {
      maxIterations?: number,
      freshContext?: boolean,
      onContextUpdate?: (used: number, max: number) => void,
-     onCompact?: () => void,
+     onCompact?: (info: { summarized: number; kept: number; tokensBefore: number; tokensAfter: number }) => void,
    ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');

@@ -234,9 +234,9 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
    };
 
    // Compaction callback: notifies the frontend that history was auto-compacted
-   const onCompact = (): void => {
+   const onCompact = (info: { summarized: number; kept: number; tokensBefore: number; tokensAfter: number }): void => {
      if (!res.writableEnded) {
-       res.write(JSON.stringify({ t: 'compact' }) + '\n');
+       res.write(JSON.stringify({ t: 'compact', ...info }) + '\n');
      }
    };
 

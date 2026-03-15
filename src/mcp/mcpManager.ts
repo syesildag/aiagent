@@ -180,7 +180,15 @@ export interface ChatWithLLMArgs {
    * Optional callback invoked immediately after auto-compaction completes.
    * The caller uses this to emit a {t:'compact'} NDJSON event to the frontend.
    */
-  onCompact?: () => void;
+  onCompact?: (info: CompactInfo) => void;
+}
+
+/** Metadata emitted when conversation history is auto-compacted. */
+export interface CompactInfo {
+  summarized: number;
+  kept: number;
+  tokensBefore: number;
+  tokensAfter: number;
 }
 
 export class MCPServerConnection extends EventEmitter {
@@ -1198,11 +1206,11 @@ export class MCPServerManager {
 
       if (usageRatio >= AUTO_COMPACT_THRESHOLD) {
         Logger.warn(`Context usage ${Math.round(usageRatio * 100)}% exceeds threshold — auto-compacting history`);
-        await this.compactHistory();
-        onCompact?.();
+        const compactResult = await this.compactHistory();
         const compacted = await this.conversationHistory.getCurrentConversation();
         messages = [{ role: 'system', content: effectiveSystemPrompt }, ...compacted];
         const compactedTokens = messages.reduce((sum, m) => sum + estimateFullMessageTokens(m), 0);
+        onCompact?.({ ...compactResult, tokensBefore: estimatedTokens, tokensAfter: compactedTokens });
         onContextUpdate?.(compactedTokens, modelMaxTokens);
       } else {
         onContextUpdate?.(estimatedTokens, modelMaxTokens);
@@ -1524,10 +1532,10 @@ export class MCPServerManager {
    * with the summary plus the most recent messages. Used by the auto-compact
    * trigger and can also be called manually.
    */
-  async compactHistory(): Promise<string> {
+  async compactHistory(): Promise<{ summarized: number; kept: number }> {
     const messages = await this.conversationHistory.getCurrentConversation();
     if (messages.length <= AUTO_COMPACT_KEEP_RECENT) {
-      return 'Not enough history to compact.';
+      return { summarized: 0, kept: messages.length };
     }
 
     const toSummarize = messages.slice(0, -AUTO_COMPACT_KEEP_RECENT);
@@ -1577,6 +1585,6 @@ export class MCPServerManager {
     }
 
     Logger.info(`Context auto-compacted: summarized ${toSummarize.length} messages, kept ${recentMessages.length} recent`);
-    return summary;
+    return { summarized: toSummarize.length, kept: recentMessages.length };
   }
 }

@@ -392,7 +392,7 @@ export const ChatInterface: React.FC = () => {
             const trimmed = line.trim();
             if (!trimmed) continue;
             try {
-              const event = JSON.parse(trimmed) as { t: string; v?: string; id?: string; tool?: string; args?: Record<string, unknown>; desc?: string; schema?: ToolApproval['schema']; used?: number; max?: number };
+              const event = JSON.parse(trimmed) as { t: string; v?: string; id?: string; tool?: string; args?: Record<string, unknown>; desc?: string; schema?: ToolApproval['schema']; used?: number; max?: number; summarized?: number; kept?: number; tokensBefore?: number; tokensAfter?: number };
               if (event.t === 'error') {
                 // Server-side error surfaced over the NDJSON stream
                 setError(event.v ?? 'Server error');
@@ -438,6 +438,18 @@ export const ChatInterface: React.FC = () => {
                 );
               } else if (event.t === 'ctx' && event.used !== undefined) {
                 setContextUsage({ used: event.used, max: event.max ?? 0 });
+              } else if (event.t === 'compact') {
+                const summarized = event.summarized ?? 0;
+                const kept = event.kept ?? 0;
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    id: `compact-${Date.now()}`,
+                    role: 'system' as const,
+                    content: `History compacted — ${summarized} messages summarized, ${kept} kept`,
+                    timestamp: new Date(),
+                  },
+                ]);
               }
             } catch {
               // Fallback: treat unrecognised lines as raw text
