@@ -9,7 +9,6 @@ import {
   GlobalStyles,
   IconButton,
   InputAdornment,
-  SwipeableDrawer,
   TextField,
   Tooltip,
   Typography,
@@ -32,6 +31,7 @@ import { useAuth } from '../context/AuthContext';
 
 const PIXELS_PER_MIN = 4;
 const CHANNEL_COL_WIDTH = 160;
+const MOBILE_ICON_COL_WIDTH = 44;
 const ROW_HEIGHT = 62;
 const HEADER_HEIGHT = 42;
 const SLOT_MINUTES = 30;
@@ -500,9 +500,8 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   );
 
   // Split-panel refs
-  const leftPanelRef        = useRef<HTMLDivElement>(null);
-  const rightPanelRef       = useRef<HTMLDivElement>(null);
-  const mobileDrawerBodyRef = useRef<HTMLDivElement>(null);
+  const leftPanelRef  = useRef<HTMLDivElement>(null);
+  const rightPanelRef = useRef<HTMLDivElement>(null);
 
   // ── Tick every minute ────────────────────────────────────────────────────
   useEffect(() => {
@@ -561,12 +560,6 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     }
   }, []);
 
-  // Sync mobile drawer scroll position when it opens
-  useEffect(() => {
-    if (isMobile && sidebarOpen && mobileDrawerBodyRef.current && rightPanelRef.current) {
-      mobileDrawerBodyRef.current.scrollTop = rightPanelRef.current.scrollTop;
-    }
-  }, [isMobile, sidebarOpen]);
 
   // ── Derived data ─────────────────────────────────────────────────────────
   const dayStart = selectedDay;
@@ -892,63 +885,46 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
         {!loading && !error && (
           <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-            {/* Edge toggle button — mirrors ConversationSidebar pattern */}
-            <Tooltip title={sidebarOpen ? 'Hide channels' : 'Show channels'}>
-              <IconButton
-                onClick={() => setSidebarOpen(o => !o)}
-                size="small"
-                sx={{
-                  position: 'fixed',
-                  left: sidebarOpen ? CHANNEL_COL_WIDTH - 16 : 8,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  zIndex: theme => theme.zIndex.drawer + 1,
-                  bgcolor: 'background.paper',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  boxShadow: 2,
-                  transition: 'left 225ms cubic-bezier(0.4, 0, 0.6, 1)',
-                  borderRadius: 1.5,
-                  p: '5px',
-                  display: { xs: 'flex', sm: 'none' },
-                  '&:hover': { borderColor: 'primary.main', color: 'primary.main' },
-                }}
-              >
-                {sidebarOpen ? <ChevronLeftIcon sx={{ fontSize: 16 }} /> : <ChevronRightIcon sx={{ fontSize: 16 }} />}
-              </IconButton>
-            </Tooltip>
-
-            {/* ── Mobile: swipeable drawer ── */}
+            {/* ── Mobile: narrow icon-only strip (always visible) ── */}
             {isMobile && (
-              <SwipeableDrawer
-                anchor="left"
-                open={sidebarOpen}
-                onOpen={() => setSidebarOpen(true)}
-                onClose={() => setSidebarOpen(false)}
-                swipeAreaWidth={20}
-                disableSwipeToOpen={false}
-                slotProps={{
-                  paper: {
-                    sx: {
-                      width: CHANNEL_COL_WIDTH,
-                      bgcolor: panelBg,
-                      borderRight: `1px solid ${panelBorderColor}`,
-                      overflow: 'hidden',
-                      display: 'flex',
-                      flexDirection: 'column',
-                    },
-                  },
+              <Box
+                ref={leftPanelRef}
+                sx={{
+                  width: MOBILE_ICON_COL_WIDTH, minWidth: MOBILE_ICON_COL_WIDTH, flexShrink: 0,
+                  display: 'flex', flexDirection: 'column',
+                  overflowY: 'hidden', overflowX: 'hidden',
+                  borderRight: `1px solid ${panelBorderColor}`,
+                  bgcolor: panelBg,
+                  zIndex: 2,
                 }}
               >
-                <Box
-                  ref={mobileDrawerBodyRef}
-                  sx={{ overflowY: 'auto', overflowX: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}
-                >
-                  <Box sx={{ height: HEADER_HEIGHT, minHeight: HEADER_HEIGHT, flexShrink: 0,
-                    borderBottom: `1px solid ${panelBorderColor}` }} />
-                  {channelListContent}
-                </Box>
-              </SwipeableDrawer>
+                <Box sx={{ height: HEADER_HEIGHT, minHeight: HEADER_HEIGHT, flexShrink: 0,
+                  borderBottom: `1px solid ${panelBorderColor}` }} />
+                {displayChannels.map(channel => (
+                  <Tooltip key={channel.id} title={channel.displayName} placement="right" arrow>
+                    <Box
+                      sx={{
+                        height: ROW_HEIGHT, minHeight: ROW_HEIGHT,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : theme.palette.divider}`,
+                      }}
+                    >
+                      {channel.icon ? (
+                        <Box component="img" src={channel.icon} alt=""
+                          sx={{ width: 26, height: 26, objectFit: 'contain', opacity: 0.9 }} />
+                      ) : (
+                        <Box sx={{
+                          width: 26, height: 26, borderRadius: '5px', flexShrink: 0,
+                          bgcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Typography sx={{ fontSize: '0.65rem', opacity: 0.35 }}>📺</Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  </Tooltip>
+                ))}
+              </Box>
             )}
 
             {/* ── Desktop: persistent left panel ── */}
