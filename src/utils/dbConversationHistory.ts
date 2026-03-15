@@ -204,18 +204,33 @@ export class DbConversationHistory implements IConversationHistory {
   async clearHistory(): Promise<void> {
     try {
       const count = await this.getConversationCount();
-      
+
       // Delete all messages first (due to foreign key constraints)
       await queryDatabase('DELETE FROM ai_agent_conversation_messages', []);
-      
+
       // Then delete all conversations
       await queryDatabase('DELETE FROM ai_agent_conversations', []);
-      
+
       this._currentConversationId = null;
-      
+
       Logger.info(`Cleared conversation history: ${count} conversations removed`);
     } catch (error) {
       throw new DatabaseError(`Failed to clear history: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async clearCurrentMessages(): Promise<void> {
+    if (!this._currentConversationId) return;
+    try {
+      const dbConversation = await this._findDbConversationByUuid(this._currentConversationId);
+      if (!dbConversation) return;
+      await queryDatabase(
+        'DELETE FROM ai_agent_conversation_messages WHERE conversation_id = $1',
+        [dbConversation.getId()!]
+      );
+      Logger.debug(`Cleared messages for current conversation ${this._currentConversationId}`);
+    } catch (error) {
+      throw new DatabaseError(`Failed to clear current messages: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

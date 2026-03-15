@@ -63,6 +63,13 @@ export interface IConversationHistory {
    * Clear all conversations
    */
   clearHistory(): Promise<void>;
+
+  /**
+   * Delete only the messages for the current conversation, leaving the
+   * conversation row itself intact. Used by compaction so that the numeric
+   * DB primary key stored in chat.ts remains valid after history is rebuilt.
+   */
+  clearCurrentMessages(): Promise<void>;
   
   /**
    * Get conversation count

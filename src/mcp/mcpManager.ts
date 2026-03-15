@@ -1565,8 +1565,7 @@ export class MCPServerManager {
       ? summaryResponse
       : (summaryResponse as any).text ?? JSON.stringify(summaryResponse);
 
-    await this.conversationHistory.clearHistory();
-    await this.conversationHistory.startNewConversation();
+    await this.conversationHistory.clearCurrentMessages();
 
     await this.conversationHistory.addMessage({
       role: 'user',

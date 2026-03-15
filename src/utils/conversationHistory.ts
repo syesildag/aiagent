@@ -113,8 +113,18 @@ export class InMemoryConversationHistory implements IConversationHistory {
     const conversationCount = this._conversations.size;
     this._conversations.clear();
     this._currentConversationId = null;
-    
+
     Logger.info(`Cleared conversation history: ${conversationCount} conversations removed`);
+  }
+
+  async clearCurrentMessages(): Promise<void> {
+    if (!this._currentConversationId) return;
+    const conversation = this._conversations.get(this._currentConversationId);
+    if (conversation) {
+      conversation.messages = [];
+      conversation.updatedAt = new Date();
+      Logger.debug(`Cleared messages for current conversation ${this._currentConversationId}`);
+    }
   }
 
   async getConversationCount(): Promise<number> {
