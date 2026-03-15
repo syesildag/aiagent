@@ -2,7 +2,7 @@
  * AI Agent Chat – Service Worker
  * Strategy:
  *  - Static assets (/static/)  → cache-first, update in background
- *  - App shell (/front/, /manifest, /icons) → network-first, fallback cache
+ *  - App shell (/ai/, /manifest, /icons) → network-first, fallback cache
  *  - API routes (/chat, /info, /model, /auth) → network only (no cache)
  */
 

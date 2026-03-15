@@ -34,13 +34,13 @@ pwaRouter.use('/static', express.static(path.join(__dirname, '../../static'), {
 }));
 
 // Web app manifest – dynamically generated per agent
-pwaRouter.get('/front/:agent/manifest.json', (req: Request, res: Response) => {
+pwaRouter.get('/ai/:agent/manifest.json', (req: Request, res: Response) => {
    res.setHeader('Cache-Control', 'no-cache');
    res.json(generateManifest(req.params.agent));
 });
 
 // Frontend endpoint - serves React chat interface
-pwaRouter.get("/front/:agent", asyncHandler(async (req: Request, res: Response) => {
+pwaRouter.get("/ai/:agent", asyncHandler(async (req: Request, res: Response) => {
    const agentName = req.params.agent;
 
    try {

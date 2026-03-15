@@ -742,7 +742,7 @@ export const ChatInterface: React.FC = () => {
                 <MenuItem
                   key={a}
                   selected={a === agentName}
-                  onClick={() => { setMobileMenuAnchor(null); window.location.href = `/front/${a}`; }}
+                  onClick={() => { setMobileMenuAnchor(null); window.location.href = `/ai/${a}`; }}
                   sx={{ fontSize: '0.85rem' }}
                 >
                   {a}

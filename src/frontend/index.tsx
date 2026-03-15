@@ -4,7 +4,7 @@ import ChatApp from './ChatApp';
 
 // Get agent name from the URL or window object
 const getAgentName = (): string => {
-  const match = window.location.pathname.match(/\/front\/([^/]+)/);
+  const match = window.location.pathname.match(/\/ai\/([^/]+)/);
   return match ? match[1] : 'general';
 };
 

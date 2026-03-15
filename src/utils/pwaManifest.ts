@@ -25,7 +25,7 @@ export function generateManifest(agentName: string): PwaManifest {
     orientation: 'portrait',
     background_color: '#ffffff',
     theme_color: '#1976d2',
-    start_url: `/front/${agentName}`,
+    start_url: `/ai/${agentName}`,
     scope: '/',
     icons: [
       {
