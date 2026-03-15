@@ -29,9 +29,10 @@ import {
     ListItem,
     ListItemIcon,
     ListItemText,
-    Menu,
     MenuItem,
+    MenuList,
     Paper,
+    Popper,
     Select,
     SelectChangeEvent,
     TextField,
@@ -558,6 +559,17 @@ export const ChatInterface: React.FC = () => {
     setInputMessage(`/${cmd.name} `);
     setCmdMenuOpen(false);
   }, []);
+
+  useEffect(() => {
+    if (!cmdMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (inputContainerRef.current && !inputContainerRef.current.contains(e.target as Node)) {
+        setCmdMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [cmdMenuOpen]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (cmdMenuOpen) {
@@ -1108,48 +1120,43 @@ export const ChatInterface: React.FC = () => {
                   },
                 }}
               />
-              <Menu
+              <Popper
                 open={cmdMenuOpen}
                 anchorEl={inputContainerRef.current}
-                onClose={() => setCmdMenuOpen(false)}
-                anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-                transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-                disableAutoFocus
-                disableEnforceFocus
-                PaperProps={{
-                  sx: {
-                    width: inputContainerRef.current?.offsetWidth ?? 'auto',
-                    maxHeight: 300,
-                    overflow: 'auto',
-                  },
-                }}
+                placement="top-start"
+                style={{ zIndex: 1300, width: inputContainerRef.current?.offsetWidth ?? 'auto' }}
+                modifiers={[{ name: 'offset', options: { offset: [0, 4] } }]}
               >
-                {cmdSuggestions.map((cmd, i) => (
-                  <MenuItem
-                    key={cmd.name}
-                    selected={i === selectedCmdIdx}
-                    onMouseEnter={() => setSelectedCmdIdx(i)}
-                    onClick={() => acceptCmdSuggestion(cmd)}
-                    dense
-                  >
-                    <Box>
-                      <Typography variant="body2" component="span" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
-                        /{cmd.name}
-                      </Typography>
-                      {cmd.argumentHint && (
-                        <Typography variant="caption" component="span" sx={{ ml: 0.5, color: 'text.secondary', fontFamily: 'monospace' }}>
-                          {cmd.argumentHint}
-                        </Typography>
-                      )}
-                      {cmd.description && (
-                        <Typography variant="caption" display="block" sx={{ color: 'text.secondary', mt: 0.25 }}>
-                          {cmd.description}
-                        </Typography>
-                      )}
-                    </Box>
-                  </MenuItem>
-                ))}
-              </Menu>
+                <Paper elevation={4} sx={{ maxHeight: 300, overflow: 'auto' }}>
+                  <MenuList dense>
+                    {cmdSuggestions.map((cmd, i) => (
+                      <MenuItem
+                        key={cmd.name}
+                        selected={i === selectedCmdIdx}
+                        onMouseEnter={() => setSelectedCmdIdx(i)}
+                        onMouseDown={(e) => { e.preventDefault(); acceptCmdSuggestion(cmd); }}
+                        dense
+                      >
+                        <Box>
+                          <Typography variant="body2" component="span" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                            /{cmd.name}
+                          </Typography>
+                          {cmd.argumentHint && (
+                            <Typography variant="caption" component="span" sx={{ ml: 0.5, color: 'text.secondary', fontFamily: 'monospace' }}>
+                              {cmd.argumentHint}
+                            </Typography>
+                          )}
+                          {cmd.description && (
+                            <Typography variant="caption" display="block" sx={{ color: 'text.secondary', mt: 0.25 }}>
+                              {cmd.description}
+                            </Typography>
+                          )}
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </MenuList>
+                </Paper>
+              </Popper>
             </Box>
             {loading ? (
               <Tooltip title="Cancel">
