@@ -21,6 +21,7 @@ import {
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
+  Close as CloseIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
   Logout as LogoutIcon,
@@ -663,12 +664,38 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
         slotProps={{ paper: { sx: { m: 2, borderRadius: '12px' } } }}
       >
         {mobileProg && (
-          <DialogContent sx={{ p: 2 }}>
+          <DialogContent sx={{ p: 2, position: 'relative' }}>
+            {/* ── Close button ── */}
+            <IconButton
+              onClick={() => setMobileProg(null)}
+              size="small"
+              sx={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                zIndex: 1,
+                width: 28,
+                height: 28,
+                bgcolor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
+                border: isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(0,0,0,0.1)',
+                color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)',
+                borderRadius: '50%',
+                transition: 'background-color 0.15s, color 0.15s, border-color 0.15s',
+                '&:hover': {
+                  bgcolor: isDark ? 'rgba(255,107,107,0.15)' : 'rgba(220,0,0,0.08)',
+                  borderColor: isDark ? 'rgba(255,107,107,0.4)' : 'rgba(200,0,0,0.25)',
+                  color: isDark ? '#ff6b6b' : '#c62828',
+                },
+              }}
+            >
+              <CloseIcon sx={{ fontSize: '0.85rem' }} />
+            </IconButton>
+
             {mobileProg.thumbnail && (
               <Box component="img" src={mobileProg.thumbnail} alt={mobileProg.title}
                 sx={{ width: '100%', borderRadius: '8px', mb: 1.5, display: 'block', objectFit: 'cover', maxHeight: 160 }} />
             )}
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 0.5, pr: mobileProg.thumbnail ? 0 : 3.5 }}>
               <Typography sx={{ fontWeight: 700, fontSize: '1rem', lineHeight: 1.3, flex: 1 }}>
                 {mobileProg.title}
               </Typography>
