@@ -267,21 +267,25 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
       }
    }
 
-   // If the client is continuing an existing DB conversation but the in-memory LLM
-   // context is empty (e.g. after a server restart), restore the prior messages so
-   // the agent retains full context.
-   if (incomingConversationId && !agent.hasActiveConversation()) {
+   // Ensure the in-memory LLM context matches the DB conversation being served.
+   // Clear and restore whenever the conversation changes (new, switched, or after restart).
+   const currentDbConvId = agent.getActiveDbConversationId();
+   if (incomingConversationId !== currentDbConvId) {
       try {
-         const priorMessages = await aiagentconversationmessagesRepository.findByConversationId(incomingConversationId);
-         if (priorMessages.length > 0) {
-            await agent.restoreConversationHistory(
-               priorMessages.map(m => ({ role: m.getRole(), content: m.getContent() })),
-               userLogin ?? undefined,
-            );
-            Logger.info(`Restored ${priorMessages.length} messages for conversationId=${incomingConversationId}`);
+         await agent.clearConversationHistory();
+         if (incomingConversationId) {
+            const priorMessages = await aiagentconversationmessagesRepository.findByConversationId(incomingConversationId);
+            if (priorMessages.length > 0) {
+               await agent.restoreConversationHistory(
+                  priorMessages.map(m => ({ role: m.getRole(), content: m.getContent() })),
+                  userLogin ?? undefined,
+               );
+               Logger.info(`Restored ${priorMessages.length} messages for conversationId=${incomingConversationId}`);
+            }
          }
+         agent.setActiveDbConversationId(activeConversationId);
       } catch (err) {
-         Logger.error(`Failed to restore conversation history: ${err}`);
+         Logger.error(`Failed to sync conversation history: ${err}`);
       }
    }
 

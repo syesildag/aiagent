@@ -74,7 +74,12 @@ export const ChatInterface: React.FC = () => {
     () => localStorage.getItem('autoSpeak') === 'true'
   );
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
-  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(
+    () => {
+      const stored = localStorage.getItem(`conversationId_${agentName}`);
+      return stored ? Number(stored) : null;
+    }
+  );
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
   const [compressingCount, setCompressingCount] = useState(0);
   const [contextUsage, setContextUsage] = useState<{ used: number; max: number } | null>(null);
@@ -152,6 +157,13 @@ export const ChatInterface: React.FC = () => {
       .then(data => { if (data) setAvailableCommands(data.commands ?? []); })
       .catch(() => {/* non-critical */});
   }, [agentName]);
+
+  // Restore last conversation on page load / browser reopen
+  useEffect(() => {
+    if (activeConversationId && session && messages.length === 0) {
+      handleLoadConversation(activeConversationId);
+    }
+  }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Global paste handler: captures images pasted from clipboard
   useEffect(() => {
@@ -386,7 +398,9 @@ export const ChatInterface: React.FC = () => {
                 setError(event.v ?? 'Server error');
                 setLastFailedPrompt(userMessage.content);
               } else if (event.t === 'conversation' && event.id) {
-                setActiveConversationId(Number(event.id));
+                const id = Number(event.id);
+                setActiveConversationId(id);
+                localStorage.setItem(`conversationId_${agentName}`, String(id));
               } else if (event.t === 'text' && event.v !== undefined) {
                 const msgId = ensureAssistantMsg();
                 assistantContent += event.v;
@@ -493,6 +507,7 @@ export const ChatInterface: React.FC = () => {
   const handleNewConversation = () => {
     setMessages([]);
     setActiveConversationId(null);
+    localStorage.removeItem(`conversationId_${agentName}`);
     setError('');
   };
 
@@ -510,8 +525,9 @@ export const ChatInterface: React.FC = () => {
       }));
       setMessages(loaded);
       setActiveConversationId(convId);
+      localStorage.setItem(`conversationId_${agentName}`, String(convId));
     } catch { /* non-critical */ }
-  }, [session]);
+  }, [session, agentName]);
 
   const handleExport = () => {
     const lines = messages

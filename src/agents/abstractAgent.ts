@@ -143,6 +143,18 @@ export default abstract class AbstractAgent implements Agent {
       return this.mcpManager.restoreConversation(messages, userId);
    }
 
+   async clearConversationHistory(): Promise<void> {
+      await this.mcpManager?.clearConversationHistory();
+   }
+
+   getActiveDbConversationId(): number | null {
+      return this.mcpManager?.getActiveDbConversationId() ?? null;
+   }
+
+   setActiveDbConversationId(id: number | null): void {
+      this.mcpManager?.setActiveDbConversationId(id);
+   }
+
    // Helper method for agents to get available tools for specific servers
    getAvailableTools(serverNames?: string[]): string[] {
       if (!this.mcpManager) {

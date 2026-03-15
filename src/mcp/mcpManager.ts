@@ -448,6 +448,7 @@ export class MCPServerManager {
   private cachedTools: Tool[] | null = null;
   private initialized: boolean = false;
   private conversationHistory: IConversationHistory;
+  private _activeDbConversationId: number | null = null;
   /** Injected after agent registry is built. Enables the Task sub-agent tool. */
   private subAgentRunner: SubAgentRunner | null = null;
   private subAgentDescriptions: Record<string, string> = {};
@@ -1466,7 +1467,16 @@ export class MCPServerManager {
    */
   async clearConversationHistory(): Promise<void> {
     await this.conversationHistory.clearHistory();
+    this._activeDbConversationId = null;
     Logger.info('Conversation history cleared');
+  }
+
+  getActiveDbConversationId(): number | null {
+    return this._activeDbConversationId;
+  }
+
+  setActiveDbConversationId(id: number | null): void {
+    this._activeDbConversationId = id;
   }
 
   /**

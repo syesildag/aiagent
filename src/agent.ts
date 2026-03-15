@@ -38,6 +38,9 @@ export interface Agent {
    addAssistantMessageToHistory(content: string | undefined): void;
    hasActiveConversation(): boolean;
    restoreConversationHistory(messages: Array<{ role: string; content: string }>, userId?: string): Promise<void>;
+   clearConversationHistory(): Promise<void>;
+   getActiveDbConversationId(): number | null;
+   setActiveDbConversationId(id: number | null): void;
 }
 
 const Agents: Record<string, Agent> = {};
