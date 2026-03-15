@@ -74,6 +74,10 @@ EMBEDDING_MODEL_OLLAMA=nomic-embed-text
 EMBEDDING_CACHE_ENABLED=true
 EMBEDDING_CACHE_TTL=3600000
 
+# Logging
+LOG_LEVEL=info
+LOG_FILE=logs/app.log
+
 # External APIs
 OPENWEATHERMAP_API_KEY=your_weather_api_key
 ```
@@ -91,9 +95,9 @@ NODE_ENV=development
 ```
 
 **Effects:**
-- Development: Verbose logging, hot reload
-- Production: Optimized performance, minimal logging
-- Test: Test database, mocked services
+- Development: `ConsoleLogger` — structured JSON to stdout
+- Production: `WinstonLogger` — structured JSON to rotating file (`LOG_FILE`)
+- Test: Safe defaults, no real validation
 
 #### PORT
 
@@ -403,6 +407,55 @@ Cache time-to-live (milliseconds)
 ```bash
 EMBEDDING_CACHE_TTL=3600000  # 1 hour
 ```
+
+---
+
+### Logging Settings
+
+In production and MCP server contexts the application uses **WinstonLogger**, which writes structured JSON to a rotating file. The `ConsoleLogger` is used in development only.
+
+#### LOG_LEVEL
+
+Minimum severity level to emit. Messages below this level are silently dropped.
+
+```bash
+LOG_LEVEL=info  # error | warn | info | debug | silly
+```
+
+| Level | Use |
+|---|---|
+| `error` | Only failures |
+| `warn` | Warnings + errors |
+| `info` | Normal operational events (default) |
+| `debug` | Verbose internal state |
+| `silly` | Trace-level, highest verbosity |
+
+> `silly` maps to our internal `trace` level, which is the lowest-granularity log call used in the codebase.
+
+#### LOG_FILE
+
+Path to the log file written by `WinstonLogger`. The file rotates automatically at 10 MB; up to 5 rotated files are kept. The most recent log is always at this path (`tailable: true`).
+
+```bash
+LOG_FILE=logs/app.log
+```
+
+**Rotation behaviour:**
+- `logs/app.log` — current log (newest)
+- `logs/app.log.1` … `logs/app.log.4` — rotated archives
+
+**Note:** The `logs/` directory is git-ignored. Create it if it does not exist before starting the server, or set `LOG_FILE` to an absolute path under a managed log directory.
+
+#### Log format
+
+Every line is a JSON object, one per log entry:
+
+```json
+{"level":"info","message":"[server]: Server is running at https://localhost:3000","timestamp":"2026-03-15T10:00:00.000Z"}
+{"level":"error","message":"Unhandled promise rejection: ...","timestamp":"2026-03-15T10:00:01.000Z"}
+```
+
+This format is directly ingestible by Filebeat → Logstash → Elasticsearch → Kibana when centralised log aggregation is needed.
 
 ---
 

@@ -1,4 +1,6 @@
-import { ConsoleLogger, DummyLogger } from './logger';
+import { ConsoleLogger, WinstonLogger } from './logger';
+import * as fs from 'fs';
+import * as path from 'path';
 
 describe('Logger', () => {
    describe('ConsoleLogger', () => {
@@ -23,7 +25,7 @@ describe('Logger', () => {
       test('should log trace messages with timestamp', () => {
          const message = 'test trace message';
          logger.trace(message);
-         
+
          expect(consoleSpies.trace).toHaveBeenCalledWith(
             expect.objectContaining({
                time: expect.any(String),
@@ -35,7 +37,7 @@ describe('Logger', () => {
       test('should log error messages with timestamp', () => {
          const message = 'test error message';
          logger.error(message);
-         
+
          expect(consoleSpies.error).toHaveBeenCalledWith(
             expect.objectContaining({
                time: expect.any(String),
@@ -45,19 +47,29 @@ describe('Logger', () => {
       });
    });
 
-   describe('DummyLogger', () => {
-      let logger: DummyLogger;
+   describe('WinstonLogger', () => {
+      const testLogFile = path.join('logs', 'test-logger.log');
 
       beforeEach(() => {
-         logger = new DummyLogger();
+         process.env.LOG_FILE = testLogFile;
+         process.env.LOG_LEVEL = 'silly';
       });
 
-      test('should not throw when calling log methods', () => {
-         expect(() => logger.trace('test')).not.toThrow();
-         expect(() => logger.debug('test')).not.toThrow();
-         expect(() => logger.info('test')).not.toThrow();
-         expect(() => logger.warn('test')).not.toThrow();
-         expect(() => logger.error('test')).not.toThrow();
+      afterEach(() => {
+         delete process.env.LOG_FILE;
+         delete process.env.LOG_LEVEL;
+         if (fs.existsSync(testLogFile)) {
+            fs.unlinkSync(testLogFile);
+         }
+      });
+
+      test('should not throw when calling all log methods', () => {
+         const logger = new WinstonLogger();
+         expect(() => logger.trace('trace msg')).not.toThrow();
+         expect(() => logger.debug('debug msg')).not.toThrow();
+         expect(() => logger.info('info msg')).not.toThrow();
+         expect(() => logger.warn('warn msg')).not.toThrow();
+         expect(() => logger.error('error msg')).not.toThrow();
       });
    });
 });

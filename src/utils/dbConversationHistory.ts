@@ -57,7 +57,7 @@ export class DbConversationHistory implements IConversationHistory {
         conversationId: dbConversation.getId()!,
         role: validatedData.role,
         content: validatedData.content,
-        toolCalls: validatedData.toolCalls || null,
+        toolCalls: validatedData.toolCalls ? JSON.stringify(validatedData.toolCalls) : null,
         toolCallId: validatedData.toolCallId || null,
         timestamp,
         metadata: { id: messageId, ...validatedData.metadata }

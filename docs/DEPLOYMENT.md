@@ -77,6 +77,8 @@ DB_PASSWORD=secure_password
 HMAC_SECRET_KEY=your_secure_key
 LLM_PROVIDER=openai
 OPENAI_API_KEY=your_api_key
+LOG_LEVEL=info
+LOG_FILE=/var/log/aiagent/app.log
 ```
 
 ---
@@ -190,12 +192,15 @@ services:
       LLM_PROVIDER: ${LLM_PROVIDER}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OLLAMA_HOST: ${OLLAMA_HOST}
+      LOG_LEVEL: info
+      LOG_FILE: /app/logs/app.log
     ports:
       - "3000:3000"
     volumes:
       - ./mcp-servers.json:/app/mcp-servers.json:ro
       - ./server.cert:/app/server.cert:ro
       - ./server.key:/app/server.key:ro
+      - aiagent_logs:/app/logs
     restart: unless-stopped
 
   ollama:
@@ -210,6 +215,7 @@ services:
 volumes:
   postgres_data:
   ollama_data:
+  aiagent_logs:
 ```
 
 ### Start Services
@@ -259,6 +265,8 @@ data:
   LLM_PROVIDER: "openai"
   MAX_LLM_ITERATIONS: "2"
   CONVERSATION_HISTORY_WINDOW_SIZE: "10"
+  LOG_LEVEL: "info"
+  LOG_FILE: "/app/logs/app.log"
 ```
 
 ### Secret
@@ -668,15 +676,27 @@ app.get('/metrics', async (req, res) => {
 
 ### Check Logs
 
+In production the application uses `WinstonLogger`, which writes structured JSON to `LOG_FILE` (default `logs/app.log`). Container stdout/stderr will be mostly silent; read the log file instead.
+
 ```bash
-# Docker
+# Application log file (production / MCP servers)
+tail -f logs/app.log
+# Pretty-print with jq
+tail -f logs/app.log | jq .
+
+# Docker (container stdout — limited in production)
 docker logs aiagent
 
-# PM2
+# Docker — application log file inside container
+docker exec aiagent tail -f /app/logs/app.log
+
+# PM2 (captures stdout; WinstonLogger also writes to LOG_FILE separately)
 pm2 logs aiagent
 
 # Kubernetes
 kubectl logs -f deployment/aiagent -n aiagent
+# Or exec into the pod to read the file directly
+kubectl exec -it deployment/aiagent -n aiagent -- tail -f /app/logs/app.log
 ```
 
 ### Database Connection Issues
