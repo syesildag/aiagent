@@ -237,8 +237,10 @@ interface ProgrammeBlockProps {
 
 const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd }) => {
   const [hovered, setHovered] = useState(false);
+  const [tooltipOpen, setTooltipOpen] = useState(false);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const visStart = prog.start < dayStart ? dayStart : prog.start;
   const visStop  = prog.stop  > dayEnd   ? dayEnd   : prog.stop;
@@ -326,8 +328,31 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
   );
 
   return (
-    <Tooltip title={tooltipContent} arrow placement="top" enterDelay={600} enterNextDelay={300}>
+    <Tooltip
+      title={tooltipContent}
+      arrow
+      placement="top"
+      slotProps={{
+        popper: {
+          modifiers: [
+            { name: 'preventOverflow', enabled: true, options: { boundary: 'viewport', padding: 8 } },
+            { name: 'flip', enabled: true, options: { fallbackPlacements: ['bottom', 'right', 'left'] } },
+          ],
+        },
+      }}
+      {...(isMobile ? {
+        open: tooltipOpen,
+        onClose: () => setTooltipOpen(false),
+        disableHoverListener: true,
+        disableTouchListener: true,
+        disableFocusListener: true,
+      } : {
+        enterDelay: 600,
+        enterNextDelay: 300,
+      })}
+    >
       <Box
+        onClick={() => { if (isMobile) setTooltipOpen(o => !o); }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         sx={{
@@ -475,8 +500,9 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   );
 
   // Split-panel refs
-  const leftPanelRef  = useRef<HTMLDivElement>(null);
-  const rightPanelRef = useRef<HTMLDivElement>(null);
+  const leftPanelRef        = useRef<HTMLDivElement>(null);
+  const rightPanelRef       = useRef<HTMLDivElement>(null);
+  const mobileDrawerBodyRef = useRef<HTMLDivElement>(null);
 
   // ── Tick every minute ────────────────────────────────────────────────────
   useEffect(() => {
@@ -534,6 +560,13 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
       leftPanelRef.current.scrollTop = rightPanelRef.current.scrollTop;
     }
   }, []);
+
+  // Sync mobile drawer scroll position when it opens
+  useEffect(() => {
+    if (isMobile && sidebarOpen && mobileDrawerBodyRef.current && rightPanelRef.current) {
+      mobileDrawerBodyRef.current.scrollTop = rightPanelRef.current.scrollTop;
+    }
+  }, [isMobile, sidebarOpen]);
 
   // ── Derived data ─────────────────────────────────────────────────────────
   const dayStart = selectedDay;
@@ -866,7 +899,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
                 size="small"
                 sx={{
                   position: 'fixed',
-                  left: sidebarOpen && !isMobile ? CHANNEL_COL_WIDTH - 16 : 8,
+                  left: sidebarOpen ? CHANNEL_COL_WIDTH - 16 : 8,
                   top: '50%',
                   transform: 'translateY(-50%)',
                   zIndex: theme => theme.zIndex.drawer + 1,
@@ -900,14 +933,21 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
                       width: CHANNEL_COL_WIDTH,
                       bgcolor: panelBg,
                       borderRight: `1px solid ${panelBorderColor}`,
-                      overflowX: 'hidden',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
                     },
                   },
                 }}
               >
-                <Box sx={{ height: HEADER_HEIGHT, minHeight: HEADER_HEIGHT, flexShrink: 0,
-                  borderBottom: `1px solid ${panelBorderColor}` }} />
-                {channelListContent}
+                <Box
+                  ref={mobileDrawerBodyRef}
+                  sx={{ overflowY: 'auto', overflowX: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}
+                >
+                  <Box sx={{ height: HEADER_HEIGHT, minHeight: HEADER_HEIGHT, flexShrink: 0,
+                    borderBottom: `1px solid ${panelBorderColor}` }} />
+                  {channelListContent}
+                </Box>
               </SwipeableDrawer>
             )}
 
