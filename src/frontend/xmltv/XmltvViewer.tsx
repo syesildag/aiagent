@@ -664,8 +664,8 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
         slotProps={{ paper: { sx: { m: 2, borderRadius: '12px' } } }}
       >
         {mobileProg && (
-          <DialogContent sx={{ p: 2, position: 'relative' }}>
-            {/* ── Close button ── */}
+          <>
+            {/* ── Close button — outside DialogContent so it stays visible when scrolling ── */}
             <IconButton
               onClick={() => setMobileProg(null)}
               size="small"
@@ -674,8 +674,6 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
                 top: 8,
                 right: 8,
                 zIndex: 1,
-                width: 28,
-                height: 28,
                 width: 32,
                 height: 32,
                 bgcolor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)',
@@ -692,7 +690,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
             >
               <CloseIcon sx={{ fontSize: '1rem' }} />
             </IconButton>
-
+            <DialogContent sx={{ p: 2 }}>
             {mobileProg.thumbnail && (
               <Box component="img" src={mobileProg.thumbnail} alt={mobileProg.title}
                 sx={{ width: '100%', borderRadius: '8px', mb: 1.5, display: 'block', objectFit: 'cover', maxHeight: 160 }} />
@@ -746,6 +744,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
               </Typography>
             ))}
           </DialogContent>
+          </>
         )}
       </Dialog>
 
