@@ -51,69 +51,6 @@ agentsRouter.get("/info/:agent", asyncHandler(async (req: Request, res: Response
    });
 }));
 
-// MCP tools cache status — unauthenticated, returns formatted markdown
-agentsRouter.get("/mcp-status", asyncHandler(async (_req: Request, res: Response) => {
-   const manager = getGlobalMCPManager();
-   if (!manager) {
-      res.type('text').send('MCP manager not initialised yet.');
-      return;
-   }
-
-   const serverStatus = manager.getServerStatus();
-   const cacheValid = manager.isToolsCacheValid();
-   const cachedCount = manager.getCachedToolsCount();
-   const toolsByServer = manager.getToolsByServer();
-
-   const serverEntries = Object.entries(serverStatus);
-   const runningCount = serverEntries.filter(([, s]) => s.running).length;
-
-   const lines: string[] = [];
-   lines.push('# 🔌 MCP Status');
-   lines.push('');
-   lines.push('## Cache');
-   lines.push('');
-   lines.push(`| Property | Value |`);
-   lines.push(`|---|---|`);
-   lines.push(`| Status | ${cacheValid ? '✅ Valid' : '⚠️ Stale'} |`);
-   lines.push(`| Total tools | ${cachedCount} |`);
-   lines.push(`| Servers | ${runningCount} running / ${serverEntries.length} total |`);
-   lines.push('');
-   lines.push('---');
-   lines.push('');
-   lines.push('## Servers');
-   lines.push('');
-
-   for (const [serverName, info] of serverEntries) {
-      const serverTools = toolsByServer[serverName] ?? [];
-      const statusIcon = info.running ? '🟢' : '🔴';
-      const statusLabel = info.running ? 'running' : 'stopped';
-
-      lines.push(`### ${statusIcon} \`${serverName}\` — ${statusLabel}`);
-      lines.push('');
-      lines.push(`| | Count |`);
-      lines.push(`|---|---|`);
-      lines.push(`| 🛠 Tools | ${info.tools.length} |`);
-      lines.push(`| 📦 Resources | ${info.resources.length} |`);
-      lines.push(`| 💬 Prompts | ${info.prompts.length} |`);
-
-      if (serverTools.length > 0) {
-         lines.push('');
-         lines.push('<details><summary>📋 Cached tools</summary>');
-         lines.push('');
-         lines.push('| Tool | Description |');
-         lines.push('|---|---|');
-         for (const tool of serverTools) {
-            lines.push(`| \`${tool.function.name}\` | ${tool.function.description ?? '—'} |`);
-         }
-         lines.push('');
-         lines.push('</details>');
-      }
-      lines.push('');
-   }
-
-   res.type('text').send(lines.join('\n'));
-}));
-
 // Model switch endpoint - changes the active model
 agentsRouter.post("/model/:agent", asyncHandler(async (req: Request, res: Response) => {
    if (!res.locals.session) {

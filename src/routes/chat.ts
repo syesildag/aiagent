@@ -128,24 +128,53 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
              const cacheValid = manager.isToolsCacheValid();
              const cachedCount = manager.getCachedToolsCount();
              const toolsByServer = manager.getToolsByServer();
-             const lines: string[] = [
-               '## MCP Tools Cache',
-               `- **Cache valid:** ${cacheValid}`,
-               `- **Total cached tools:** ${cachedCount}`,
-               '',
-             ];
-             for (const [serverName, info] of Object.entries(serverStatus)) {
+             const serverEntries = Object.entries(serverStatus);
+             const runningCount = serverEntries.filter(([, s]) => s.running).length;
+
+             const lines: string[] = [];
+             lines.push('# 🔌 MCP Status');
+             lines.push('');
+             lines.push('## Cache');
+             lines.push('');
+             lines.push('| Property | Value |');
+             lines.push('|---|---|');
+             lines.push(`| Status | ${cacheValid ? '✅ Valid' : '⚠️ Stale'} |`);
+             lines.push(`| Total tools | ${cachedCount} |`);
+             lines.push(`| Servers | ${runningCount} running / ${serverEntries.length} total |`);
+             lines.push('');
+             lines.push('---');
+             lines.push('');
+             lines.push('## Servers');
+             lines.push('');
+
+             for (const [serverName, info] of serverEntries) {
                const serverTools = toolsByServer[serverName] ?? [];
-               lines.push(`### ${serverName} (${info.running ? 'running' : 'stopped'})`);
-               lines.push(`- Tools: ${info.tools.length} | Resources: ${info.resources.length} | Prompts: ${info.prompts.length}`);
+               const statusIcon = info.running ? '🟢' : '🔴';
+               const statusLabel = info.running ? 'running' : 'stopped';
+
+               lines.push(`### ${statusIcon} \`${serverName}\` — ${statusLabel}`);
+               lines.push('');
+               lines.push('| | Count |');
+               lines.push('|---|---|');
+               lines.push(`| 🛠 Tools | ${info.tools.length} |`);
+               lines.push(`| 📦 Resources | ${info.resources.length} |`);
+               lines.push(`| 💬 Prompts | ${info.prompts.length} |`);
+
                if (serverTools.length > 0) {
-                 lines.push('', '**Cached tools:**');
+                 lines.push('');
+                 lines.push('<details><summary>📋 Cached tools</summary>');
+                 lines.push('');
+                 lines.push('| Tool | Description |');
+                 lines.push('|---|---|');
                  for (const tool of serverTools) {
-                   lines.push(`- \`${tool.function.name}\` — ${tool.function.description}`);
+                   lines.push(`| \`${tool.function.name}\` | ${tool.function.description ?? '—'} |`);
                  }
+                 lines.push('');
+                 lines.push('</details>');
                }
                lines.push('');
              }
+
              text = lines.join('\n');
            }
            res.write(JSON.stringify({ t: 'text', v: text }) + '\n');
