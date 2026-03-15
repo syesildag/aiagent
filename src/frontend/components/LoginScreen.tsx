@@ -24,7 +24,7 @@ export const LoginScreen: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { login, agentName, darkMode, toggleDarkMode } = useAuth();
+  const { login, agentName, loginTitle, darkMode, toggleDarkMode } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,29 +102,45 @@ export const LoginScreen: React.FC = () => {
           <Box sx={{ p: { xs: 3, sm: 4 } }}>
             {/* Identity mark */}
             <Box sx={{ mb: { xs: 2.5, sm: 4 } }}>
-              <Typography
-                variant="h5"
-                sx={{
-                  fontWeight: 300,
-                  letterSpacing: '-0.03em',
-                  color: 'text.primary',
-                  lineHeight: 1.2,
-                  mb: 0.5,
-                }}
-              >
-                AI Agent
-              </Typography>
-              <Typography
-                sx={{
-                  fontSize: '1.5rem',
-                  fontWeight: 700,
-                  letterSpacing: '-0.03em',
-                  color: 'primary.main',
-                  lineHeight: 1.1,
-                }}
-              >
-                {agentName}
-              </Typography>
+              {loginTitle ? (
+                <Typography
+                  sx={{
+                    fontSize: '1.5rem',
+                    fontWeight: 700,
+                    letterSpacing: '-0.03em',
+                    color: 'primary.main',
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {loginTitle}
+                </Typography>
+              ) : (
+                <>
+                  <Typography
+                    variant="h5"
+                    sx={{
+                      fontWeight: 300,
+                      letterSpacing: '-0.03em',
+                      color: 'text.primary',
+                      lineHeight: 1.2,
+                      mb: 0.5,
+                    }}
+                  >
+                    AI Agent
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: '1.5rem',
+                      fontWeight: 700,
+                      letterSpacing: '-0.03em',
+                      color: 'primary.main',
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    {agentName}
+                  </Typography>
+                </>
+              )}
               <Typography
                 variant="body2"
                 color="text.secondary"

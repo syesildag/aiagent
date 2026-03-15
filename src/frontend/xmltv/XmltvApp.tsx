@@ -31,6 +31,7 @@ const XmltvApp: React.FC = () => {
       <CssBaseline />
       <AuthProvider
         agentName="xmltv"
+        loginTitle="📺 TV Guide"
         darkMode={darkMode}
         toggleDarkMode={() => setDarkMode(d => !d)}
       >

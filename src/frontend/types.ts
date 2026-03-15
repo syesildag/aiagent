@@ -67,6 +67,7 @@ export interface AuthContextValue {
   session: string | null;
   username: string | null;
   agentName: string;
+  loginTitle?: string;
   darkMode: boolean;
   toggleDarkMode: () => void;
   login: (username: string, password: string) => Promise<void>;

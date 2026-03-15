@@ -4,6 +4,7 @@ import { AuthContext } from '../context/AuthContext';
 interface AuthProviderProps {
   children: React.ReactNode;
   agentName: string;
+  loginTitle?: string;
   darkMode: boolean;
   toggleDarkMode: () => void;
 }
@@ -11,6 +12,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({
   children,
   agentName,
+  loginTitle,
   darkMode,
   toggleDarkMode,
 }) => {
@@ -96,6 +98,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
         session,
         username,
         agentName,
+        loginTitle,
         darkMode,
         toggleDarkMode,
         login,
