@@ -6,6 +6,7 @@ import {
   Box,
   Chip,
   CircularProgress,
+  GlobalStyles,
   IconButton,
   InputAdornment,
   TextField,
@@ -16,7 +17,10 @@ import {
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon,
   Logout as LogoutIcon,
+  MyLocation as NowIcon,
   Refresh as RefreshIcon,
   Search as SearchIcon,
 } from '@mui/icons-material';
@@ -24,21 +28,56 @@ import { useAuth } from '../context/AuthContext';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const PIXELS_PER_MIN = 4;          // horizontal zoom: px per minute
-const CHANNEL_COL_WIDTH = 150;     // px – left channel panel
-const ROW_HEIGHT = 56;             // px – each channel row
-const HEADER_HEIGHT = 36;          // px – time-slot header
-const SLOT_MINUTES = 30;           // granularity of time-slot labels
+const PIXELS_PER_MIN = 4;
+const CHANNEL_COL_WIDTH = 160;
+const ROW_HEIGHT = 62;
+const HEADER_HEIGHT = 42;
+const SLOT_MINUTES = 30;
 
 // ─── Rating config ────────────────────────────────────────────────────────────
 
 const RATING_CONFIG: Record<string, { color: string; label: string }> = {
-  '-18': { color: '#d32f2f', label: '18' },
-  '-16': { color: '#f57c00', label: '16' },
-  '-12': { color: '#f9a825', label: '12' },
-  '-10': { color: '#1565c0', label: '10' },
-  'Tout public': { color: '#388e3c', label: 'TP' },
+  '-18': { color: '#ef4444', label: '18' },
+  '-16': { color: '#f97316', label: '16' },
+  '-12': { color: '#eab308', label: '12' },
+  '-10': { color: '#3b82f6', label: '10' },
+  'Tout public': { color: '#22c55e', label: 'TP' },
 };
+
+// ─── Category accent colors ───────────────────────────────────────────────────
+
+const CATEGORY_ACCENT: [string, string][] = [
+  ['sport',         '#38bdf8'],
+  ['football',      '#38bdf8'],
+  ['film',          '#c084fc'],
+  ['téléfilm',      '#c084fc'],
+  ['cinéma',        '#c084fc'],
+  ['série',         '#34d399'],
+  ['feuilleton',    '#34d399'],
+  ['documentaire',  '#fbbf24'],
+  ['magazine',      '#fb923c'],
+  ['jeu',           '#f472b6'],
+  ['divertissement','#e879f9'],
+  ['information',   '#60a5fa'],
+  ['journal',       '#60a5fa'],
+  ['actualité',     '#60a5fa'],
+  ['jeunesse',      '#86efac'],
+  ['musique',       '#f9a8d4'],
+  ['comédie',       '#fdba74'],
+  ['animation',     '#6ee7b7'],
+];
+
+function getCategoryAccent(categories: string[]): string {
+  for (const cat of categories) {
+    const lc = cat.toLowerCase();
+    for (const [key, color] of CATEGORY_ACCENT) {
+      if (lc.includes(key)) return color;
+    }
+  }
+  return 'rgba(255,255,255,0.15)';
+}
+
+// ─── RatingBadge ─────────────────────────────────────────────────────────────
 
 const RatingBadge: React.FC<{ rating: string }> = ({ rating }) => {
   const cfg = RATING_CONFIG[rating];
@@ -47,8 +86,12 @@ const RatingBadge: React.FC<{ rating: string }> = ({ rating }) => {
     <Box
       sx={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: 16, height: 16, borderRadius: '50%', bgcolor: cfg.color,
-        fontSize: '0.5rem', fontWeight: 700, color: '#fff', flexShrink: 0, lineHeight: 1,
+        width: 16, height: 16, borderRadius: '3px', flexShrink: 0,
+        bgcolor: cfg.color + '20',
+        border: `1px solid ${cfg.color}55`,
+        color: cfg.color,
+        fontSize: '0.48rem', fontWeight: 700, lineHeight: 1,
+        letterSpacing: '-0.01em',
       }}
     >
       {cfg.label}
@@ -191,7 +234,6 @@ interface ProgrammeBlockProps {
 }
 
 const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd }) => {
-  const theme = useTheme();
   const [hovered, setHovered] = useState(false);
 
   const visStart = prog.start < dayStart ? dayStart : prog.start;
@@ -202,12 +244,7 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
 
   const now = new Date();
   const isCurrent = prog.start <= now && now < prog.stop;
-
-  const bg = isCurrent
-    ? theme.palette.primary.main
-    : theme.palette.mode === 'dark' ? '#2a2a38' : '#e8e8f0';
-  const textColor = isCurrent ? '#fff' : theme.palette.text.primary;
-
+  const accent = getCategoryAccent(prog.categories);
   const formattedEpisode = prog.episodeNum ? formatEpisodeNum(prog.episodeNum) : '';
 
   const creditLines: string[] = [];
@@ -217,56 +254,75 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
   if (prog.credits.guests.length)     creditLines.push(`Guests: ${prog.credits.guests.slice(0, 2).join(', ')}`);
 
   const tooltipContent = (
-    <Box sx={{ maxWidth: 300, p: 0.5 }}>
+    <Box sx={{ maxWidth: 300, p: 0.25 }}>
       {prog.thumbnail && (
         <Box
           component="img"
           src={prog.thumbnail}
           alt={prog.title}
-          sx={{ width: '100%', borderRadius: 1, mb: 0.75, display: 'block', objectFit: 'cover', maxHeight: 140 }}
+          sx={{ width: '100%', borderRadius: '6px', mb: 1, display: 'block', objectFit: 'cover', maxHeight: 140 }}
         />
       )}
-      <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.25 }}>{prog.title}</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 0.25 }}>
+        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', lineHeight: 1.3, flex: 1 }}>
+          {prog.title}
+        </Typography>
+        {prog.rating && <RatingBadge rating={prog.rating} />}
+      </Box>
       {prog.subTitle && (
-        <Typography variant="caption" sx={{ display: 'block', opacity: 0.85, mb: 0.25 }}>
+        <Typography variant="caption" sx={{ display: 'block', opacity: 0.7, mb: 0.25, fontStyle: 'italic' }}>
           {prog.subTitle}
         </Typography>
       )}
-      <Typography variant="caption" sx={{ display: 'block', opacity: 0.7, mb: 0.25 }}>
+      <Typography
+        variant="caption"
+        sx={{ display: 'block', opacity: 0.55, fontFamily: '"Courier New", monospace', letterSpacing: '0.04em', mb: 0.5 }}
+      >
         {formatTime(prog.start)} – {formatTime(prog.stop)}
         {formattedEpisode ? ` · ${formattedEpisode}` : ''}
         {prog.date ? ` · ${prog.date}` : ''}
       </Typography>
       {prog.categories.length > 0 && (
-        <Typography variant="caption" sx={{ display: 'block', opacity: 0.6, mb: 0.25 }}>
-          {prog.categories.join(' / ')}
-        </Typography>
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
+          {prog.categories.slice(0, 3).map(cat => (
+            <Box
+              key={cat}
+              sx={{
+                fontSize: '0.58rem', px: 0.6, py: 0.1, borderRadius: '3px',
+                bgcolor: getCategoryAccent([cat]) + '22',
+                border: `1px solid ${getCategoryAccent([cat])}44`,
+                color: getCategoryAccent([cat]),
+                lineHeight: 1.6,
+              }}
+            >
+              {cat}
+            </Box>
+          ))}
+        </Box>
       )}
       {prog.desc && (
-        <Typography variant="caption" sx={{ display: 'block', mt: 0.5, lineHeight: 1.4, opacity: 0.9 }}>
+        <Typography
+          variant="caption"
+          sx={{ display: 'block', lineHeight: 1.5, opacity: 0.8, mb: creditLines.length ? 0.5 : 0 }}
+        >
           {prog.desc}
         </Typography>
       )}
       {creditLines.length > 0 && (
-        <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.75, fontStyle: 'italic' }}>
+        <Typography variant="caption" sx={{ display: 'block', opacity: 0.55, fontStyle: 'italic', lineHeight: 1.4 }}>
           {creditLines.join(' · ')}
         </Typography>
       )}
       {prog.starRating && (
-        <Typography variant="caption" sx={{ display: 'block', mt: 0.25, opacity: 0.7 }}>
+        <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.5, fontFamily: '"Courier New", monospace' }}>
           {prog.starRating}
         </Typography>
-      )}
-      {prog.rating && (
-        <Box sx={{ mt: 0.5 }}>
-          <RatingBadge rating={prog.rating} />
-        </Box>
       )}
     </Box>
   );
 
   return (
-    <Tooltip title={tooltipContent} arrow placement="top">
+    <Tooltip title={tooltipContent} arrow placement="top" enterDelay={600} enterNextDelay={300}>
       <Box
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
@@ -274,12 +330,22 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
           position: 'absolute',
           left: leftMin * PIXELS_PER_MIN,
           width: widthMin * PIXELS_PER_MIN - 2,
-          top: 2,
-          bottom: 2,
-          bgcolor: hovered
-            ? (isCurrent ? theme.palette.primary.dark : theme.palette.action.hover)
-            : bg,
-          borderRadius: 1,
+          top: 4,
+          bottom: 4,
+          bgcolor: isCurrent
+            ? 'rgba(255,107,107,0.1)'
+            : hovered
+              ? 'rgba(255,255,255,0.055)'
+              : 'rgba(255,255,255,0.025)',
+          borderRadius: '4px',
+          border: `1px solid ${
+            isCurrent
+              ? 'rgba(255,107,107,0.35)'
+              : hovered
+                ? 'rgba(255,255,255,0.12)'
+                : 'rgba(255,255,255,0.06)'
+          }`,
+          borderLeft: `2px solid ${isCurrent ? '#ff6b6b' : accent}`,
           px: 0.75,
           display: 'flex',
           flexDirection: 'column',
@@ -287,16 +353,21 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
           gap: '1px',
           overflow: 'hidden',
           cursor: 'default',
-          border: `1px solid ${theme.palette.divider}`,
-          transition: 'background-color 0.15s',
+          transition: 'background-color 0.12s, border-color 0.12s',
         }}
       >
-        {/* Row 1: title + rating badge */}
+        {/* Row 1: title + rating */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflow: 'hidden' }}>
           <Typography
             variant="caption"
             noWrap
-            sx={{ color: textColor, fontWeight: isCurrent ? 600 : 400, lineHeight: 1.3, flex: 1 }}
+            sx={{
+              fontWeight: isCurrent ? 600 : 500,
+              lineHeight: 1.3,
+              flex: 1,
+              color: isCurrent ? '#ffe4e4' : 'rgba(228,228,248,0.92)',
+              fontSize: '0.72rem',
+            }}
           >
             {prog.title}
           </Typography>
@@ -308,29 +379,43 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd 
           <Typography
             variant="caption"
             noWrap
-            sx={{ color: textColor, opacity: 0.65, fontSize: '0.62rem', lineHeight: 1.2 }}
+            sx={{
+              color: isCurrent ? 'rgba(255,228,228,0.6)' : 'rgba(200,200,230,0.5)',
+              fontSize: '0.62rem',
+              lineHeight: 1.2,
+              fontStyle: 'italic',
+            }}
           >
             {prog.subTitle}
           </Typography>
         )}
 
-        {/* Row 3: time + CC + episode */}
+        {/* Row 3: time + indicators */}
         {widthMin >= 45 && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
             <Typography
-              variant="caption"
               noWrap
-              sx={{ color: textColor, opacity: 0.7, fontSize: '0.62rem' }}
+              sx={{
+                color: isCurrent ? 'rgba(255,228,228,0.55)' : 'rgba(180,180,210,0.45)',
+                fontSize: '0.6rem',
+                fontFamily: '"Courier New", monospace',
+                letterSpacing: '0.03em',
+                lineHeight: 1,
+              }}
             >
               {formatTime(prog.start)}
             </Typography>
             {prog.hasSubtitles && (
-              <Typography sx={{ fontSize: '0.5rem', opacity: 0.6, color: textColor, lineHeight: 1 }}>
+              <Box sx={{
+                fontSize: '0.48rem', lineHeight: 1, px: 0.4, py: 0.1, borderRadius: '2px',
+                border: '1px solid rgba(255,255,255,0.15)',
+                color: 'rgba(255,255,255,0.3)',
+              }}>
                 CC
-              </Typography>
+              </Box>
             )}
             {widthMin >= 90 && formattedEpisode && (
-              <Typography sx={{ fontSize: '0.5rem', opacity: 0.6, color: textColor, lineHeight: 1 }}>
+              <Typography sx={{ fontSize: '0.6rem', color: 'rgba(180,180,210,0.4)', fontFamily: '"Courier New", monospace', lineHeight: 1 }}>
                 {formattedEpisode}
               </Typography>
             )}
@@ -349,7 +434,7 @@ interface XmltvViewerProps {
 
 const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   const theme = useTheme();
-  const { logout } = useAuth();
+  const { logout, darkMode, toggleDarkMode } = useAuth();
 
   const [channels, setChannels]     = useState<Channel[]>([]);
   const [programmes, setProgrammes] = useState<Programme[]>([]);
@@ -372,6 +457,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   useEffect(() => {
     localStorage.setItem('xmltv_pinned_channels', JSON.stringify([...pinnedChannelIds]));
   }, [pinnedChannelIds]);
+
   const [hoveredChannelId, setHoveredChannelId] = useState<string | null>(null);
 
   // Split-panel refs
@@ -418,6 +504,15 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
       rightPanelRef.current.scrollLeft = Math.max(0, target);
     }
   }, [loading]);
+
+  // ── Go-to-now ─────────────────────────────────────────────────────────────
+  const scrollToNow = useCallback(() => {
+    if (!rightPanelRef.current) return;
+    setSelectedDay(startOfDay(new Date()));
+    const minutesIn = (new Date().getTime() - startOfDay(new Date()).getTime()) / 60000;
+    const target = minutesIn * PIXELS_PER_MIN - rightPanelRef.current.clientWidth / 2;
+    rightPanelRef.current.scrollLeft = Math.max(0, target);
+  }, []);
 
   // ── Sync vertical scroll: right panel drives left panel ──────────────────
   const handleRightScroll = useCallback(() => {
@@ -470,287 +565,450 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   const nowOffsetPx = (now.getTime() - dayStart.getTime()) / 60000 * PIXELS_PER_MIN;
   const showNowLine = now >= dayStart && now < dayEnd;
 
-  const rowBg = (channelId: string) =>
-    hoveredChannelId === channelId
-      ? (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)')
-      : 'transparent';
+  const isDark = theme.palette.mode === 'dark';
+  const rowHoverBg = isDark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.025)';
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh', bgcolor: 'background.default' }}>
+    <>
+      {/* Global keyframes for the now-line glow */}
+      <GlobalStyles styles={`
+        @keyframes nowGlow {
+          0%, 100% { box-shadow: 0 0 4px 1px rgba(255,107,107,0.45); opacity: 0.9; }
+          50%       { box-shadow: 0 0 10px 3px rgba(255,107,107,0.75); opacity: 1; }
+        }
+        @keyframes nowGlowFaint {
+          0%, 100% { box-shadow: 0 0 3px 1px rgba(255,107,107,0.25); opacity: 0.55; }
+          50%       { box-shadow: 0 0 7px 2px rgba(255,107,107,0.45); opacity: 0.8; }
+        }
+      `} />
 
-      {/* ── Toolbar ── */}
-      <Box sx={{
-        display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1,
-        bgcolor: 'background.paper', borderBottom: `1px solid ${theme.palette.divider}`,
-        flexShrink: 0,
-      }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main', mr: 'auto' }}>
-          📺 TV Guide
-        </Typography>
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh', bgcolor: 'background.default' }}>
 
-        {/* Day navigation */}
-        <IconButton size="small" onClick={() => setSelectedDay(d => addDays(d, -1))}>
-          <ChevronLeftIcon />
-        </IconButton>
-        <Typography variant="body2" sx={{ minWidth: 130, textAlign: 'center', fontWeight: 500 }}>
-          {formatDayLabel(selectedDay)}
-        </Typography>
-        <IconButton size="small" onClick={() => setSelectedDay(d => addDays(d, 1))}>
-          <ChevronRightIcon />
-        </IconButton>
-
-        <Tooltip title="Refresh">
-          <span>
-            <IconButton size="small" onClick={loadData} disabled={loading}>
-              <RefreshIcon />
-            </IconButton>
-          </span>
-        </Tooltip>
-        <Tooltip title="Logout">
-          <IconButton size="small" onClick={logout}>
-            <LogoutIcon />
-          </IconButton>
-        </Tooltip>
-      </Box>
-
-      {/* ── Filter bar ── */}
-      <Box sx={{
-        display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.75,
-        px: 2, py: 0.75,
-        bgcolor: 'background.paper', borderBottom: `1px solid ${theme.palette.divider}`,
-        flexShrink: 0,
-      }}>
-        <Autocomplete
-          size="small"
-          options={filterOptions}
-          getOptionLabel={c => c.displayName}
-          inputValue={filterInput}
-          value={null}
-          onInputChange={(_, v, reason) => { if (reason !== 'reset') setFilterInput(v); }}
-          onChange={(_, channel) => {
-            if (channel) {
-              setPinnedChannelIds(prev => new Set([...prev, channel.id]));
-              setFilterInput('');
-            }
-          }}
-          filterOptions={x => x}  // filtering done in filterOptions memo
-          noOptionsText="No channels found"
-          sx={{ width: 210 }}
-          renderInput={params => (
-            <TextField
-              {...params}
-              placeholder="Filter channels…"
-              size="small"
-              slotProps={{
-                input: {
-                  ...params.InputProps,
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon sx={{ fontSize: 15, color: 'text.disabled' }} />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-          )}
-          renderOption={(props, channel) => (
-            <li {...props} key={channel.id}>
-              {channel.icon && (
-                <Box component="img" src={channel.icon} alt=""
-                  sx={{ width: 20, height: 20, mr: 1, objectFit: 'contain', flexShrink: 0 }} />
-              )}
-              <Typography variant="body2">{channel.displayName}</Typography>
-            </li>
-          )}
-        />
-
-        {[...pinnedChannelIds].map(id => {
-          const ch = channels.find(c => c.id === id);
-          if (!ch) return null;
-          return (
-            <Chip
-              key={id}
-              label={ch.displayName}
-              size="small"
-              avatar={ch.icon
-                ? <Avatar src={ch.icon} sx={{ width: '18px !important', height: '18px !important' }} />
-                : undefined}
-              onDelete={() => setPinnedChannelIds(prev => { const n = new Set(prev); n.delete(id); return n; })}
-              sx={{
-                bgcolor: 'primary.main', color: '#fff',
-                '& .MuiChip-deleteIcon': { color: 'rgba(255,255,255,0.7)' },
-              }}
-            />
-          );
-        })}
-
-        {pinnedChannelIds.size > 0 && (
-          <Chip
-            label="Clear all"
-            size="small"
-            variant="outlined"
-            onClick={() => setPinnedChannelIds(new Set())}
-            sx={{ opacity: 0.7 }}
-          />
-        )}
-      </Box>
-
-      {/* ── Content ── */}
-      {loading && (
-        <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <CircularProgress color="primary" />
-        </Box>
-      )}
-
-      {error && !loading && (
-        <Box sx={{ p: 3 }}>
-          <Alert severity="error" action={
-            <IconButton size="small" onClick={loadData}><RefreshIcon fontSize="small" /></IconButton>
-          }>{error}</Alert>
-        </Box>
-      )}
-
-      {!loading && !error && (
-        <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-
-          {/* ── Left panel: channel names (never scrolls horizontally) ── */}
-          <Box
-            ref={leftPanelRef}
-            sx={{
-              width: CHANNEL_COL_WIDTH,
-              minWidth: CHANNEL_COL_WIDTH,
-              flexShrink: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              overflowY: 'hidden',
-              overflowX: 'hidden',
-              borderRight: `1px solid ${theme.palette.divider}`,
-              bgcolor: 'background.paper',
-              zIndex: 2,
-            }}
-          >
-            {/* Corner spacer matching header height */}
-            <Box sx={{
-              height: HEADER_HEIGHT,
-              minHeight: HEADER_HEIGHT,
-              flexShrink: 0,
-              borderBottom: `1px solid ${theme.palette.divider}`,
-            }} />
-
-            {displayChannels.map(channel => (
-              <Box
-                key={channel.id}
-                onMouseEnter={() => setHoveredChannelId(channel.id)}
-                onMouseLeave={() => setHoveredChannelId(null)}
-                sx={{
-                  height: ROW_HEIGHT,
-                  minHeight: ROW_HEIGHT,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  px: 1.5,
-                  borderBottom: `1px solid ${theme.palette.divider}`,
-                  bgcolor: rowBg(channel.id),
-                  overflow: 'hidden',
-                  transition: 'background-color 0.1s',
-                }}
-              >
-                {channel.icon && (
-                  <Box
-                    component="img"
-                    src={channel.icon}
-                    alt=""
-                    sx={{ width: 24, height: 24, objectFit: 'contain', flexShrink: 0 }}
-                  />
-                )}
-                <Typography variant="caption" noWrap sx={{ fontWeight: 500 }}>
-                  {channel.displayName}
-                </Typography>
-              </Box>
-            ))}
+        {/* ── Toolbar ── */}
+        <Box sx={{
+          display: 'flex', alignItems: 'center', gap: 0.5, px: 2, py: 0.75,
+          bgcolor: isDark ? '#0e0e1c' : 'background.paper',
+          borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : theme.palette.divider}`,
+          flexShrink: 0,
+          minHeight: 48,
+        }}>
+          {/* Title */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 'auto' }}>
+            <Typography sx={{
+              fontWeight: 800,
+              fontSize: '0.9rem',
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'primary.main',
+              lineHeight: 1,
+            }}>
+              TV Guide
+            </Typography>
           </Box>
 
-          {/* ── Right panel: scrollable time grid ── */}
-          <Box
-            ref={rightPanelRef}
-            onScroll={handleRightScroll}
-            sx={{ flex: 1, overflowX: 'auto', overflowY: 'auto' }}
-          >
-            {/* Sticky time-slot header */}
-            <Box sx={{
-              position: 'sticky',
-              top: 0,
-              zIndex: 3,
-              bgcolor: 'background.paper',
-              borderBottom: `1px solid ${theme.palette.divider}`,
-              height: HEADER_HEIGHT,
-              width: gridWidth,
+          {/* Day navigation */}
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 0.25,
+            bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+            border: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}`,
+            borderRadius: '8px',
+            px: 0.25,
+          }}>
+            <IconButton size="small" onClick={() => setSelectedDay(d => addDays(d, -1))}
+              sx={{ color: 'text.secondary', '&:hover': { color: 'text.primary' } }}>
+              <ChevronLeftIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+            <Typography sx={{
+              minWidth: 120, textAlign: 'center', fontWeight: 600,
+              fontSize: '0.78rem', letterSpacing: '0.02em',
+              color: 'text.primary',
             }}>
-              <Box sx={{ position: 'relative', height: '100%' }}>
-                {timeSlots.map(slot => (
-                  <Typography
-                    key={slot.getTime()}
-                    variant="caption"
-                    sx={{
-                      position: 'absolute',
-                      left: (slot.getTime() - dayStart.getTime()) / 60000 * PIXELS_PER_MIN,
-                      top: '50%', transform: 'translateY(-50%)',
-                      px: 0.5, whiteSpace: 'nowrap',
-                      color: 'text.secondary', fontSize: '0.7rem',
-                    }}
-                  >
-                    {formatTime(slot)}
-                  </Typography>
-                ))}
-                {showNowLine && (
-                  <Box sx={{
-                    position: 'absolute',
-                    left: nowOffsetPx,
-                    top: 0, bottom: 0,
-                    width: 2, bgcolor: 'primary.main', opacity: 0.8,
-                  }} />
+              {formatDayLabel(selectedDay)}
+            </Typography>
+            <IconButton size="small" onClick={() => setSelectedDay(d => addDays(d, 1))}
+              sx={{ color: 'text.secondary', '&:hover': { color: 'text.primary' } }}>
+              <ChevronRightIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Box>
+
+          {/* Action buttons */}
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 0.25,
+            bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+            border: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}`,
+            borderRadius: '8px',
+            px: 0.25, ml: 0.5,
+          }}>
+            <Tooltip title="Go to now">
+              <IconButton size="small" onClick={scrollToNow}
+                sx={{ color: 'primary.main', '&:hover': { bgcolor: 'rgba(255,107,107,0.1)' } }}>
+                <NowIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+            <Box sx={{ width: 1, height: 16, bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }} />
+            <Tooltip title="Refresh">
+              <span>
+                <IconButton size="small" onClick={loadData} disabled={loading}
+                  sx={{ color: 'text.secondary', '&:hover': { color: 'text.primary' } }}>
+                  <RefreshIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Box sx={{ width: 1, height: 16, bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }} />
+            <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+              <IconButton size="small" onClick={toggleDarkMode}
+                sx={{ color: 'text.secondary', '&:hover': { color: 'text.primary' } }}>
+                {darkMode ? <LightModeIcon sx={{ fontSize: 16 }} /> : <DarkModeIcon sx={{ fontSize: 16 }} />}
+              </IconButton>
+            </Tooltip>
+            <Box sx={{ width: 1, height: 16, bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }} />
+            <Tooltip title="Logout">
+              <IconButton size="small" onClick={logout}
+                sx={{ color: 'text.secondary', '&:hover': { color: '#ef4444' } }}>
+                <LogoutIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Box>
+
+        {/* ── Filter bar ── */}
+        <Box sx={{
+          display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.75,
+          px: 2, py: 0.75,
+          bgcolor: isDark ? '#0b0b18' : 'rgba(0,0,0,0.02)',
+          borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : theme.palette.divider}`,
+          flexShrink: 0,
+        }}>
+          <Autocomplete
+            size="small"
+            options={filterOptions}
+            getOptionLabel={c => c.displayName}
+            inputValue={filterInput}
+            value={null}
+            onInputChange={(_, v, reason) => { if (reason !== 'reset') setFilterInput(v); }}
+            onChange={(_, channel) => {
+              if (channel) {
+                setPinnedChannelIds(prev => new Set([...prev, channel.id]));
+                setFilterInput('');
+              }
+            }}
+            filterOptions={x => x}
+            noOptionsText="No channels found"
+            sx={{
+              width: 200,
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '8px',
+                bgcolor: isDark ? 'rgba(255,255,255,0.04)' : undefined,
+                '& fieldset': { borderColor: isDark ? 'rgba(255,255,255,0.08)' : undefined },
+                '&:hover fieldset': { borderColor: isDark ? 'rgba(255,255,255,0.15)' : undefined },
+                '&.Mui-focused fieldset': { borderColor: 'primary.main' },
+              },
+            }}
+            renderInput={params => (
+              <TextField
+                {...params}
+                placeholder="Filter channels…"
+                size="small"
+                slotProps={{
+                  input: {
+                    ...params.InputProps,
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+                      </InputAdornment>
+                    ),
+                    sx: { fontSize: '0.78rem' },
+                  },
+                }}
+              />
+            )}
+            renderOption={(props, channel) => (
+              <li {...props} key={channel.id} style={{ padding: '6px 10px' }}>
+                {channel.icon && (
+                  <Box component="img" src={channel.icon} alt=""
+                    sx={{ width: 20, height: 20, mr: 1, objectFit: 'contain', flexShrink: 0 }} />
                 )}
+                <Typography sx={{ fontSize: '0.8rem' }}>{channel.displayName}</Typography>
+              </li>
+            )}
+          />
+
+          {[...pinnedChannelIds].map(id => {
+            const ch = channels.find(c => c.id === id);
+            if (!ch) return null;
+            return (
+              <Chip
+                key={id}
+                label={ch.displayName}
+                size="small"
+                avatar={ch.icon
+                  ? <Avatar src={ch.icon} sx={{ width: '16px !important', height: '16px !important' }} />
+                  : undefined}
+                onDelete={() => setPinnedChannelIds(prev => { const n = new Set(prev); n.delete(id); return n; })}
+                sx={{
+                  height: 24,
+                  bgcolor: 'rgba(255,107,107,0.15)',
+                  border: '1px solid rgba(255,107,107,0.3)',
+                  color: '#ff9a9a',
+                  fontSize: '0.72rem',
+                  borderRadius: '6px',
+                  '& .MuiChip-deleteIcon': { color: 'rgba(255,150,150,0.6)', fontSize: 14, '&:hover': { color: 'rgba(255,150,150,0.9)' } },
+                }}
+              />
+            );
+          })}
+
+          {pinnedChannelIds.size > 0 && (
+            <Chip
+              label="Clear all"
+              size="small"
+              variant="outlined"
+              onClick={() => setPinnedChannelIds(new Set())}
+              sx={{
+                height: 24, fontSize: '0.7rem', borderRadius: '6px',
+                borderColor: isDark ? 'rgba(255,255,255,0.12)' : undefined,
+                color: 'text.disabled',
+                '&:hover': { borderColor: 'rgba(255,255,255,0.25)', color: 'text.secondary' },
+              }}
+            />
+          )}
+        </Box>
+
+        {/* ── Loading ── */}
+        {loading && (
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+            <Box sx={{ position: 'relative', width: 44, height: 44 }}>
+              <CircularProgress size={44} thickness={1.5} sx={{ color: 'primary.main', opacity: 0.7 }} />
+              <Box sx={{
+                position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '1.1rem',
+              }}>
+                📺
               </Box>
             </Box>
+            <Typography sx={{
+              color: 'text.disabled', fontSize: '0.65rem', letterSpacing: '0.18em',
+              textTransform: 'uppercase', fontFamily: '"Courier New", monospace',
+            }}>
+              Loading guide
+            </Typography>
+          </Box>
+        )}
 
-            {/* Programme rows */}
-            {displayChannels.map(channel => {
-              const progs = programmesByChannel.get(channel.id) ?? [];
-              return (
+        {/* ── Error ── */}
+        {error && !loading && (
+          <Box sx={{ p: 3 }}>
+            <Alert severity="error" action={
+              <IconButton size="small" onClick={loadData}><RefreshIcon fontSize="small" /></IconButton>
+            }>{error}</Alert>
+          </Box>
+        )}
+
+        {/* ── Grid ── */}
+        {!loading && !error && (
+          <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
+            {/* ── Left panel: channel names ── */}
+            <Box
+              ref={leftPanelRef}
+              sx={{
+                width: CHANNEL_COL_WIDTH, minWidth: CHANNEL_COL_WIDTH, flexShrink: 0,
+                display: 'flex', flexDirection: 'column',
+                overflowY: 'hidden', overflowX: 'hidden',
+                borderRight: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : theme.palette.divider}`,
+                bgcolor: isDark ? '#0e0e1c' : 'background.paper',
+                zIndex: 2,
+              }}
+            >
+              {/* Corner spacer */}
+              <Box sx={{
+                height: HEADER_HEIGHT, minHeight: HEADER_HEIGHT, flexShrink: 0,
+                borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : theme.palette.divider}`,
+              }} />
+
+              {displayChannels.map(channel => (
                 <Box
                   key={channel.id}
                   onMouseEnter={() => setHoveredChannelId(channel.id)}
                   onMouseLeave={() => setHoveredChannelId(null)}
                   sx={{
-                    position: 'relative',
-                    width: gridWidth,
-                    height: ROW_HEIGHT,
-                    borderBottom: `1px solid ${theme.palette.divider}`,
-                    bgcolor: rowBg(channel.id),
+                    height: ROW_HEIGHT, minHeight: ROW_HEIGHT,
+                    display: 'flex', alignItems: 'center', gap: 1.25, px: 1.5,
+                    borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : theme.palette.divider}`,
+                    bgcolor: hoveredChannelId === channel.id ? rowHoverBg : 'transparent',
+                    overflow: 'hidden',
                     transition: 'background-color 0.1s',
                   }}
                 >
-                  {progs.map((p, i) => (
-                    <ProgrammeBlock key={i} prog={p} dayStart={dayStart} dayEnd={dayEnd} />
-                  ))}
+                  {channel.icon ? (
+                    <Box
+                      component="img"
+                      src={channel.icon}
+                      alt=""
+                      sx={{ width: 28, height: 28, objectFit: 'contain', flexShrink: 0, opacity: 0.9 }}
+                    />
+                  ) : (
+                    <Box sx={{
+                      width: 28, height: 28, flexShrink: 0, borderRadius: '6px',
+                      bgcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Typography sx={{ fontSize: '0.7rem', opacity: 0.3 }}>📺</Typography>
+                    </Box>
+                  )}
+                  <Typography
+                    noWrap
+                    sx={{ fontWeight: 500, fontSize: '0.75rem', color: isDark ? 'rgba(220,220,245,0.8)' : 'text.primary' }}
+                  >
+                    {channel.displayName}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+
+            {/* ── Right panel: scrollable time grid ── */}
+            <Box
+              ref={rightPanelRef}
+              onScroll={handleRightScroll}
+              sx={{
+                flex: 1, overflowX: 'auto', overflowY: 'auto',
+                // Subtle vertical grid lines aligned with time slots
+                backgroundImage: isDark
+                  ? `repeating-linear-gradient(90deg, transparent, transparent ${SLOT_MINUTES * PIXELS_PER_MIN - 1}px, rgba(255,255,255,0.025) ${SLOT_MINUTES * PIXELS_PER_MIN - 1}px, rgba(255,255,255,0.025) ${SLOT_MINUTES * PIXELS_PER_MIN}px)`
+                  : `repeating-linear-gradient(90deg, transparent, transparent ${SLOT_MINUTES * PIXELS_PER_MIN - 1}px, rgba(0,0,0,0.04) ${SLOT_MINUTES * PIXELS_PER_MIN - 1}px, rgba(0,0,0,0.04) ${SLOT_MINUTES * PIXELS_PER_MIN}px)`,
+                backgroundAttachment: 'local',
+              }}
+            >
+              {/* Sticky time-slot header */}
+              <Box sx={{
+                position: 'sticky', top: 0, zIndex: 3,
+                bgcolor: isDark ? '#0e0e1c' : 'background.paper',
+                borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : theme.palette.divider}`,
+                height: HEADER_HEIGHT, width: gridWidth,
+              }}>
+                <Box sx={{ position: 'relative', height: '100%' }}>
+                  {timeSlots.map((slot, i) => {
+                    const isHour = slot.getMinutes() === 0;
+                    return (
+                      <Box
+                        key={slot.getTime()}
+                        sx={{
+                          position: 'absolute',
+                          left: (slot.getTime() - dayStart.getTime()) / 60000 * PIXELS_PER_MIN,
+                          top: 0, bottom: 0,
+                          display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+                          pb: 0.75,
+                        }}
+                      >
+                        <Typography
+                          sx={{
+                            fontSize: isHour ? '0.68rem' : '0.6rem',
+                            fontWeight: isHour ? 600 : 400,
+                            fontFamily: '"Courier New", monospace',
+                            color: isHour
+                              ? (isDark ? 'rgba(220,220,248,0.7)' : 'text.secondary')
+                              : (isDark ? 'rgba(160,160,200,0.4)' : 'rgba(0,0,0,0.3)'),
+                            letterSpacing: '0.04em',
+                            pl: 0.5,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {i === 0 ? '' : formatTime(slot)}
+                        </Typography>
+                        {/* Tick mark */}
+                        <Box sx={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: 1,
+                          height: isHour ? '45%' : '25%',
+                          bgcolor: isHour
+                            ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)')
+                            : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'),
+                        }} />
+                      </Box>
+                    );
+                  })}
+
+                  {/* Now-line in header with time bubble */}
                   {showNowLine && (
                     <Box sx={{
                       position: 'absolute',
                       left: nowOffsetPx,
                       top: 0, bottom: 0,
-                      width: 2, bgcolor: 'primary.main', opacity: 0.4, zIndex: 1,
-                      pointerEvents: 'none',
-                    }} />
+                      zIndex: 4, pointerEvents: 'none',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    }}>
+                      <Box sx={{
+                        transform: 'translateX(-50%)',
+                        bgcolor: 'primary.main',
+                        color: '#fff',
+                        fontSize: '0.58rem',
+                        fontWeight: 700,
+                        fontFamily: '"Courier New", monospace',
+                        px: 0.75, py: 0.2,
+                        borderRadius: '0 0 4px 4px',
+                        whiteSpace: 'nowrap',
+                        letterSpacing: '0.05em',
+                        boxShadow: '0 2px 8px rgba(255,107,107,0.5)',
+                        flexShrink: 0,
+                      }}>
+                        {formatTime(now)}
+                      </Box>
+                      <Box sx={{
+                        flex: 1, width: 2,
+                        transform: 'translateX(-50%)',
+                        bgcolor: 'primary.main',
+                        animation: 'nowGlow 2.5s ease-in-out infinite',
+                      }} />
+                    </Box>
                   )}
                 </Box>
-              );
-            })}
-          </Box>
+              </Box>
 
-        </Box>
-      )}
-    </Box>
+              {/* Programme rows */}
+              {displayChannels.map(channel => {
+                const progs = programmesByChannel.get(channel.id) ?? [];
+                return (
+                  <Box
+                    key={channel.id}
+                    onMouseEnter={() => setHoveredChannelId(channel.id)}
+                    onMouseLeave={() => setHoveredChannelId(null)}
+                    sx={{
+                      position: 'relative',
+                      width: gridWidth,
+                      height: ROW_HEIGHT,
+                      borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : theme.palette.divider}`,
+                      bgcolor: hoveredChannelId === channel.id ? rowHoverBg : 'transparent',
+                      transition: 'background-color 0.1s',
+                    }}
+                  >
+                    {progs.map((p, i) => (
+                      <ProgrammeBlock key={i} prog={p} dayStart={dayStart} dayEnd={dayEnd} />
+                    ))}
+                    {showNowLine && (
+                      <Box sx={{
+                        position: 'absolute',
+                        left: nowOffsetPx,
+                        top: 0, bottom: 0,
+                        width: 2,
+                        transform: 'translateX(-50%)',
+                        bgcolor: 'primary.main',
+                        animation: 'nowGlowFaint 2.5s ease-in-out infinite',
+                        zIndex: 1,
+                        pointerEvents: 'none',
+                      }} />
+                    )}
+                  </Box>
+                );
+              })}
+            </Box>
+
+          </Box>
+        )}
+      </Box>
+    </>
   );
 };
 
