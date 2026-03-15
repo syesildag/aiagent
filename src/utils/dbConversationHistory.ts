@@ -202,21 +202,13 @@ export class DbConversationHistory implements IConversationHistory {
   }
 
   async clearHistory(): Promise<void> {
-    try {
-      const count = await this.getConversationCount();
-
-      // Delete all messages first (due to foreign key constraints)
-      await queryDatabase('DELETE FROM ai_agent_conversation_messages', []);
-
-      // Then delete all conversations
-      await queryDatabase('DELETE FROM ai_agent_conversations', []);
-
-      this._currentConversationId = null;
-
-      Logger.info(`Cleared conversation history: ${count} conversations removed`);
-    } catch (error) {
-      throw new DatabaseError(`Failed to clear history: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    // Only reset the in-memory pointer — DB records are the persistent source of
+    // truth and are managed by the sliding-window mechanism.  Deleting all rows
+    // here would invalidate any conversation ID that chat.ts created in the same
+    // request before calling clearConversationHistory(), causing FK violations
+    // when the assistant message is later persisted.
+    this._currentConversationId = null;
+    Logger.info('Conversation history state reset (DB records preserved)');
   }
 
   async clearCurrentMessages(): Promise<void> {
