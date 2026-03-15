@@ -206,6 +206,13 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   const [selectedDay, setSelectedDay] = useState<Date>(startOfDay(new Date()));
 
   const gridRef = useRef<HTMLDivElement>(null);
+  const [now, setNow] = useState(() => new Date());
+
+  // Tick every minute to keep the now-line current
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   // ── Fetch XMLTV data ──────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -272,7 +279,6 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   const totalDayMinutes = 24 * 60;
   const gridWidth = totalDayMinutes * PIXELS_PER_MIN;
 
-  const now = new Date();
   const nowOffsetPx = (now.getTime() - dayStart.getTime()) / 60000 * PIXELS_PER_MIN;
   const showNowLine = now >= dayStart && now < dayEnd;
 
