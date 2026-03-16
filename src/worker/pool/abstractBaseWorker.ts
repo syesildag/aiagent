@@ -11,12 +11,8 @@ export default abstract class AbstractBaseWorker<T, R> {
          this.parentPort.ref();
 
          this.parentPort.on('message', async (task: T) => {
-            try {
-               const result = await this.run(task);
-               this.parentPort!.postMessage(result);
-            } catch (err) {
-               throw err;
-            }
+            const result = await this.run(task);
+            this.parentPort!.postMessage(result);
          });
       }
    }

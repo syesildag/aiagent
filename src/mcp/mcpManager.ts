@@ -588,7 +588,7 @@ export class MCPServerManager {
   async refreshToolsCache(): Promise<Tool[]> {
     await this.stopAllServers();
     this.initialized = false;
-    this.ensureInitialized();
+    await this.ensureInitialized();
     return this.convertMCPToolsToLLMFormat(true);
   }
 
@@ -1561,9 +1561,7 @@ export class MCPServerManager {
       stream: false
     });
 
-    const summary = typeof summaryResponse === 'string'
-      ? summaryResponse
-      : (summaryResponse as any).text ?? JSON.stringify(summaryResponse);
+    const summary = summaryResponse.message.content as string;
 
     await this.conversationHistory.clearCurrentMessages();
 

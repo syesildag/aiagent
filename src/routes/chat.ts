@@ -311,7 +311,7 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
             res.write(JSON.stringify({ t: 'image', v: url }) + '\n');
          }
          finalContent = `[Generated image: ${effectivePrompt.slice(0, 60)}]`;
-         agent.addAssistantMessageToHistory(finalContent);
+         await agent.addAssistantMessageToHistory(finalContent);
          res.end();
       } else if (answer && typeof answer === 'object' && (answer as MixedContentResult).kind === 'mixed') {
          const mixedResult = answer as MixedContentResult;
@@ -320,11 +320,11 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
             res.write(JSON.stringify({ t: 'image', v: url }) + '\n');
          }
          finalContent = mixedResult.text || `[Generated image: ${effectivePrompt.slice(0, 60)}]`;
-         agent.addAssistantMessageToHistory(finalContent);
+         await agent.addAssistantMessageToHistory(finalContent);
          res.end();
       } else {
          finalContent = answer as string;
-         agent.addAssistantMessageToHistory(finalContent);
+         await agent.addAssistantMessageToHistory(finalContent);
          res.write(JSON.stringify({ t: 'text', v: finalContent }) + '\n');
          res.end();
       }
@@ -338,8 +338,8 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
                content: finalContent,
             }).save();
             // Update conversation updated_at via a raw update
-            await aiagentconversationsRepository.getById(activeConversationId).then(conv => {
-               if (conv) { conv.setUpdatedAt(new Date()); conv.save(); }
+            await aiagentconversationsRepository.getById(activeConversationId).then(async conv => {
+               if (conv) { conv.setUpdatedAt(new Date()); await conv.save(); }
             });
          } catch (err) {
             Logger.error(`Failed to persist assistant message: ${err}`);

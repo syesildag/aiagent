@@ -9,7 +9,7 @@ import Logger from "./logger";
 export async function handleStreamingResponse(
    stream: ReadableStream<string>,
    res: Response,
-   consumer?: (content: string) => void
+   consumer?: (content: string) => void | Promise<void>
 ): Promise<string> {
    let capturedContent = '';
    
@@ -29,21 +29,13 @@ export async function handleStreamingResponse(
          }
       },
       flush(callback: Function) {
-         try {
-            Logger.debug(`Streaming response completed. Total length: ${capturedContent.length} chars`);
-            // Call consumer callback if provided
-            if (consumer) {
-               try {
-                  consumer(capturedContent);
-               } catch (consumerError) {
-                  Logger.error(`Error in consumer callback: ${consumerError}`);
-                  // Don't propagate consumer errors to the stream - continue flushing
-               }
-            }
+         Logger.debug(`Streaming response completed. Total length: ${capturedContent.length} chars`);
+         if (consumer) {
+            Promise.resolve(consumer(capturedContent))
+               .catch(consumerError => Logger.error(`Error in consumer callback: ${consumerError}`))
+               .then(() => callback());
+         } else {
             callback();
-         } catch (error) {
-            Logger.error(`Error in flush callback: ${error}`);
-            callback(error);
          }
       }
    });

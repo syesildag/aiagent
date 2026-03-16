@@ -59,6 +59,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isSpeaking = 
     navigator.clipboard.writeText(message.content).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      console.error('Failed to copy to clipboard');
     });
   };
 
