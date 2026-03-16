@@ -23,7 +23,7 @@ import { weatherIcon, groupByDay, getNoonSlot, dayStats, buildForecastTable, get
 const OPENWEATHER_API_KEY = process.env.OPENWEATHERMAP_API_KEY || config.OPENWEATHERMAP_API_KEY;
 const OPENWEATHER_BASE_URL = "https://api.openweathermap.org/data/2.5";
 const OPENWEATHER_GEO_URL = "https://api.openweathermap.org/geo/1.0";
-const OPENWEATHER_ONECALL_URL = "https://api.openweathermap.org/data/3.0";
+const OPENWEATHER_ONECALL_URL = "https://api.openweathermap.org/data/2.5";
 
 if (!OPENWEATHER_API_KEY) {
   Logger.error("OPENWEATHERMAP_API_KEY environment variable is required");
