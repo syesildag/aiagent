@@ -245,6 +245,16 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
    let activeConversationId = incomingConversationId ?? null;
    if (userLogin) {
       try {
+         // Validate that an incoming conversation ID still exists; if it was deleted
+         // (sliding window, server restart, migration reset) treat it as a new conversation
+         // to avoid FK violations when inserting messages.
+         if (activeConversationId) {
+            const existingConv = await aiagentconversationsRepository.getById(activeConversationId);
+            if (!existingConv) {
+               Logger.warn(`Conversation ${activeConversationId} not found in DB, starting a new one`);
+               activeConversationId = null;
+            }
+         }
          if (!activeConversationId) {
             const title = effectivePrompt.slice(0, 60);
             const conv = await new AiAgentConversations({
