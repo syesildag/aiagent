@@ -339,7 +339,7 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd,
       slotProps={{
         popper: {
           modifiers: [
-            { name: 'preventOverflow', enabled: true, options: { boundary: 'viewport', padding: 8 } },
+            { name: 'preventOverflow', enabled: true, options: { boundary: 'viewport', padding: 8, altAxis: true } },
             { name: 'flip', enabled: true, options: { fallbackPlacements: ['bottom', 'right', 'left'] } },
           ],
         },
