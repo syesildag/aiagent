@@ -15,9 +15,9 @@
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import Logger from "../../utils/logger.js";
 import { config } from "../../utils/config.js";
-import { weatherIcon, groupByDay, getNoonSlot, dayStats, buildForecastTable, getUserLocation } from "../../utils/weatherUtils.js";
+import Logger from "../../utils/logger.js";
+import { buildForecastTable, dayStats, getUserLocation, groupByDay } from "../../utils/weatherUtils.js";
 
 // OpenWeatherMap API configuration
 const OPENWEATHER_API_KEY = process.env.OPENWEATHERMAP_API_KEY || config.OPENWEATHERMAP_API_KEY;
