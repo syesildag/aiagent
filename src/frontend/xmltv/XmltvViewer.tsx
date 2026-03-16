@@ -238,9 +238,11 @@ interface ProgrammeBlockProps {
   dayStart: Date;
   dayEnd: Date;
   onMobileOpen: (prog: Programme) => void;
+  isSelected: boolean;
+  onSelect: () => void;
 }
 
-const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd, onMobileOpen }) => {
+const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd, onMobileOpen, isSelected, onSelect }) => {
   const [hovered, setHovered] = useState(false);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -334,6 +336,10 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd,
   return (
     <Tooltip
       title={isMobile ? '' : tooltipContent}
+      open={isSelected && !isMobile}
+      disableHoverListener
+      disableFocusListener
+      disableTouchListener
       arrow
       placement="top"
       slotProps={{
@@ -344,11 +350,17 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd,
           ],
         },
       }}
-      enterDelay={600}
-      enterNextDelay={300}
     >
       <Box
-        onClick={(e) => { if (isMobile) { e.stopPropagation(); onMobileOpen(prog); } }}
+        onClick={(e) => {
+          if (isMobile) {
+            e.stopPropagation();
+            onMobileOpen(prog);
+          } else {
+            e.stopPropagation();
+            onSelect();
+          }
+        }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         sx={{
@@ -377,7 +389,7 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd,
           justifyContent: 'center',
           gap: '1px',
           overflow: 'hidden',
-          cursor: 'default',
+          cursor: 'pointer',
           transition: 'background-color 0.12s, border-color 0.12s',
         }}
       >
@@ -492,6 +504,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
 
   const [hoveredChannelId, setHoveredChannelId] = useState<string | null>(null);
   const [mobileProg, setMobileProg] = useState<Programme | null>(null);
+  const [selectedProg, setSelectedProg] = useState<Programme | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(
     () => typeof window !== 'undefined' ? window.innerWidth >= 600 : true
   );
@@ -1041,7 +1054,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
             <Box
               ref={rightPanelRef}
               onScroll={handleRightScroll}
-              onClick={() => { if (mobileProg) setMobileProg(null); }}
+              onClick={() => { if (mobileProg) setMobileProg(null); setSelectedProg(null); }}
               sx={{
                 flex: 1, overflowX: 'auto', overflowY: 'auto',
                 // Subtle vertical grid lines aligned with time slots
@@ -1162,6 +1175,8 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
                         dayStart={dayStart}
                         dayEnd={dayEnd}
                         onMobileOpen={setMobileProg}
+                        isSelected={selectedProg === p}
+                        onSelect={() => setSelectedProg(prev => prev === p ? null : p)}
                       />
                     ))}
                     {showNowLine && (
