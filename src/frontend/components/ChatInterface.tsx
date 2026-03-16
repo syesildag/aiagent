@@ -536,12 +536,14 @@ export const ChatInterface: React.FC = () => {
       const res = await fetch(`/conversations/${convId}/messages?session=${encodeURIComponent(session)}`);
       if (!res.ok) return;
       const data = await res.json() as { messages: { id: number; role: string; content: string; timestamp: string }[] };
-      const loaded: Message[] = data.messages.map(m => ({
-        id: String(m.id),
-        role: m.role as Message['role'],
-        content: m.content,
-        timestamp: new Date(m.timestamp),
-      }));
+      const loaded: Message[] = data.messages
+        .filter(m => (m.role === 'user' || m.role === 'assistant') && m.content?.trim())
+        .map(m => ({
+          id: String(m.id),
+          role: m.role as Message['role'],
+          content: m.content,
+          timestamp: new Date(m.timestamp),
+        }));
       setMessages(loaded);
       setActiveConversationId(convId);
       localStorage.setItem(`conversationId_${agentName}`, String(convId));

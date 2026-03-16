@@ -64,11 +64,15 @@ conversationsRouter.get("/:id/messages", asyncHandler(async (req: Request, res: 
    }
    const messages = await aiagentconversationmessagesRepository.findByConversationId(convId);
    res.json({
-      messages: messages.map((m: AiAgentConversationMessages) => ({
-         id: m.getId(),
-         role: m.getRole(),
-         content: m.getContent(),
-         timestamp: m.getTimestamp(),
-      })),
+      messages: messages
+         .filter((m: AiAgentConversationMessages) =>
+            (m.getRole() === 'user' || m.getRole() === 'assistant') && m.getContent()
+         )
+         .map((m: AiAgentConversationMessages) => ({
+            id: m.getId(),
+            role: m.getRole(),
+            content: m.getContent(),
+            timestamp: m.getTimestamp(),
+         })),
    });
 }));
