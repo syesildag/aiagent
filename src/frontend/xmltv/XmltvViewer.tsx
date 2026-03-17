@@ -266,7 +266,7 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd,
   if (prog.credits.guests.length)     creditLines.push(`Guests: ${prog.credits.guests.slice(0, 2).join(', ')}`);
 
   const tooltipContent = (
-    <Box sx={{ maxWidth: 300, p: 0.25 }}>
+    <Box sx={{ maxWidth: 300, maxHeight: '60vh', overflowY: 'auto', p: 0.25 }}>
       {prog.thumbnail && (
         <Box
           component="img"
@@ -343,6 +343,7 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd,
       arrow
       placement="top"
       slotProps={{
+        tooltip: { style: { overflow: 'visible', padding: 0 } },
         popper: {
           modifiers: [
             { name: 'preventOverflow', enabled: true, options: { boundary: 'viewport', padding: 8, altAxis: true } },
