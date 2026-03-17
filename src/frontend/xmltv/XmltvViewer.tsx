@@ -29,7 +29,7 @@ import {
   Refresh as RefreshIcon,
   Search as SearchIcon,
 } from '@mui/icons-material';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../components/auth/AuthContext';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 

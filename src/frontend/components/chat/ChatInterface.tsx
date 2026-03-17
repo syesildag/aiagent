@@ -42,12 +42,12 @@ import {
     Typography
 } from '@mui/material';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { Message, ToolApproval, isImageGenerationModel, isImageCapableModel } from '../types';
+import { useAuth } from '../auth/AuthContext';
+import { Message, ToolApproval, isImageGenerationModel, isImageCapableModel } from '../../types';
 import { ChatMessage } from './ChatMessage';
 import { ConversationSidebar } from './ConversationSidebar';
 import { ToolApprovalCard } from './ToolApprovalCard';
-import ContextMeter from './ContextMeter';
+import ContextMeter from '../ui/ContextMeter';
 
 export const ChatInterface: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);

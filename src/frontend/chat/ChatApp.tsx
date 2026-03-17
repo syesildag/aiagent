@@ -4,10 +4,10 @@ import {
     ThemeProvider
 } from '@mui/material';
 import React, { useState } from 'react';
-import { AuthProvider } from './components/AuthProvider';
-import { ChatInterface } from './components/ChatInterface';
-import { LoginScreen } from './components/LoginScreen';
-import { useAuth } from './context/AuthContext';
+import { AuthProvider } from './components/auth/AuthProvider';
+import { ChatInterface } from './components/chat/ChatInterface';
+import { LoginScreen } from './components/auth/LoginScreen';
+import { useAuth } from './components/auth/AuthContext';
 
 const CORAL = '#ff6b6b';
 const CORAL_DARK = '#e85555';

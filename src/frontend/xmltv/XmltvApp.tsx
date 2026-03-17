@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { createTheme, CssBaseline, ThemeProvider } from '@mui/material';
-import { AuthProvider } from '../components/AuthProvider';
-import { useAuth } from '../context/AuthContext';
-import { LoginScreen } from '../components/LoginScreen';
+import { AuthProvider } from '../components/auth/AuthProvider';
+import { useAuth } from '../components/auth/AuthContext';
+import { LoginScreen } from '../components/auth/LoginScreen';
 import XmltvViewer from './XmltvViewer';
 
 const AuthGate: React.FC = () => {

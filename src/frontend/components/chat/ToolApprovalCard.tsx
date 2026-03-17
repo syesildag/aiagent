@@ -16,7 +16,7 @@ import {
     Typography,
 } from '@mui/material';
 import React from 'react';
-import { ToolApproval } from '../types';
+import { ToolApproval } from '../../types';
 
 interface ToolApprovalCardProps {
   approval: ToolApproval;

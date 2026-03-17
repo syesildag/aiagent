@@ -22,7 +22,7 @@ import {
     useTheme,
 } from '@mui/material';
 import React, { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../auth/AuthContext';
 
 interface Conversation {
     id: number;
