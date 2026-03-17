@@ -11,7 +11,8 @@
  *   get_job_info       — return a single job's details by name
  *   enable_job         — set enabled=true for a job by name
  *   disable_job        — set enabled=false for a job by name
- *   update_job_prompt  — update the prompt and/or schedule of a dynamic agent job
+ *   update_job_prompt    — update the prompt and/or schedule of a dynamic agent job
+ *   update_job_schedule  — update only the schedule (cron expression) of a dynamic agent job
  *
  * Note: changes take effect at the job's next scheduled tick in the main
  * process (no server restart required).
@@ -492,6 +493,94 @@ async function main(): Promise<void> {
             } catch (err) {
                const msg = err instanceof Error ? err.message : String(err);
                Logger.error(`[jobs-server] update_job_prompt error: ${msg}`);
+               return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
+            }
+         }
+      );
+
+      // -----------------------------------------------------------------------
+      // update_job_schedule
+      // -----------------------------------------------------------------------
+      server.registerTool(
+         "update_job_schedule",
+         {
+            title: "Update Job Schedule",
+            description:
+               "Updates the cron schedule of an existing dynamic agent job. " +
+               "Only jobs created via create_agent_job can be updated — static code-defined jobs " +
+               "are not affected by DB changes. " +
+               "The schedule must be a valid cron expression (5 or 6 space-separated fields, " +
+               "e.g. '0 8 * * *' for daily at 08:00). " +
+               "Changes take effect after the next server restart.",
+            inputSchema: z.object({
+               name: z.string().min(1).describe("The unique name of the dynamic job to update"),
+               schedule: z.string().min(1).describe(
+                  "New cron expression for the schedule, e.g. '0 8 * * *' for daily at 08:00"
+               ),
+            }).shape,
+         } as any,
+         async (args) => {
+            const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);
+            const { name, schedule } = cleanArgs as { name: string; schedule: string };
+
+            try {
+               if (!isValidCronString(schedule)) {
+                  return {
+                     content: [{
+                        type: "text" as const,
+                        text:
+                           `Invalid schedule: "${schedule}". Must be a cron expression with ` +
+                           `5 or 6 space-separated fields (e.g. "0 8 * * *").`,
+                     }],
+                  };
+               }
+
+               const rows = await queryDatabase(
+                  "SELECT id, name, params, user_login FROM ai_agent_jobs WHERE name = $1",
+                  [name]
+               );
+
+               if (rows.length === 0) {
+                  return { content: [{ type: "text" as const, text: `Job not found: "${name}"` }] };
+               }
+
+               const row = rows[0] as { id: number; name: string; params: Record<string, unknown> | null; user_login: string | null };
+               if (!ctx.isAdmin) {
+                  if (row.user_login === null) {
+                     return { content: [{ type: "text" as const, text: `Permission denied: cannot modify static job "${name}".` }] };
+                  }
+                  if (row.user_login !== ctx.userLogin) {
+                     return { content: [{ type: "text" as const, text: `Permission denied: job "${name}" belongs to another user.` }] };
+                  }
+               }
+               if (row.params?.type !== 'dynamic') {
+                  return {
+                     content: [{
+                        type: "text" as const,
+                        text:
+                           `Cannot update job "${name}": it is a static job. ` +
+                           `Only dynamic jobs created via create_agent_job can be updated.`,
+                     }],
+                  };
+               }
+
+               await queryDatabase(
+                  "UPDATE ai_agent_jobs SET params = jsonb_set(params, '{schedule}', to_jsonb($2::text)), updated_at = NOW() WHERE name = $1",
+                  [name, schedule]
+               );
+
+               Logger.info(`[jobs-server] Updated schedule for dynamic agent job: ${name} → ${schedule}`);
+               return {
+                  content: [{
+                     type: "text" as const,
+                     text:
+                        `Updated schedule for job "${name}" to "${schedule}". ` +
+                        `Changes will take effect after the next server restart.`,
+                  }],
+               };
+            } catch (err) {
+               const msg = err instanceof Error ? err.message : String(err);
+               Logger.error(`[jobs-server] update_job_schedule error: ${msg}`);
                return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
             }
          }
