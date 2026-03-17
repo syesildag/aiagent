@@ -34,7 +34,7 @@ const envSchema = z.object({
   ALLOWED_ORIGINS: z.string().default(''),
 
   // --- LLM ---
-  LLM_PROVIDER: z.enum(['ollama', 'openai', 'github']).default('ollama'),
+  LLM_PROVIDER: z.enum(['ollama', 'openai', 'github', 'anthropic']).default('ollama'),
   LLM_MODEL: z.string().min(1).default('qwen3:4b'),
   // Maximum number of tool-call iterations the agent may perform per chat turn
   MAX_LLM_ITERATIONS: z.string().transform(Number).pipe(z.number().min(1).max(10)).default('2'),
@@ -45,6 +45,10 @@ const envSchema = z.object({
   // --- OpenAI ---
   OPENAI_API_KEY: z.string().min(1).optional(),
   OPENAI_BASE_URL: z.string().url().default('https://api.openai.com'),
+
+  // --- Anthropic ---
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  ANTHROPIC_BASE_URL: z.string().url().default('https://api.anthropic.com'),
 
   // --- GitHub Copilot ---
   GITHUB_COPILOT_CLIENT_ID: z.string().min(1).default('Iv1.b507a08c87ecfe98'),
@@ -120,6 +124,8 @@ function validateEnvironment(): Environment {
       LLM_MODEL: 'test',
       OLLAMA_HOST: 'http://localhost:11434',
       OPENAI_BASE_URL: 'https://api.openai.com',
+      ANTHROPIC_API_KEY: undefined,
+      ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
       GITHUB_COPILOT_BASE_URL: 'https://api.githubcopilot.com',
       GITHUB_COPILOT_EMBEDDINGS_BASE_URL: 'https://copilot-proxy.githubusercontent.com',
       AUTH_GITHUB_COPILOT: undefined,

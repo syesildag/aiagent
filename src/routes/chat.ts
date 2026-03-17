@@ -11,6 +11,7 @@ import { approvalManager } from '../mcp/approvalManager';
 import { asyncHandler } from "../utils/asyncHandler";
 import { processCommand } from '../utils/commandProcessor';
 import Logger from "../utils/logger";
+import { config } from '../utils/config';
 import { slashCommandRegistry } from '../utils/slashCommandRegistry';
 import { handleStreamingResponse } from '../utils/streamUtils';
 
@@ -264,13 +265,16 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
             activeConversationId = conv?.getId() ?? null;
          }
          if (activeConversationId) {
-            await new AiAgentConversationMessages({
-               conversationId: activeConversationId,
-               role: 'user',
-               content: prompt,
-            }).save();
             // Emit conversation id so client can continue the conversation
             res.write(JSON.stringify({ t: 'conversation', id: activeConversationId }) + '\n');
+            // When DbConversationHistory is active it persists messages itself; skip the direct insert to avoid duplicates and FK violations.
+            if (!config.USE_DB_CONVERSATION_HISTORY) {
+               await new AiAgentConversationMessages({
+                  conversationId: activeConversationId,
+                  role: 'user',
+                  content: prompt,
+               }).save();
+            }
          }
       } catch (err) {
          Logger.error(`Failed to persist conversation: ${err}`);
@@ -329,8 +333,8 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
          res.end();
       }
 
-      // Persist the assistant reply
-      if (userLogin && activeConversationId && finalContent) {
+      // Persist the assistant reply — skip when DbConversationHistory is active as it already persisted the message via addAssistantMessageToHistory().
+      if (userLogin && activeConversationId && finalContent && !config.USE_DB_CONVERSATION_HISTORY) {
          try {
             await new AiAgentConversationMessages({
                conversationId: activeConversationId,

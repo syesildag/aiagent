@@ -1218,6 +1218,337 @@ export class GitHubCopilotProvider implements LLMProvider {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Anthropic Provider
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the maximum output tokens for an Anthropic model.
+ * Anthropic requires an explicit max_tokens field (not the context window size).
+ */
+function getAnthropicMaxOutputTokens(model: string): number {
+  if (/claude-(opus|sonnet)-4|claude-haiku-4-5/i.test(model)) return 16000;
+  if (/claude-3-[57]-sonnet|claude-3-7/i.test(model)) return 8192;
+  return 4096;
+}
+
+/**
+ * Converts the internal LLMMessage[] into Anthropic's messages format.
+ * Returns { system, messages } where system is the joined system prompt (or undefined)
+ * and messages is the Anthropic-compatible messages array.
+ *
+ * Anthropic rules:
+ * - system messages → top-level system string (not in messages array)
+ * - tool role → user message with tool_result content block
+ * - assistant with tool_calls → assistant message with tool_use content blocks
+ * - messages must strictly alternate user/assistant (consecutive same-role are merged)
+ */
+function convertToAnthropicMessages(messages: LLMMessage[]): {
+  system: string | undefined;
+  messages: any[];
+} {
+  // Extract system messages
+  const systemParts: string[] = [];
+  const nonSystemMessages: LLMMessage[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      const text = typeof msg.content === 'string' ? msg.content : msg.content.map(p => p.type === 'text' ? p.text : '').join('');
+      systemParts.push(text);
+    } else {
+      nonSystemMessages.push(msg);
+    }
+  }
+
+  const system = systemParts.length > 0 ? systemParts.join('\n\n') : undefined;
+
+  // Convert to Anthropic message format
+  const anthropicMessages: any[] = [];
+
+  for (const msg of nonSystemMessages) {
+    if (msg.role === 'tool') {
+      // Tool result → user message with tool_result content block
+      const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+      anthropicMessages.push({
+        role: 'user',
+        content: [{
+          type: 'tool_result',
+          tool_use_id: msg.tool_call_id,
+          content
+        }]
+      });
+    } else if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+      // Assistant with tool calls → content array with tool_use blocks
+      const content: any[] = [];
+
+      // Include text content if present
+      if (msg.content && (typeof msg.content === 'string' ? msg.content : '').length > 0) {
+        content.push({ type: 'text', text: typeof msg.content === 'string' ? msg.content : '' });
+      }
+
+      // Add tool_use blocks
+      for (const tc of msg.tool_calls) {
+        let input: any = {};
+        try {
+          input = JSON.parse(tc.function.arguments);
+        } catch {
+          input = { raw: tc.function.arguments };
+        }
+        content.push({
+          type: 'tool_use',
+          id: tc.id,
+          name: tc.function.name,
+          input
+        });
+      }
+
+      anthropicMessages.push({ role: 'assistant', content });
+    } else {
+      // Regular user or assistant message
+      const role = msg.role as 'user' | 'assistant';
+      let content: any;
+
+      if (Array.isArray(msg.content)) {
+        // Multimodal content — convert image_url parts to Anthropic vision format
+        content = msg.content.map(part => {
+          if (part.type === 'text') return { type: 'text', text: part.text };
+          if (part.type === 'image_url') {
+            const url = part.image_url.url;
+            if (url.startsWith('data:')) {
+              const match = url.match(/^data:([^;]+);base64,(.+)$/);
+              if (match) {
+                return {
+                  type: 'image',
+                  source: { type: 'base64', media_type: match[1], data: match[2] }
+                };
+              }
+            }
+            return { type: 'image', source: { type: 'url', url } };
+          }
+          return { type: 'text', text: '' };
+        });
+      } else {
+        content = msg.content as string;
+      }
+
+      anthropicMessages.push({ role, content });
+    }
+  }
+
+  // Anthropic requires messages to start with 'user' and strictly alternate.
+  // Merge consecutive same-role messages by combining their content.
+  const merged: any[] = [];
+  for (const msg of anthropicMessages) {
+    const last = merged[merged.length - 1];
+    if (last && last.role === msg.role) {
+      // Merge content
+      const lastContent = Array.isArray(last.content) ? last.content : [{ type: 'text', text: last.content }];
+      const newContent = Array.isArray(msg.content) ? msg.content : [{ type: 'text', text: msg.content }];
+      last.content = [...lastContent, ...newContent];
+    } else {
+      merged.push({ ...msg });
+    }
+  }
+
+  // Ensure first message is 'user'
+  if (merged.length > 0 && merged[0].role !== 'user') {
+    merged.unshift({ role: 'user', content: 'Continue.' });
+  }
+
+  return { system, messages: merged };
+}
+
+export class AnthropicProvider implements LLMProvider {
+  name = 'Anthropic';
+  private baseUrl: string;
+  private apiKey: string;
+  private static readonly ANTHROPIC_VERSION = '2023-06-01';
+
+  constructor(apiKey: string, baseUrl: string = 'https://api.anthropic.com') {
+    this.apiKey = apiKey;
+    this.baseUrl = baseUrl;
+  }
+
+  private createHeaders(): Record<string, string> {
+    return {
+      'x-api-key': this.apiKey,
+      'anthropic-version': AnthropicProvider.ANTHROPIC_VERSION,
+      'Content-Type': 'application/json'
+    };
+  }
+
+  async checkHealth(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.baseUrl}/v1/models`, {
+        headers: this.createHeaders()
+      });
+      // 200 = healthy, 401 = bad key (treat as unhealthy), network error caught below
+      return response.ok;
+    } catch (error) {
+      Logger.error(`Anthropic health check failed: ${error}`);
+      return false;
+    }
+  }
+
+  async getAvailableModels(): Promise<string[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/v1/models`, {
+        headers: this.createHeaders()
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const models = data.data || [];
+        if (models.length > 0) {
+          return models.map((m: any) => m.id as string);
+        }
+      }
+    } catch (error) {
+      Logger.error(`Error fetching Anthropic models: ${error}`);
+    }
+
+    // Fallback to known models
+    return [
+      'claude-opus-4-6',
+      'claude-sonnet-4-6',
+      'claude-haiku-4-5-20251001',
+      'claude-3-7-sonnet-20250219',
+      'claude-3-5-sonnet-20241022',
+      'claude-3-haiku-20240307'
+    ];
+  }
+
+  async chat(request: LLMChatRequest, abortSignal?: AbortSignal): Promise<LLMChatResponse> {
+    const modelMaxTokens = getModelMaxTokens(request.model);
+    const adjustedRequest = handleTokenLimits(request, modelMaxTokens);
+
+    const { system, messages } = convertToAnthropicMessages(adjustedRequest.messages);
+    const maxTokens = getAnthropicMaxOutputTokens(adjustedRequest.model);
+
+    const requestBody: any = {
+      model: adjustedRequest.model,
+      max_tokens: maxTokens,
+      messages,
+      stream: adjustedRequest.stream ?? false
+    };
+
+    if (system) {
+      requestBody.system = system;
+    }
+
+    if (adjustedRequest.tools && adjustedRequest.tools.length > 0) {
+      requestBody.tools = adjustedRequest.tools.map(tool => ({
+        name: tool.function.name,
+        description: tool.function.description,
+        input_schema: tool.function.parameters
+      }));
+    }
+
+    Logger.debug(`Anthropic chat: model=${adjustedRequest.model}, messages=${messages.length}, tools=${requestBody.tools?.length ?? 0}`);
+
+    const response = await fetch(`${this.baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: this.createHeaders(),
+      body: JSON.stringify(requestBody),
+      signal: abortSignal
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      Logger.error(`Anthropic API error: ${response.status} ${response.statusText} - ${errorText}`);
+      throw new Error(`Anthropic API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    if (adjustedRequest.stream === true) {
+      if (!response.body) {
+        throw new Error('No response body for streaming');
+      }
+
+      const stream = new ReadableStream({
+        start(controller) {
+          const reader = response.body!.getReader();
+          const decoder = new TextDecoder();
+
+          function pump(): Promise<void> {
+            return reader.read().then(({ done, value }) => {
+              if (done) {
+                controller.close();
+                return;
+              }
+
+              const chunk = decoder.decode(value, { stream: true });
+              const lines = chunk.split('\n');
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6).trim();
+                  if (!data) continue;
+
+                  try {
+                    const parsed = JSON.parse(data);
+                    if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
+                      controller.enqueue(parsed.delta.text);
+                    } else if (parsed.type === 'message_stop') {
+                      controller.close();
+                      return;
+                    }
+                  } catch {
+                    // Skip invalid JSON
+                  }
+                }
+              }
+
+              return pump();
+            });
+          }
+
+          return pump();
+        }
+      });
+
+      return {
+        message: { role: 'assistant', content: stream },
+        done: false
+      };
+    }
+
+    // Non-streaming
+    const data = await response.json();
+
+    if (!data.content || data.content.length === 0) {
+      throw new Error('No content in Anthropic response');
+    }
+
+    // Extract text and tool_use blocks
+    const textBlocks: string[] = [];
+    const toolCalls: ToolCall[] = [];
+
+    for (const block of data.content) {
+      if (block.type === 'text') {
+        textBlocks.push(block.text);
+      } else if (block.type === 'tool_use') {
+        toolCalls.push({
+          id: block.id,
+          type: 'function',
+          function: {
+            name: block.name,
+            arguments: JSON.stringify(block.input)
+          }
+        });
+      }
+    }
+
+    return {
+      message: {
+        role: 'assistant',
+        content: textBlocks.join(''),
+        tool_calls: toolCalls.length > 0 ? toolCalls : undefined
+      },
+      done: true
+    };
+  }
+}
+
 /** Dedicated image-generation models that use the Images API directly */
 const IMAGE_GENERATION_MODEL_PATTERNS = [/^dall-e-/i, /^gpt-image-/i];
 

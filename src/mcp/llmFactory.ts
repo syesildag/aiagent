@@ -1,4 +1,4 @@
-import { LLMProvider, OllamaProvider, OpenAIProvider, GitHubCopilotProvider } from './llmProviders';
+import { LLMProvider, OllamaProvider, OpenAIProvider, GitHubCopilotProvider, AnthropicProvider } from './llmProviders';
 import { config } from '../utils/config';
 import Logger from '../utils/logger';
 import { AuthGithubCopilot } from '../utils/githubAuth';
@@ -28,6 +28,13 @@ export async function createLLMProvider(): Promise<LLMProvider> {
         config.GITHUB_COPILOT_BASE_URL
       );
       
+    case 'anthropic':
+      if (!config.ANTHROPIC_API_KEY) {
+        throw new Error('Anthropic API key is required when LLM_PROVIDER is set to anthropic');
+      }
+      Logger.info('Creating Anthropic provider');
+      return new AnthropicProvider(config.ANTHROPIC_API_KEY, config.ANTHROPIC_BASE_URL);
+
     case 'ollama':
     default:
       Logger.info('Creating Ollama provider');
