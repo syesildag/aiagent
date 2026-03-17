@@ -56,7 +56,7 @@ xmltvRouter.get('/xmltv/manifest.json', (_req: Request, res: Response) => {
 
 // Serve the compiled XMLTV viewer HTML (auth handled by the React app)
 xmltvRouter.get('/xmltv', (_req: Request, res: Response) => {
-  const htmlPath = path.resolve(__dirname, '../frontend/templates/xmltv.html');
+  const htmlPath = path.resolve(__dirname, '../../templates/xmltv.html');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.sendFile(htmlPath);
 });

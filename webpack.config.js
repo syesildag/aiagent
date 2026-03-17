@@ -4,7 +4,7 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 module.exports = {
   mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   entry: {
-    main: './src/frontend/index.tsx',
+    main: './src/frontend/chat/index.tsx',
     xmltv: './src/frontend/xmltv/index.tsx',
   },
   output: {
@@ -45,14 +45,14 @@ module.exports = {
   plugins: [
     new HtmlWebpackPlugin({
       template: './src/frontend/templates/index.html',
-      filename: path.resolve(__dirname, 'dist/src/frontend/templates/index.html'),
+      filename: path.resolve(__dirname, 'dist/templates/index.html'),
       chunks: ['vendors', 'main'],
       inject: 'body',
       scriptLoading: 'defer',
     }),
     new HtmlWebpackPlugin({
       template: './src/frontend/templates/xmltv.html',
-      filename: path.resolve(__dirname, 'dist/src/frontend/templates/xmltv.html'),
+      filename: path.resolve(__dirname, 'dist/templates/xmltv.html'),
       chunks: ['vendors', 'xmltv'],
       inject: 'body',
       scriptLoading: 'defer',

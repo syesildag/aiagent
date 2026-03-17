@@ -10,7 +10,7 @@ import ChatApp from './ChatApp';
 // Mock child components to isolate ChatApp logic
 // ---------------------------------------------------------------------------
 
-jest.mock('./components/auth/AuthProvider', () => ({
+jest.mock('../components/auth/AuthProvider', () => ({
   AuthProvider: ({
     children,
     agentName,
@@ -24,11 +24,11 @@ jest.mock('./components/auth/AuthProvider', () => ({
   ),
 }));
 
-jest.mock('./components/chat/ChatInterface', () => ({
+jest.mock('../components/chat/ChatInterface', () => ({
   ChatInterface: () => <div data-testid="chat-interface">ChatInterface</div>,
 }));
 
-jest.mock('./components/auth/LoginScreen', () => ({
+jest.mock('../components/auth/LoginScreen', () => ({
   LoginScreen: () => <div data-testid="login-screen">LoginScreen</div>,
 }));
 
@@ -37,7 +37,7 @@ jest.mock('./components/auth/LoginScreen', () => ({
 // ---------------------------------------------------------------------------
 
 const mockUseAuth = jest.fn();
-jest.mock('./components/auth/AuthContext', () => ({
+jest.mock('../components/auth/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
@@ -200,7 +200,7 @@ function makeFileList(files: File[]): FileList {
 describe('ChatInterface – multiple file attachments', () => {
   // Bypass the file-level mock so we test the real component.
   const { ChatInterface: ActualChatInterface } =
-    jest.requireActual<typeof import('./components/chat/ChatInterface')>('./components/chat/ChatInterface');
+    jest.requireActual<typeof import('../components/chat/ChatInterface')>('../components/chat/ChatInterface');
 
   beforeEach(() => {
     mockUseAuth.mockReturnValue({

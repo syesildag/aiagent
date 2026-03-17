@@ -9,7 +9,7 @@ let cachedTemplate: string | null = null;
 export function generateFrontendHTML(_bundleJs: string, agentName: string): string {
   // Load template from file (cached after first read)
   if (!cachedTemplate) {
-    const templatePath = path.join(__dirname, '../frontend/templates/index.html');
+    const templatePath = path.join(__dirname, '../../templates/index.html');
     cachedTemplate = fs.readFileSync(templatePath, 'utf-8');
   }
   
