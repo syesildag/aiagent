@@ -431,6 +431,7 @@ describe('EmbeddingService', () => {
         provider: 'openai',
         openai: { apiKey: 'test-key' },
         fallbackProviders: ['ollama'],
+        expectedDimensions: undefined,
       });
 
       // Replace providers with mocks
@@ -522,6 +523,7 @@ describe('EmbeddingService', () => {
           provider: 'openai',
           openai: { apiKey: 'test-key' },
           cache: { enabled: true, ttl: 1000 },
+          expectedDimensions: undefined,
         });
         (service as any).providers.set('openai', mockOpenAIProvider);
       });

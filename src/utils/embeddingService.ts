@@ -109,6 +109,7 @@ export interface EmbeddingConfig {
     extraHeaders?: Record<string, string>;
   };
   fallbackProviders?: Exclude<EmbeddingProviderType, 'auto'>[];
+  expectedDimensions?: number;
   cache?: {
     enabled: boolean;
     ttl: number;
@@ -852,6 +853,7 @@ export class EmbeddingService {
   private providers: Map<string, EmbeddingProvider> = new Map();
   private primaryProvider: string;
   private fallbackProviders: string[];
+  private expectedDimensions: number | undefined;
   private cache: LRUCache<string, EmbeddingVector>;
   private cacheEnabled: boolean;
   private cacheTtl: number;
@@ -872,6 +874,7 @@ export class EmbeddingService {
     this.initializeProviders(config);
     this.primaryProvider = this.determinePrimaryProvider(config);
     this.fallbackProviders = config.fallbackProviders || [];
+    this.expectedDimensions = config.expectedDimensions;
   }
 
   /**
@@ -921,6 +924,15 @@ export class EmbeddingService {
           input: text,
           model: options?.model,
         });
+
+        if (this.expectedDimensions !== undefined && result.embedding.length !== this.expectedDimensions) {
+          Logger.warn(
+            `Provider ${providerName} returned ${result.embedding.length} dimensions, ` +
+            `expected ${this.expectedDimensions}. Trying next fallback.`
+          );
+          lastError = new EmbeddingError(providerName, `Dimension mismatch: got ${result.embedding.length}, expected ${this.expectedDimensions}`);
+          continue;
+        }
 
         // Cache the result (lru-cache handles TTL automatically)
         if (this.cacheEnabled) {
@@ -1182,6 +1194,7 @@ export class EmbeddingService {
 export function createEmbeddingService(overrides?: Partial<EmbeddingConfig>): EmbeddingService {
   const baseConfig: EmbeddingConfig = {
     provider: config.EMBEDDING_PROVIDER as EmbeddingProviderType,
+    expectedDimensions: 1536,
     openai: config.OPENAI_API_KEY
       ? {
           apiKey: config.OPENAI_API_KEY,
