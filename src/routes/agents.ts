@@ -5,12 +5,9 @@ import { asyncHandler } from "../utils/asyncHandler";
 import Logger from "../utils/logger";
 import { slashCommandRegistry } from '../utils/slashCommandRegistry';
 import { parseReleases } from '../utils/releaseParser';
+import { sendAuthenticationRequired } from "./routeUtils";
 
 export const agentsRouter = Router();
-
-function sendAuthenticationRequired(res: Response) {
-   res.status(401).json({ error: 'Authentication required.' });
-}
 
 // Version / release notes endpoint
 agentsRouter.get("/version", asyncHandler(async (_req: Request, res: Response) => {

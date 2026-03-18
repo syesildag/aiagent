@@ -111,7 +111,7 @@ async function main(): Promise<void> {
             description:
                "Returns all registered scheduled jobs with their current enabled state, " +
                "last run time, and configuration params.",
-            inputSchema: z.object({}).shape,
+            inputSchema: z.object({}).passthrough(),
          } as any,
          async (args) => {
             const { ctx } = extractUserContext(args as unknown as Record<string, unknown>);
@@ -150,7 +150,7 @@ async function main(): Promise<void> {
             description: "Returns detailed information about a single scheduled job by name.",
             inputSchema: z.object({
                name: z.string().min(1).describe("The unique name of the job to retrieve"),
-            }).shape,
+            }).passthrough(),
          } as any,
          async (args) => {
             const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);
@@ -189,7 +189,7 @@ async function main(): Promise<void> {
                "next scheduled tick (no server restart required).",
             inputSchema: z.object({
                name: z.string().min(1).describe("The unique name of the job to enable"),
-            }).shape,
+            }).passthrough(),
          } as any,
          async (args) => {
             const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);
@@ -242,7 +242,7 @@ async function main(): Promise<void> {
                "next scheduled tick \u2014 the timer continues to fire but the body is skipped.",
             inputSchema: z.object({
                name: z.string().min(1).describe("The unique name of the job to disable"),
-            }).shape,
+            }).passthrough(),
          } as any,
          async (args) => {
             const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);
@@ -312,7 +312,7 @@ async function main(): Promise<void> {
                enabled: z.boolean().default(true).describe(
                   "Whether the job should start enabled (default true)"
                ),
-            }).shape,
+            }).passthrough(),
          } as any,
          async (args) => {
             const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);
@@ -400,7 +400,7 @@ async function main(): Promise<void> {
                prompt: z.string().min(1).describe(
                   "The new prompt to send to the agent on each scheduled run"
                ),
-            }).shape,
+            }).passthrough(),
          } as any,
          async (args) => {
             const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);
@@ -477,7 +477,7 @@ async function main(): Promise<void> {
                schedule: z.string().min(1).describe(
                   "New cron expression for the schedule, e.g. '0 8 * * *' for daily at 08:00"
                ),
-            }).shape,
+            }).passthrough(),
          } as any,
          async (args) => {
             const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);
@@ -559,7 +559,7 @@ async function main(): Promise<void> {
                "The running schedule in the main process will stop firing within the next polling cycle (~5 minutes).",
             inputSchema: z.object({
                name: z.string().min(1).describe("The unique name of the dynamic job to delete"),
-            }).shape,
+            }).passthrough(),
          } as any,
          async (args) => {
             const { ctx, cleanArgs } = extractUserContext(args as unknown as Record<string, unknown>);

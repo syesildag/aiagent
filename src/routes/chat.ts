@@ -15,6 +15,7 @@ import Logger from "../utils/logger";
 import { config } from '../utils/config';
 import { slashCommandRegistry } from '../utils/slashCommandRegistry';
 import { handleStreamingResponse } from '../utils/streamUtils';
+import { sendAuthenticationRequired } from "./routeUtils";
 
 export const chatRouter = Router();
 
@@ -82,7 +83,11 @@ chatRouter.post("/approve/:approvalId", approvalRateLimit, asyncHandler(async (r
 chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res: Response) => {
    const { prompt, imageBase64, imageMimeType, files, conversationId: incomingConversationId } = Query.parse(req.body);
    const agent = await getAgentFromName(req.params.agent);
-   const sessionEntity: AiAgentSession = res.locals.session;
+   const sessionEntity: AiAgentSession | undefined = res.locals.session;
+   if (!sessionEntity) {
+      sendAuthenticationRequired(res);
+      return;
+   }
    agent.setSession(sessionEntity);
 
    // Look up isAdmin here, in a per-request local variable, before any awaits that could

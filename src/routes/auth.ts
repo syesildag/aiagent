@@ -6,14 +6,9 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { config } from "../utils/config";
 import { hashPassword, verifyPassword } from '../utils/hashPassword';
 import Logger from "../utils/logger";
+import { sendAuthenticationRequired } from "./routeUtils";
 
 export const authRouter = Router();
-
-function sendAuthenticationRequired(res: Response) {
-   // Do NOT set WWW-Authenticate: Basic — that triggers the browser's native
-   // login popup instead of letting the frontend handle the 401 itself.
-   res.status(401).json({ error: 'Authentication required.' });
-}
 
 authRouter.post("/login", asyncHandler(async (req: Request, res: Response) => {
    // parse login and password from headers
