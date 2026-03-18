@@ -84,6 +84,7 @@ export default abstract class AbstractAgent implements Agent {
      freshContext?: boolean,
      onContextUpdate?: (used: number, max: number) => void,
      onCompact?: (info: { summarized: number; kept: number; tokensBefore: number; tokensAfter: number }) => void,
+     isAdmin?: boolean,
    ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');
@@ -101,10 +102,16 @@ export default abstract class AbstractAgent implements Agent {
 
          const serverNames = this.getAllowedServerNames();
          const userLogin = this.session?.getUserLogin();
-         let isAdmin = false;
-         if (userLogin) {
-            const user = await aiagentuserRepository.findByLogin(userLogin);
-            isAdmin = user?.getIsAdmin() ?? false;
+         // If isAdmin was not provided by the caller (e.g. AgentJob), fall back to a DB
+         // lookup from the stored session. When provided (web chat route), we trust the
+         // caller's value, which was captured before any awaits that could race with
+         // concurrent requests overwriting the singleton agent's session.
+         if (isAdmin === undefined) {
+            isAdmin = false;
+            if (userLogin) {
+               const user = await aiagentuserRepository.findByLogin(userLogin);
+               isAdmin = user?.getIsAdmin() ?? false;
+            }
          }
          return await this.mcpManager.chatWithLLM({
             message: prompt,

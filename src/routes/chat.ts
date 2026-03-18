@@ -7,6 +7,7 @@ import { AiAgentConversationMessages } from "../entities/ai-agent-conversation-m
 import aiagentconversationmessagesRepository from "../entities/ai-agent-conversation-messages";
 import aiagentconversationsRepository, { AiAgentConversations } from "../entities/ai-agent-conversations";
 import { AiAgentSession } from "../entities/ai-agent-session";
+import aiagentuserRepository from "../entities/ai-agent-user";
 import { approvalManager } from '../mcp/approvalManager';
 import { asyncHandler } from "../utils/asyncHandler";
 import { processCommand } from '../utils/commandProcessor';
@@ -83,6 +84,12 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
    const agent = await getAgentFromName(req.params.agent);
    const sessionEntity: AiAgentSession = res.locals.session;
    agent.setSession(sessionEntity);
+
+   // Look up isAdmin here, in a per-request local variable, before any awaits that could
+   // race with concurrent requests overwriting the shared singleton agent's session.
+   const sessionUserLogin = sessionEntity?.getUserLogin();
+   const sessionUser = sessionUserLogin ? await aiagentuserRepository.findByLogin(sessionUserLogin) : null;
+   const isAdminUser = sessionUser?.getIsAdmin() ?? false;
 
    // Build the image-data array, merging legacy single-image fields and the new multi-file array
    const attachmentsArray: { base64: string; mimeType: string; name?: string }[] = [];
@@ -304,7 +311,7 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
    }
 
    try {
-      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext, onContextUpdate, onCompact);
+      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext, onContextUpdate, onCompact, isAdminUser);
       let finalContent: string | undefined;
 
       if (answer instanceof ReadableStream) {
