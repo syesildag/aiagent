@@ -374,18 +374,23 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = React.memo(({ prog, daySta
           bottom: 4,
           bgcolor: isCurrent
             ? 'rgba(255,107,107,0.1)'
-            : hovered
-              ? (isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.06)')
-              : (isDark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.03)'),
+            : isSelected
+              ? (hovered ? `${accent}2a` : `${accent}18`)
+              : hovered
+                ? (isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.06)')
+                : (isDark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.03)'),
           borderRadius: '4px',
           border: `1px solid ${
             isCurrent
               ? 'rgba(255,107,107,0.35)'
-              : hovered
-                ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.15)')
-                : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)')
+              : isSelected
+                ? (hovered ? `${accent}70` : `${accent}50`)
+                : hovered
+                  ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.15)')
+                  : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)')
           }`,
           borderLeft: `2px solid ${isCurrent ? '#ff6b6b' : accent}`,
+          boxShadow: isSelected && hovered ? `0 1px 8px ${accent}35` : 'none',
           px: 0.75,
           display: 'flex',
           flexDirection: 'column',
@@ -393,7 +398,7 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = React.memo(({ prog, daySta
           gap: '1px',
           overflow: 'hidden',
           cursor: 'pointer',
-          transition: 'background-color 0.12s, border-color 0.12s',
+          transition: 'background-color 0.12s, border-color 0.12s, box-shadow 0.15s',
         }}
       >
         {/* Row 1: title + rating */}
