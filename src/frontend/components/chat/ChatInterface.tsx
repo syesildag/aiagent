@@ -64,6 +64,7 @@ export const ChatInterface: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const loadAbortRef = useRef<AbortController | null>(null);
   // Tracks approved (toolName::args) combos within the current streaming session
   const sessionApprovedRef = useRef<Set<string>>(new Set());
   // Mirrors messages state so useCallback closures can read current messages without stale closures
@@ -510,7 +511,7 @@ export const ChatInterface: React.FC = () => {
       abortControllerRef.current = null;
       setLoading(false);
     }
-  }, [inputMessage, session, agentName, attachedFiles, speakMessage, autoSpeak]);
+  }, [inputMessage, session, agentName, attachedFiles, speakMessage, autoSpeak, activeConversationId]);
 
   const handleCancel = () => {
     abortControllerRef.current?.abort();
@@ -532,8 +533,13 @@ export const ChatInterface: React.FC = () => {
 
   const handleLoadConversation = useCallback(async (convId: number) => {
     if (!session) return;
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
+    setMessages([]);
+    setError('');
     try {
-      const res = await fetch(`/conversations/${convId}/messages?session=${encodeURIComponent(session)}`);
+      const res = await fetch(`/conversations/${convId}/messages?session=${encodeURIComponent(session)}`, { signal: controller.signal });
       if (!res.ok) {
         setError('Failed to load conversation');
         return;
@@ -550,7 +556,8 @@ export const ChatInterface: React.FC = () => {
       setMessages(loaded);
       setActiveConversationId(convId);
       localStorage.setItem(`conversationId_${agentName}`, String(convId));
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       setError('Failed to load conversation');
     }
   }, [session, agentName]);
