@@ -1,6 +1,6 @@
 import { Request, Response, Router } from "express";
 import { z } from 'zod';
-import { getAgentFromName, getAvailableAgentNames, getGlobalMCPManager } from '../agent';
+import { getAgentFromName, getAvailableAgentNames, getGlobalMCPManager, reinitializeAgentSystem } from '../agent';
 import { asyncHandler } from "../utils/asyncHandler";
 import Logger from "../utils/logger";
 import { slashCommandRegistry } from '../utils/slashCommandRegistry';
@@ -46,6 +46,17 @@ agentsRouter.get("/info/:agent", asyncHandler(async (req: Request, res: Response
       provider: manager?.getProviderName() ?? '',
       models
    });
+}));
+
+// Reinitialize the agent system (e.g. after re-authentication)
+agentsRouter.post("/reinitialize", asyncHandler(async (_req: Request, res: Response) => {
+   if (!res.locals.session) {
+      sendAuthenticationRequired(res);
+      return;
+   }
+   await reinitializeAgentSystem();
+   const names = await getAvailableAgentNames();
+   res.json({ success: true, agents: names });
 }));
 
 // Model switch endpoint - changes the active model

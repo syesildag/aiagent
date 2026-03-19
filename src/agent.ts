@@ -58,16 +58,22 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
       await shutdownAgentSystem();
    }
 
-   // Initialize global MCP manager
-   const llmProvider = await createLLMProvider();
-   const model = getLLMModel();
-   globalMCPManager = new MCPServerManager(config.MCP_SERVERS_PATH, llmProvider, model);
-   
+   // Initialize global MCP manager — auth failures are non-fatal so agents are
+   // always registered (chat will surface a meaningful error instead of a 404).
    try {
-      await globalMCPManager.ensureInitialized();
-      Logger.info('Global MCP manager initialized successfully');
+      const llmProvider = await createLLMProvider();
+      const model = getLLMModel();
+      globalMCPManager = new MCPServerManager(config.MCP_SERVERS_PATH, llmProvider, model);
+      try {
+         await globalMCPManager.ensureInitialized();
+         Logger.info('Global MCP manager initialized successfully');
+      } catch (error) {
+         Logger.error(`Failed to initialize global MCP manager: ${error}`);
+      }
    } catch (error) {
-      Logger.error(`Failed to initialize global MCP manager: ${error}`);
+      Logger.error(`[server]: Failed to initialize agent system: ${error}`);
+      // globalMCPManager stays null; agents are still registered below so the
+      // frontend loads.  Chat requests will receive a provider-unavailable error.
    }
 
    [
@@ -125,7 +131,7 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
       }
    }
 
-   globalMCPManager.setSubAgentRunner(subAgentRunner, subAgentDescriptions);
+   globalMCPManager?.setSubAgentRunner(subAgentRunner, subAgentDescriptions);
 
    initialized = true;
    
@@ -169,4 +175,10 @@ export async function shutdownAgentSystem(): Promise<void> {
       globalMCPManager = null;
    }
    initialized = false;
+}
+
+/** Reset and re-initialize the agent system (e.g. after re-authentication). */
+export async function reinitializeAgentSystem(): Promise<void> {
+   await shutdownAgentSystem();
+   await initializeAgents();
 }
