@@ -570,6 +570,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   // ── Sync vertical scroll: right panel drives left panel ──────────────────
   // Native listener with passive:true fires synchronously with the scroll
   // frame, avoiding React's synthetic event overhead.
+  // Depends on `loading` so the effect re-runs once the grid is in the DOM.
   useEffect(() => {
     const right = rightPanelRef.current;
     if (!right) return;
@@ -578,7 +579,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     };
     right.addEventListener('scroll', sync, { passive: true });
     return () => right.removeEventListener('scroll', sync);
-  }, []);
+  }, [loading]);
 
 
   // ── Derived data ─────────────────────────────────────────────────────────

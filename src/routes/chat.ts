@@ -272,6 +272,7 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
             const title = effectivePrompt.slice(0, 60);
             const conv = await new AiAgentConversations({
                sessionId: sessionEntity.getId()!,
+               userId: userLogin,
                metadata: { title, userLogin },
             }).save();
             activeConversationId = conv?.getId() ?? null;

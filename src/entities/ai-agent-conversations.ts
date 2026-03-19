@@ -105,24 +105,22 @@ class AiAgentConversationsRepository extends AbstractRepository<AiAgentConversat
 
    public async findByUserLogin(userLogin: string): Promise<{ id: number; title: string; updatedAt: Date }[]> {
       const rows = await queryDatabase(
-         `SELECT c.id, c.metadata->>'title' AS title, c.updated_at
-            FROM ai_agent_conversations c
-            JOIN ai_agent_session s ON c.session_id = s.id
-           WHERE s.user_login = $1
-             AND c.metadata->>'title' IS NOT NULL
-           ORDER BY c.updated_at DESC
+         `SELECT id, metadata->>'title' AS title, updated_at
+            FROM ai_agent_conversations
+           WHERE user_id = $1
+             AND metadata->>'title' IS NOT NULL
+           ORDER BY updated_at DESC
            LIMIT 100`,
          [userLogin],
       );
       return rows.map((r: any) => ({ id: r.id, title: r.title, updatedAt: r.updated_at }));
    }
 
-   /** Returns true if the given conversation was created by any session belonging to userLogin. */
+   /** Returns true if the given conversation belongs to userLogin. */
    public async belongsToUserLogin(convId: number, userLogin: string): Promise<boolean> {
       const rows = await queryDatabase(
-         `SELECT 1 FROM ai_agent_conversations c
-            JOIN ai_agent_session s ON c.session_id = s.id
-           WHERE c.id = $1 AND s.user_login = $2
+         `SELECT 1 FROM ai_agent_conversations
+           WHERE id = $1 AND user_id = $2
            LIMIT 1`,
          [convId, userLogin],
       );
