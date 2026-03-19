@@ -117,6 +117,18 @@ class AiAgentConversationsRepository extends AbstractRepository<AiAgentConversat
       return rows.map((r: any) => ({ id: r.id, title: r.title, updatedAt: r.updated_at }));
    }
 
+   /** Returns true if the given conversation was created by any session belonging to userLogin. */
+   public async belongsToUserLogin(convId: number, userLogin: string): Promise<boolean> {
+      const rows = await queryDatabase(
+         `SELECT 1 FROM ai_agent_conversations c
+            JOIN ai_agent_session s ON c.session_id = s.id
+           WHERE c.id = $1 AND s.user_login = $2
+           LIMIT 1`,
+         [convId, userLogin],
+      );
+      return rows.length > 0;
+   }
+
 }
 
 const aiagentconversationsRepository = new AiAgentConversationsRepository();

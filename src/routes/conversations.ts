@@ -43,8 +43,7 @@ conversationsRouter.delete("/:id", asyncHandler(async (req: Request, res: Respon
    const convId = parseInt(req.params.id, 10);
    const conv = await aiagentconversationsRepository.getById(convId);
    if (!conv) { res.status(404).json({ error: 'Conversation not found' }); return; }
-   const convSession = await aiagentsessionRepository.getById(conv.getSessionId());
-   if (!convSession || convSession.getUserLogin() !== sessionEntity.getUserLogin()) {
+   if (!await aiagentconversationsRepository.belongsToUserLogin(convId, sessionEntity.getUserLogin())) {
       res.status(403).json({ error: 'Conversation not found' }); return;
    }
    await conv.delete();
@@ -58,8 +57,7 @@ conversationsRouter.get("/:id/messages", asyncHandler(async (req: Request, res: 
    const convId = parseInt(req.params.id, 10);
    const conv = await aiagentconversationsRepository.getById(convId);
    if (!conv) { res.status(404).json({ error: 'Conversation not found' }); return; }
-   const convSession = await aiagentsessionRepository.getById(conv.getSessionId());
-   if (!convSession || convSession.getUserLogin() !== sessionEntity.getUserLogin()) {
+   if (!await aiagentconversationsRepository.belongsToUserLogin(convId, sessionEntity.getUserLogin())) {
       res.status(403).json({ error: 'Conversation not found' }); return;
    }
    const messages = await aiagentconversationmessagesRepository.findByConversationId(convId);

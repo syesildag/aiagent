@@ -237,16 +237,16 @@ interface ProgrammeBlockProps {
   prog: Programme;
   dayStart: Date;
   dayEnd: Date;
+  now: Date;
+  isDark: boolean;
+  isMobile: boolean;
   onMobileOpen: (prog: Programme) => void;
   isSelected: boolean;
   onSelect: () => void;
 }
 
-const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd, onMobileOpen, isSelected, onSelect }) => {
+const ProgrammeBlock: React.FC<ProgrammeBlockProps> = React.memo(({ prog, dayStart, dayEnd, now, isDark, isMobile, onMobileOpen, isSelected, onSelect }) => {
   const [hovered, setHovered] = useState(false);
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const visStart = prog.start < dayStart ? dayStart : prog.start;
   const visStop  = prog.stop  > dayEnd   ? dayEnd   : prog.stop;
@@ -254,7 +254,6 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd,
   const widthMin = (visStop.getTime()  - visStart.getTime()) / 60000;
   if (widthMin <= 0) return null;
 
-  const now = new Date();
   const isCurrent = prog.start <= now && now < prog.stop;
   const accent = getCategoryAccent(prog.categories);
   const formattedEpisode = prog.episodeNum ? formatEpisodeNum(prog.episodeNum) : '';
@@ -296,20 +295,23 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd,
       </Typography>
       {prog.categories.length > 0 && (
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
-          {prog.categories.slice(0, 3).map(cat => (
-            <Box
-              key={cat}
-              sx={{
-                fontSize: '0.58rem', px: 0.6, py: 0.1, borderRadius: '3px',
-                bgcolor: getCategoryAccent([cat]) + '22',
-                border: `1px solid ${getCategoryAccent([cat])}44`,
-                color: getCategoryAccent([cat]),
-                lineHeight: 1.6,
-              }}
-            >
-              {cat}
-            </Box>
-          ))}
+          {prog.categories.slice(0, 3).map(cat => {
+            const catColor = getCategoryAccent([cat]);
+            return (
+              <Box
+                key={cat}
+                sx={{
+                  fontSize: '0.58rem', px: 0.6, py: 0.1, borderRadius: '3px',
+                  bgcolor: catColor + '22',
+                  border: `1px solid ${catColor}44`,
+                  color: catColor,
+                  lineHeight: 1.6,
+                }}
+              >
+                {cat}
+              </Box>
+            );
+          })}
         </Box>
       )}
       {prog.desc && (
@@ -468,7 +470,8 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = ({ prog, dayStart, dayEnd,
       </Box>
     </Tooltip>
   );
-};
+});
+ProgrammeBlock.displayName = 'ProgrammeBlock';
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -565,10 +568,16 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   }, []);
 
   // ── Sync vertical scroll: right panel drives left panel ──────────────────
-  const handleRightScroll = useCallback(() => {
-    if (leftPanelRef.current && rightPanelRef.current) {
-      leftPanelRef.current.scrollTop = rightPanelRef.current.scrollTop;
-    }
+  // Native listener with passive:true fires synchronously with the scroll
+  // frame, avoiding React's synthetic event overhead.
+  useEffect(() => {
+    const right = rightPanelRef.current;
+    if (!right) return;
+    const sync = () => {
+      if (leftPanelRef.current) leftPanelRef.current.scrollTop = right.scrollTop;
+    };
+    right.addEventListener('scroll', sync, { passive: true });
+    return () => right.removeEventListener('scroll', sync);
   }, []);
 
 
@@ -622,7 +631,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   const panelBg = isDark ? '#0e0e1c' : 'background.paper';
 
   // Shared channel list used in both drawer (mobile) and persistent panel (desktop)
-  const channelListContent = displayChannels.map(channel => (
+  const channelListContent = useMemo(() => displayChannels.map(channel => (
     <Box
       key={channel.id}
       onMouseEnter={() => setHoveredChannelId(channel.id)}
@@ -652,7 +661,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
         {channel.displayName}
       </Typography>
     </Box>
-  ));
+  )), [displayChannels, hoveredChannelId, isDark, rowHoverBg, theme.palette.divider]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -727,17 +736,20 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
             </Typography>
             {mobileProg.categories.length > 0 && (
               <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1 }}>
-                {mobileProg.categories.slice(0, 4).map(cat => (
-                  <Box key={cat} sx={{
-                    fontSize: '0.65rem', px: 0.75, py: 0.2, borderRadius: '4px',
-                    bgcolor: getCategoryAccent([cat]) + '22',
-                    border: `1px solid ${getCategoryAccent([cat])}44`,
-                    color: getCategoryAccent([cat]),
-                    lineHeight: 1.6,
-                  }}>
-                    {cat}
-                  </Box>
-                ))}
+                {mobileProg.categories.slice(0, 4).map(cat => {
+                  const catColor = getCategoryAccent([cat]);
+                  return (
+                    <Box key={cat} sx={{
+                      fontSize: '0.65rem', px: 0.75, py: 0.2, borderRadius: '4px',
+                      bgcolor: catColor + '22',
+                      border: `1px solid ${catColor}44`,
+                      color: catColor,
+                      lineHeight: 1.6,
+                    }}>
+                      {cat}
+                    </Box>
+                  );
+                })}
               </Box>
             )}
             {mobileProg.desc && (
@@ -1054,7 +1066,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
             {/* ── Right panel: scrollable time grid ── */}
             <Box
               ref={rightPanelRef}
-              onScroll={handleRightScroll}
+
               onClick={() => { if (mobileProg) setMobileProg(null); setSelectedProg(null); }}
               sx={{
                 flex: 1, overflowX: 'auto', overflowY: 'auto',
@@ -1175,6 +1187,9 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
                         prog={p}
                         dayStart={dayStart}
                         dayEnd={dayEnd}
+                        now={now}
+                        isDark={isDark}
+                        isMobile={isMobile}
                         onMobileOpen={setMobileProg}
                         isSelected={selectedProg === p}
                         onSelect={() => setSelectedProg(prev => prev === p ? null : p)}

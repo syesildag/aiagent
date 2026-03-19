@@ -6,7 +6,7 @@
  *  - API routes (/chat, /info, /model, /auth) → network only (no cache)
  */
 
-const CACHE = 'aiagent-pwa-v1';
+const CACHE = 'aiagent-pwa-v2';
 
 const PRECACHE_URLS = [
   '/static/vendors.js',
