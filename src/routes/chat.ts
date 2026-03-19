@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Request, Response, Router } from "express";
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
@@ -256,6 +257,9 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
    // Resolve or create a conversation for persistence
    const userLogin = sessionEntity?.getUserLogin();
    let activeConversationId = incomingConversationId ?? null;
+   // UUID stored in conversation metadata so DbConversationHistory can locate the row
+   // without creating a duplicate when USE_DB_CONVERSATION_HISTORY=true.
+   let activeConversationUuid: string | null = null;
    if (userLogin) {
       try {
          // Validate that an incoming conversation ID still exists; if it was deleted
@@ -266,14 +270,18 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
             if (!existingConv) {
                Logger.warn(`Conversation ${activeConversationId} not found in DB, starting a new one`);
                activeConversationId = null;
+            } else {
+               // Carry forward the UUID already stored in the existing conversation's metadata.
+               activeConversationUuid = existingConv.getMetadata()?.id ?? null;
             }
          }
          if (!activeConversationId) {
             const title = effectivePrompt.slice(0, 60);
+            activeConversationUuid = randomUUID();
             const conv = await new AiAgentConversations({
                sessionId: sessionEntity.getId()!,
                userId: userLogin,
-               metadata: { title, userLogin },
+               metadata: { title, userLogin, id: activeConversationUuid },
             }).save();
             activeConversationId = conv?.getId() ?? null;
          }
@@ -311,6 +319,11 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
             }
          }
          agent.setActiveDbConversationId(activeConversationId);
+         // Inform DbConversationHistory about the externally created conversation so
+         // hasActiveConversation() returns true and addMessage() doesn't create a duplicate row.
+         if (config.USE_DB_CONVERSATION_HISTORY && activeConversationUuid) {
+            agent.setCurrentConversationId(activeConversationUuid);
+         }
       } catch (err) {
          Logger.error(`Failed to sync conversation history: ${err}`);
       }

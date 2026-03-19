@@ -81,4 +81,11 @@ export interface IConversationHistory {
    * i.e. messages can be added without auto-starting a new one.
    */
   hasActiveConversation(): boolean;
+
+  /**
+   * Attach to an externally created conversation by UUID so that
+   * hasActiveConversation() returns true and addMessage() targets the
+   * correct DB row without creating a duplicate.
+   */
+  setCurrentConversationId(uuid: string): void;
 }

@@ -42,6 +42,7 @@ export interface Agent {
    clearConversationHistory(): Promise<void>;
    getActiveDbConversationId(): number | null;
    setActiveDbConversationId(id: number | null): void;
+   setCurrentConversationId(uuid: string): void;
 }
 
 const Agents: Record<string, Agent> = {};

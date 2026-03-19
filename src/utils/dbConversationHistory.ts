@@ -239,6 +239,10 @@ export class DbConversationHistory implements IConversationHistory {
     return this._currentConversationId !== null;
   }
 
+  setCurrentConversationId(uuid: string): void {
+    this._currentConversationId = uuid;
+  }
+
   /**
    * Switch to a specific conversation
    */

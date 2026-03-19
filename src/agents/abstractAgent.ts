@@ -162,6 +162,10 @@ export default abstract class AbstractAgent implements Agent {
       this.mcpManager?.setActiveDbConversationId(id);
    }
 
+   setCurrentConversationId(uuid: string): void {
+      this.mcpManager?.setCurrentConversationId(uuid);
+   }
+
    // Helper method for agents to get available tools for specific servers
    getAvailableTools(serverNames?: string[]): string[] {
       if (!this.mcpManager) {

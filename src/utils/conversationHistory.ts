@@ -135,6 +135,11 @@ export class InMemoryConversationHistory implements IConversationHistory {
     return this._currentConversationId !== null;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  setCurrentConversationId(_uuid: string): void {
+    // No-op for in-memory history; only DbConversationHistory uses this.
+  }
+
   /**
    * Switch to a specific conversation
    */

@@ -1487,6 +1487,10 @@ export class MCPServerManager {
     this._activeDbConversationId = id;
   }
 
+  setCurrentConversationId(uuid: string): void {
+    this.conversationHistory.setCurrentConversationId(uuid);
+  }
+
   /**
    * Returns true when an in-memory conversation is already active.
    */
