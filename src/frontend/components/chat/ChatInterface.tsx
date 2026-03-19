@@ -651,12 +651,6 @@ export const ChatInterface: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
-      <ConversationSidebar
-        activeConversationId={activeConversationId}
-        onSelectConversation={handleLoadConversation}
-        onNewConversation={handleNewConversation}
-        onConversationDeleted={(id) => { if (id === activeConversationId) handleNewConversation(); }}
-      />
       <AppBar position="static" elevation={0}>
         <Toolbar sx={{ gap: 0.5, minHeight: { xs: 56, sm: 64 } }}>
           <BotIcon sx={{ mr: { xs: 0.5, sm: 0.75 }, flexShrink: 0, fontSize: 20, color: 'primary.main' }} />
@@ -791,6 +785,15 @@ export const ChatInterface: React.FC = () => {
           </Menu>
         </Toolbar>
       </AppBar>
+
+      <Box sx={{ display: 'flex', flexDirection: 'row', flexGrow: 1, overflow: 'hidden' }}>
+        <ConversationSidebar
+          activeConversationId={activeConversationId}
+          onSelectConversation={handleLoadConversation}
+          onNewConversation={handleNewConversation}
+          onConversationDeleted={(id) => { if (id === activeConversationId) handleNewConversation(); }}
+        />
+        <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
 
       {error && (
         <Alert
@@ -1269,6 +1272,8 @@ export const ChatInterface: React.FC = () => {
           </Box>
         </Container>
       </Paper>
+        </Box>
+      </Box>
     </Box>
   );
 };

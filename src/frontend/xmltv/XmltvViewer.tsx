@@ -348,8 +348,8 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = React.memo(({ prog, daySta
         tooltip: { style: { overflow: 'visible', padding: 0 } },
         popper: {
           modifiers: [
-            { name: 'preventOverflow', enabled: true, options: { boundary: 'viewport', padding: 8, altAxis: true } },
-            { name: 'flip', enabled: true, options: { fallbackPlacements: ['bottom', 'right', 'left'] } },
+            { name: 'preventOverflow', enabled: true, options: { boundary: 'viewport', padding: 8 } },
+            { name: 'flip', enabled: true, options: { fallbackPlacements: ['bottom'] } },
           ],
         },
       }}
@@ -1048,11 +1048,9 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
             {/* ── Desktop: persistent left panel ── */}
             {!isMobile && sidebarOpen && (
               <Box
-                ref={leftPanelRef}
                 sx={{
                   width: CHANNEL_COL_WIDTH, minWidth: CHANNEL_COL_WIDTH, flexShrink: 0,
                   display: 'flex', flexDirection: 'column',
-                  overflowY: 'hidden', overflowX: 'hidden',
                   borderRight: `1px solid ${panelBorderColor}`,
                   bgcolor: panelBg,
                   zIndex: 2,
@@ -1060,7 +1058,9 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
               >
                 <Box sx={{ height: HEADER_HEIGHT, minHeight: HEADER_HEIGHT, flexShrink: 0,
                   borderBottom: `1px solid ${panelBorderColor}` }} />
-                {channelListContent}
+                <Box ref={leftPanelRef} sx={{ flex: 1, overflowY: 'hidden', overflowX: 'hidden' }}>
+                  {channelListContent}
+                </Box>
               </Box>
             )}
 

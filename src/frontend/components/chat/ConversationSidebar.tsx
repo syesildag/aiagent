@@ -283,7 +283,9 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                         border: '1px solid',
                         borderColor: 'divider',
                         boxShadow: 2,
-                        transition: 'left 225ms cubic-bezier(0.4, 0, 0.6, 1)',
+                        transition: open
+                  ? 'left 225ms cubic-bezier(0, 0, 0.2, 1)'
+                  : 'left 195ms cubic-bezier(0.4, 0, 0.6, 1)',
                         borderRadius: 1.5,
                         p: '5px',
                         '&:hover': {
