@@ -276,7 +276,7 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
             }
          }
          if (!activeConversationId) {
-            const title = effectivePrompt.slice(0, 60);
+            const title = prompt.slice(0, 60);
             activeConversationUuid = randomUUID();
             const conv = await new AiAgentConversations({
                sessionId: sessionEntity.getId()!,
