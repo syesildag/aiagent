@@ -3,6 +3,7 @@ import {
   Alert,
   Autocomplete,
   Avatar,
+  Badge,
   Box,
   Chip,
   CircularProgress,
@@ -13,6 +14,7 @@ import {
   IconButton,
   InputAdornment,
   MenuItem,
+  Popover,
   Select,
   Switch,
   TextField,
@@ -569,6 +571,8 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     localStorage.setItem('xmltv_notifications', JSON.stringify([...notifiedProgs]));
   }, [notifiedProgs]);
 
+  const [notifAnchorEl, setNotifAnchorEl] = useState<HTMLButtonElement | null>(null);
+
   const sendProgrammeNotification = useCallback(async (prog: Programme, minutesBefore: number) => {
     if (!('serviceWorker' in navigator)) return;
     try {
@@ -629,7 +633,32 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
         setNotifiedProgs(prev => { const next = new Map(prev); next.delete(key); return next; });
       }
     }
+    // Remove stale entries: orphaned keys or past the fire window
+    const toRemove: string[] = [];
+    for (const [key, minutesBefore] of notifiedProgs) {
+      const prog = programmes.find(p => getProgrammeKey(p) === key);
+      if (!prog) { toRemove.push(key); continue; }
+      const notifyAt = prog.start.getTime() - minutesBefore * 60_000;
+      if (now.getTime() - notifyAt >= WINDOW_MS) toRemove.push(key);
+    }
+    if (toRemove.length) {
+      setNotifiedProgs(prev => {
+        const next = new Map(prev);
+        toRemove.forEach(k => next.delete(k));
+        return next;
+      });
+    }
   }, [now]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const activeNotifications = useMemo(() => {
+    const result: { key: string; prog: Programme; channel: Channel; minutesBefore: number }[] = [];
+    for (const [key, minutesBefore] of notifiedProgs) {
+      const prog = programmes.find(p => getProgrammeKey(p) === key);
+      const channel = prog ? channels.find(c => c.id === prog.channelId) : undefined;
+      if (prog && channel) result.push({ key, prog, channel, minutesBefore });
+    }
+    return result.sort((a, b) => a.prog.start.getTime() - b.prog.start.getTime());
+  }, [notifiedProgs, programmes, channels]);
 
   // ── Fetch XMLTV data ──────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -1065,6 +1094,23 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
               </li>
             )}
           />
+
+          <Tooltip title={activeNotifications.length === 0 ? 'No scheduled notifications' : `${activeNotifications.length} scheduled notification${activeNotifications.length !== 1 ? 's' : ''}`}>
+            <span>
+              <IconButton
+                size="small"
+                onClick={e => setNotifAnchorEl(e.currentTarget)}
+                disabled={activeNotifications.length === 0}
+                sx={{ color: activeNotifications.length > 0 ? 'primary.main' : 'text.disabled' }}
+              >
+                <Badge badgeContent={activeNotifications.length} color="primary" max={99}>
+                  {activeNotifications.length > 0
+                    ? <NotificationsActiveIcon sx={{ fontSize: 18 }} />
+                    : <NotificationsNoneIcon sx={{ fontSize: 18 }} />}
+                </Badge>
+              </IconButton>
+            </span>
+          </Tooltip>
 
           {[...pinnedChannelIds].map(id => {
             const ch = channels.find(c => c.id === id);
