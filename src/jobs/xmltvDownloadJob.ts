@@ -28,8 +28,8 @@ export default class XmltvDownloadJob extends DbJobFactory {
    }
 
    protected override getJobBody(): Promise<void> {
-      // Compiled output: dist/src/jobs/ → 3 levels up → project root → scripts/
-      const scriptPath = path.resolve(__dirname, "../../../scripts/download-xmltv.sh");
+      // Compiled output: dist/src/jobs/ → 2 levels up → dist/src/ → scripts/
+      const scriptPath = path.resolve(__dirname, "../../scripts/download-xmltv.sh");
       Logger.info(`[XmltvDownloadJob] Running ${scriptPath}`);
 
       return new Promise((resolve, reject) => {
