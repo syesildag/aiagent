@@ -12,6 +12,9 @@ import {
   GlobalStyles,
   IconButton,
   InputAdornment,
+  MenuItem,
+  Select,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -26,6 +29,8 @@ import {
   LightMode as LightModeIcon,
   Logout as LogoutIcon,
   MyLocation as NowIcon,
+  NotificationsActive as NotificationsActiveIcon,
+  NotificationsNone as NotificationsNoneIcon,
   Refresh as RefreshIcon,
   Search as SearchIcon,
 } from '@mui/icons-material';
@@ -231,6 +236,12 @@ function formatTime(date: Date): string {
   return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
+function getProgrammeKey(prog: Programme): string {
+  return `${prog.channelId}_${prog.start.getTime()}`;
+}
+
+const NOTIFY_OPTIONS = [0, 5, 10, 15, 30] as const;
+
 // ─── ProgrammeBlock ──────────────────────────────────────────────────────────
 
 interface ProgrammeBlockProps {
@@ -243,9 +254,12 @@ interface ProgrammeBlockProps {
   onMobileOpen: (prog: Programme) => void;
   isSelected: boolean;
   onSelect: () => void;
+  isNotified: boolean;
+  notifyMinutesBefore: number;
+  onToggleNotification: (minutesBefore: number | null) => void;
 }
 
-const ProgrammeBlock: React.FC<ProgrammeBlockProps> = React.memo(({ prog, dayStart, dayEnd, now, isDark, isMobile, onMobileOpen, isSelected, onSelect }) => {
+const ProgrammeBlock: React.FC<ProgrammeBlockProps> = React.memo(({ prog, dayStart, dayEnd, now, isDark, isMobile, onMobileOpen, isSelected, onSelect, isNotified, notifyMinutesBefore, onToggleNotification }) => {
   const [hovered, setHovered] = useState(false);
 
   const visStart = prog.start < dayStart ? dayStart : prog.start;
@@ -331,6 +345,36 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = React.memo(({ prog, daySta
         <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.5, fontFamily: '"Courier New", monospace' }}>
           {prog.starRating}
         </Typography>
+      )}
+      {prog.start > now && (
+        <Box
+          sx={{ mt: 0.75, pt: 0.5, borderTop: '1px solid rgba(128,128,128,0.2)', display: 'flex', alignItems: 'center', gap: 0.5 }}
+          onClick={e => e.stopPropagation()}
+        >
+          <Switch
+            size="small"
+            checked={isNotified}
+            onChange={(_, checked) => onToggleNotification(checked ? notifyMinutesBefore : null)}
+            icon={<NotificationsNoneIcon sx={{ fontSize: '0.85rem' }} />}
+            checkedIcon={<NotificationsActiveIcon sx={{ fontSize: '0.85rem', color: 'primary.main' }} />}
+            sx={{ mr: 0.25 }}
+          />
+          <Typography variant="caption" sx={{ opacity: 0.7, flexShrink: 0 }}>Notify</Typography>
+          {isNotified && (
+            <Select
+              size="small"
+              value={notifyMinutesBefore}
+              onChange={e => onToggleNotification(Number(e.target.value))}
+              sx={{ ml: 0.5, fontSize: '0.62rem', height: 22, '& .MuiSelect-select': { py: 0, px: 0.75 } }}
+            >
+              {NOTIFY_OPTIONS.map(m => (
+                <MenuItem key={m} value={m} sx={{ fontSize: '0.72rem' }}>
+                  {m === 0 ? 'At start' : `${m} min before`}
+                </MenuItem>
+              ))}
+            </Select>
+          )}
+        </Box>
       )}
     </Box>
   );
@@ -511,6 +555,48 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     localStorage.setItem('xmltv_pinned_channels', JSON.stringify([...pinnedChannelIds]));
   }, [pinnedChannelIds]);
 
+  // ── Notification state ────────────────────────────────────────────────────
+  const [notifiedProgs, setNotifiedProgs] = useState<Map<string, number>>(() => {
+    try {
+      const stored = localStorage.getItem('xmltv_notifications');
+      return stored ? new Map(JSON.parse(stored) as [string, number][]) : new Map();
+    } catch {
+      return new Map();
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('xmltv_notifications', JSON.stringify([...notifiedProgs]));
+  }, [notifiedProgs]);
+
+  const sendProgrammeNotification = useCallback(async (prog: Programme, minutesBefore: number) => {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const body = minutesBefore > 0
+        ? `Starts in ${minutesBefore} min · ${formatTime(prog.start)}`
+        : `Starting now · ${formatTime(prog.start)}`;
+      reg.active?.postMessage({ type: 'SHOW_NOTIFICATION', title: prog.title, body, icon: '/icons/icon-192.png' });
+    } catch {
+      // service worker unavailable
+    }
+  }, []);
+
+  const toggleNotification = useCallback(async (prog: Programme, minutesBefore: number | null) => {
+    const key = getProgrammeKey(prog);
+    if (minutesBefore === null) {
+      setNotifiedProgs(prev => { const next = new Map(prev); next.delete(key); return next; });
+      return;
+    }
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return;
+    }
+    if (Notification.permission !== 'granted') return;
+    setNotifiedProgs(prev => new Map(prev).set(key, minutesBefore));
+  }, []);
+
   const [hoveredChannelId, setHoveredChannelId] = useState<string | null>(null);
   const [mobileProg, setMobileProg] = useState<Programme | null>(null);
   const [selectedProg, setSelectedProg] = useState<Programme | null>(null);
@@ -527,6 +613,23 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     const id = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(id);
   }, []);
+
+  // ── Check notifications on every minute tick ──────────────────────────
+  useEffect(() => {
+    if (!notifiedProgs.size) return;
+    const WINDOW_MS = 61_000; // fire within the past minute
+    for (const prog of programmes) {
+      const key = getProgrammeKey(prog);
+      const minutesBefore = notifiedProgs.get(key);
+      if (minutesBefore === undefined) continue;
+      const notifyAt = prog.start.getTime() - minutesBefore * 60_000;
+      const diff = now.getTime() - notifyAt;
+      if (diff >= 0 && diff < WINDOW_MS) {
+        sendProgrammeNotification(prog, minutesBefore);
+        setNotifiedProgs(prev => { const next = new Map(prev); next.delete(key); return next; });
+      }
+    }
+  }, [now]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Fetch XMLTV data ──────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -775,6 +878,37 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
                 {line}
               </Typography>
             ))}
+            {mobileProg.start > now && (() => {
+              const pk = getProgrammeKey(mobileProg);
+              const notifyMins = notifiedProgs.get(pk);
+              const isNotified = notifyMins !== undefined;
+              return (
+                <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid rgba(128,128,128,0.2)', display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Switch
+                    checked={isNotified}
+                    size="small"
+                    onChange={(_, checked) => toggleNotification(mobileProg, checked ? (notifyMins ?? 5) : null)}
+                    icon={<NotificationsNoneIcon sx={{ fontSize: '1rem' }} />}
+                    checkedIcon={<NotificationsActiveIcon sx={{ fontSize: '1rem', color: 'primary.main' }} />}
+                  />
+                  <Typography variant="body2" sx={{ opacity: 0.75, flexShrink: 0 }}>Notify</Typography>
+                  {isNotified && (
+                    <Select
+                      size="small"
+                      value={notifyMins}
+                      onChange={e => toggleNotification(mobileProg, Number(e.target.value))}
+                      sx={{ ml: 0.5, fontSize: '0.8rem', flex: 1 }}
+                    >
+                      {NOTIFY_OPTIONS.map(m => (
+                        <MenuItem key={m} value={m} sx={{ fontSize: '0.85rem' }}>
+                          {m === 0 ? 'At start' : `${m} min before`}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  )}
+                </Box>
+              );
+            })()}
           </DialogContent>
           </>
         )}
@@ -1187,7 +1321,10 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
                       transition: 'background-color 0.1s',
                     }}
                   >
-                    {progs.map((p, i) => (
+                    {progs.map((p, i) => {
+                      const pk = getProgrammeKey(p);
+                      const notifyMins = notifiedProgs.get(pk);
+                      return (
                       <ProgrammeBlock
                         key={i}
                         prog={p}
@@ -1199,8 +1336,12 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
                         onMobileOpen={setMobileProg}
                         isSelected={selectedProg === p}
                         onSelect={() => setSelectedProg(prev => prev === p ? null : p)}
+                        isNotified={notifyMins !== undefined}
+                        notifyMinutesBefore={notifyMins ?? 5}
+                        onToggleNotification={(mins) => toggleNotification(p, mins)}
                       />
-                    ))}
+                      );
+                    })}
                     {showNowLine && (
                       <Box sx={{
                         position: 'absolute',
