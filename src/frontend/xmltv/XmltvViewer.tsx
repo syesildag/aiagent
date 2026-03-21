@@ -348,36 +348,41 @@ const ProgrammeBlock: React.FC<ProgrammeBlockProps> = React.memo(({ prog, daySta
           {prog.starRating}
         </Typography>
       )}
-      {prog.start > now && (
-        <Box
-          sx={{ mt: 0.75, pt: 0.5, borderTop: '1px solid rgba(128,128,128,0.2)', display: 'flex', alignItems: 'center', gap: 0.5 }}
-          onClick={e => e.stopPropagation()}
-        >
-          <Switch
-            size="small"
-            checked={isNotified}
-            onChange={(_, checked) => onToggleNotification(checked ? notifyMinutesBefore : null)}
-            icon={<NotificationsNoneIcon sx={{ fontSize: '0.85rem' }} />}
-            checkedIcon={<NotificationsActiveIcon sx={{ fontSize: '0.85rem', color: 'primary.main' }} />}
-            sx={{ mr: 0.25 }}
-          />
-          <Typography variant="caption" sx={{ opacity: 0.7, flexShrink: 0 }}>Notify</Typography>
-          {isNotified && (
-            <Select
+      {prog.start > now && (() => {
+        const isOptDisabled = (m: number) => prog.start.getTime() - m * 60_000 <= now.getTime();
+        const firstValid = NOTIFY_OPTIONS.find(m => !isOptDisabled(m)) ?? 0;
+        const safeDefault = isOptDisabled(notifyMinutesBefore) ? firstValid : notifyMinutesBefore;
+        return (
+          <Box
+            sx={{ mt: 0.75, pt: 0.5, borderTop: '1px solid rgba(128,128,128,0.2)', display: 'flex', alignItems: 'center', gap: 0.5 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <Switch
               size="small"
-              value={notifyMinutesBefore}
-              onChange={e => onToggleNotification(Number(e.target.value))}
-              sx={{ ml: 0.5, fontSize: '0.62rem', height: 22, '& .MuiSelect-select': { py: 0, px: 0.75 } }}
-            >
-              {NOTIFY_OPTIONS.map(m => (
-                <MenuItem key={m} value={m} sx={{ fontSize: '0.72rem' }}>
-                  {m === 0 ? 'At start' : `${m} min before`}
-                </MenuItem>
-              ))}
-            </Select>
-          )}
-        </Box>
-      )}
+              checked={isNotified}
+              onChange={(_, checked) => onToggleNotification(checked ? safeDefault : null)}
+              icon={<NotificationsNoneIcon sx={{ fontSize: '0.85rem' }} />}
+              checkedIcon={<NotificationsActiveIcon sx={{ fontSize: '0.85rem', color: 'primary.main' }} />}
+              sx={{ mr: 0.25 }}
+            />
+            <Typography variant="caption" sx={{ opacity: 0.7, flexShrink: 0 }}>Notify</Typography>
+            {isNotified && (
+              <Select
+                size="small"
+                value={safeDefault}
+                onChange={e => onToggleNotification(Number(e.target.value))}
+                sx={{ ml: 0.5, fontSize: '0.62rem', height: 22, '& .MuiSelect-select': { py: 0, px: 0.75 } }}
+              >
+                {NOTIFY_OPTIONS.map(m => (
+                  <MenuItem key={m} value={m} disabled={isOptDisabled(m)} sx={{ fontSize: '0.72rem' }}>
+                    {m === 0 ? 'At start' : `${m} min before`}
+                  </MenuItem>
+                ))}
+              </Select>
+            )}
+          </Box>
+        );
+      })()}
     </Box>
   );
 
@@ -911,12 +916,15 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
               const pk = getProgrammeKey(mobileProg);
               const notifyMins = notifiedProgs.get(pk);
               const isNotified = notifyMins !== undefined;
+              const isOptDisabled = (m: number) => mobileProg.start.getTime() - m * 60_000 <= now.getTime();
+              const firstValid = NOTIFY_OPTIONS.find(m => !isOptDisabled(m)) ?? 0;
+              const safeDefault = notifyMins !== undefined && !isOptDisabled(notifyMins) ? notifyMins : firstValid;
               return (
                 <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid rgba(128,128,128,0.2)', display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Switch
                     checked={isNotified}
                     size="small"
-                    onChange={(_, checked) => toggleNotification(mobileProg, checked ? (notifyMins ?? 5) : null)}
+                    onChange={(_, checked) => toggleNotification(mobileProg, checked ? safeDefault : null)}
                     icon={<NotificationsNoneIcon sx={{ fontSize: '1rem' }} />}
                     checkedIcon={<NotificationsActiveIcon sx={{ fontSize: '1rem', color: 'primary.main' }} />}
                   />
@@ -924,12 +932,12 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
                   {isNotified && (
                     <Select
                       size="small"
-                      value={notifyMins}
+                      value={safeDefault}
                       onChange={e => toggleNotification(mobileProg, Number(e.target.value))}
                       sx={{ ml: 0.5, fontSize: '0.8rem', flex: 1 }}
                     >
                       {NOTIFY_OPTIONS.map(m => (
-                        <MenuItem key={m} value={m} sx={{ fontSize: '0.85rem' }}>
+                        <MenuItem key={m} value={m} disabled={isOptDisabled(m)} sx={{ fontSize: '0.85rem' }}>
                           {m === 0 ? 'At start' : `${m} min before`}
                         </MenuItem>
                       ))}
@@ -1151,6 +1159,59 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
               }}
             />
           )}
+
+          <Popover
+            open={Boolean(notifAnchorEl)}
+            anchorEl={notifAnchorEl}
+            onClose={() => setNotifAnchorEl(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+            slotProps={{ paper: { sx: {
+              mt: 0.5, minWidth: 280, maxWidth: 360, maxHeight: 400, overflow: 'auto',
+              bgcolor: isDark ? '#12121f' : '#fff',
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e0e0e0'}`,
+            } } }}
+          >
+            <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#f0f0f0'}` }}>
+              <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: 'text.secondary' }}>
+                Scheduled Notifications
+              </Typography>
+              <Chip
+                label="Clear all"
+                size="small"
+                variant="outlined"
+                onClick={() => { setNotifiedProgs(new Map()); setNotifAnchorEl(null); }}
+                sx={{ height: 20, fontSize: '0.68rem', borderRadius: '5px',
+                  borderColor: isDark ? 'rgba(255,255,255,0.12)' : undefined, color: 'text.disabled',
+                  '&:hover': { borderColor: 'rgba(255,255,255,0.25)', color: 'text.secondary' } }}
+              />
+            </Box>
+            {activeNotifications.map(({ key, prog, channel, minutesBefore }) => (
+              <Box key={key} sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1,
+                borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : '#f5f5f5'}`,
+                '&:last-child': { borderBottom: 'none' } }}>
+                {channel.icon && (
+                  <Box component="img" src={channel.icon} alt=""
+                    sx={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} />
+                )}
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography noWrap sx={{ fontSize: '0.8rem', fontWeight: 500 }}>{prog.title}</Typography>
+                  <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                    {channel.displayName} · {formatTime(prog.start)}
+                    {minutesBefore > 0 ? ` (−${minutesBefore} min)` : ' (at start)'}
+                  </Typography>
+                </Box>
+                <IconButton
+                  size="small"
+                  onClick={() => toggleNotification(prog, null)}
+                  sx={{ color: 'text.disabled', '&:hover': { color: '#ef4444' }, flexShrink: 0 }}
+                >
+                  <CloseIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Box>
+            ))}
+          </Popover>
         </Box>
 
         {/* ── Loading ── */}
