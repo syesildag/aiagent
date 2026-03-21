@@ -314,6 +314,30 @@ AUTH_GITHUB_COPILOT={"type":"oauth","refresh":"ghu_...","access":"ghu_...","expi
 
 ---
 
+### Outlook / Microsoft Graph Settings
+
+#### OUTLOOK_CLIENT_ID
+
+Azure AD application (client) ID for Microsoft Graph authentication.
+
+```bash
+OUTLOOK_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+Required to enable the Outlook MCP server. See [OUTLOOK-SERVER.md](OUTLOOK-SERVER.md) for how to create the Azure AD app registration.
+
+#### AUTH_OUTLOOK
+
+Serialized MSAL token cache + access token (auto-managed)
+
+```bash
+AUTH_OUTLOOK={"type":"oauth","refresh":"<msal-cache-json>","access":"<token>","expires":1234567890}
+```
+
+**Note:** Populated automatically after running `outlook` in the CLI. Do not edit manually.
+
+---
+
 ### MCP Settings
 
 #### MCP_SERVERS_PATH

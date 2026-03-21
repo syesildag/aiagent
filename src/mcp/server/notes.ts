@@ -213,9 +213,9 @@ server.registerPrompt(
   {
     title: "Summarize Notes",
     description: "Generate a concise summary of all notes in the system",
-    argsSchema: z.object({
+    argsSchema: {
       style: z.enum(["brief", "detailed", "bullet-points"]).optional()
-    })
+    }
   },
   ({ style }) => {
     const selectedStyle = style ?? "brief";

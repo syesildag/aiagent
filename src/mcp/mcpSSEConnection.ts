@@ -92,7 +92,7 @@ export class MCPSSEConnection extends EventEmitter {
     Logger.info(`[${this.server.name}] SSE connection established`);
   }
 
-  stop(): void {
+  stop(): Promise<void> {
     this.running = false;
     this.reconnectAttempts = 0;
     this.sseAbort?.abort();
@@ -107,6 +107,7 @@ export class MCPSSEConnection extends EventEmitter {
 
     this.emit('exit', 0);
     Logger.info(`[${this.server.name}] SSE connection closed`);
+    return Promise.resolve();
   }
 
   isRunning(): boolean {

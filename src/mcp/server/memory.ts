@@ -618,7 +618,7 @@ server.registerTool(
 
       const queryParams = user_login ? [threshold, user_login] : [threshold];
       const duplicates = await queryDatabase(selectSql, queryParams);
-      const rows = duplicates.rows as Array<{ id: number; type: string; source: string; similarity: string; kept_id: number }>;
+      const rows = duplicates as Array<{ id: number; type: string; source: string; similarity: string; kept_id: number }>;
 
       if (rows.length === 0) {
         return { content: [{ type: "text", text: `No duplicate memories found above similarity threshold ${threshold}.` }] };

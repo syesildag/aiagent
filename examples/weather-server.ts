@@ -7,7 +7,9 @@
  * through natural language queries using the chatWithLLM method.
  */
 
-import mcpManager from '../src/mcp/mcpManager.js';
+import { MCPServerManager } from '../src/mcp/mcpManager.js';
+
+const mcpManager = new MCPServerManager();
 import Logger from '../src/utils/logger.js';
 
 async function main() {

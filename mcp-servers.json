@@ -17,6 +17,15 @@
       "enabled": true
     },
     {
+      "name": "outlook",
+      "command": "node",
+      "args": [
+        "dist/src/mcp/server/outlook/index.js"
+      ],
+      "env": {},
+      "enabled": true
+    },
+    {
       "name": "memory",
       "command": "node",
       "args": [

@@ -20,7 +20,7 @@ async function demonstrateEnhancedRepository() {
         Logger.info('=== Example 1: Enhanced Finder Methods ===');
         
         // This replaces: SELECT * FROM ai_agent_memories WHERE type = $1 ORDER BY created_at DESC
-        const typeMemories = await aiagentmemoriesRepository.findByTypeOrderByCreatedAtDesc('conversation');
+        const typeMemories = await aiagentmemoriesRepository.findAllByTypeOrderByCreatedAtDesc('conversation');
         Logger.info(`Found ${typeMemories?.length || 0} memories of type 'conversation' ordered by creation date`);
 
         // Example 2: Using findAll with ordering options  

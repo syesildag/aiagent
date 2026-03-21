@@ -65,6 +65,11 @@ const envSchema = z.object({
   OPENWEATHERMAP_API_KEY: z.string().min(1).optional(),
   TAVILY_API_KEY: z.string().min(1).optional(),
 
+  // --- Outlook / Microsoft Graph ---
+  OUTLOOK_CLIENT_ID: z.string().min(1).optional(),
+  // Serialized MSAL token cache + access token, populated automatically after device-flow login
+  AUTH_OUTLOOK: z.string().optional(),
+
   // --- MCP ---
   MCP_SERVERS_PATH: z.string().min(1).default('./mcp-servers.json'),
 
@@ -150,6 +155,9 @@ function validateEnvironment(): Environment {
       USE_DB_CONVERSATION_HISTORY: false,
       OPENWEATHERMAP_API_KEY: undefined,
       TAVILY_API_KEY: undefined,
+      OUTLOOK_CLIENT_ID: undefined,
+      OUTLOOK_TENANT_ID: undefined,
+      AUTH_OUTLOOK: undefined,
       GITHUB_COPILOT_CLIENT_ID: 'Ov23liwtwZwa1bIdrSWG',
       XMLTV_PATH: 'logs',
     } as Environment;

@@ -467,6 +467,24 @@ mcpManager.on('server-crash', async (serverName) => {
 - Limit concurrent tool executions
 - Monitor resource usage
 
+### 4. Dangerous Tool Patterns (Human-in-the-Loop)
+
+`MCPServerManager` requires explicit human approval before calling any tool whose name matches a dangerous pattern. The current patterns are:
+
+| Pattern | Matches |
+|---|---|
+| `delete` | `deleteCalendarEvent`, `deleteEmail`, `drop_table`, etc. |
+| `drop` | `dropCollection`, etc. |
+| `create` | `createCalendarEvent`, `createDraft`, etc. |
+| `update` | `updateCalendarEvent`, etc. |
+| `truncate` | `truncate_table`, etc. |
+| `execute` | `execute_query`, etc. |
+| `evaluate` | `evaluate_code`, etc. |
+
+Tools matching these patterns pause the agentic loop and emit an `approval` event (NDJSON type `"approval"`) which the frontend or CLI presents to the user. The loop only resumes after explicit confirmation.
+
+To add new patterns, edit `DANGEROUS_TOOL_PATTERNS` in [src/mcp/mcpManager.ts](../src/mcp/mcpManager.ts).
+
 ## Testing MCP Servers
 
 ### Unit Tests
@@ -526,8 +544,14 @@ See working examples in:
 - [time-server.ts](../examples/time-server.ts)
 - [weather-server.ts](../examples/weather-server.ts)
 
+Built-in MCP servers in `src/mcp/server/`:
+- `memory.ts` — long-term memory with vector similarity search
+- `notes.ts` — note-taking and summarisation
+- `outlook/` — Microsoft 365 email, calendar, and people (see [OUTLOOK-SERVER.md](OUTLOOK-SERVER.md))
+
 ## Related Documentation
 
 - [Agent System](AGENT_SYSTEM.md)
 - [LLM Providers](LLM_PROVIDERS.md)
 - [Configuration](CONFIGURATION.md)
+- [Outlook Server](OUTLOOK-SERVER.md)

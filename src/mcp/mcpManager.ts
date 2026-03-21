@@ -19,6 +19,8 @@ import { capitalize } from '../utils/stringCase';
 const DANGEROUS_TOOL_PATTERNS: RegExp[] = [
   /(^|_)delete($|_)/i,
   /(^|_)drop($|_)/i,
+  /(^|_)create($|_)/i,
+  /(^|_)update($|_)/i,
   /(^|_)truncate($|_)/i,
   /(^|_)execute($|_)/i,
   /(^|_)evaluate($|_)/i,
@@ -425,11 +427,25 @@ export class MCPServerConnection extends EventEmitter {
     return this.prompts;
   }
 
-  stop(): void {
-    if (this.process) {
+  stop(): Promise<void> {
+    return new Promise((resolve) => {
+      if (!this.process || this.process.killed) {
+        this.process = null;
+        resolve();
+        return;
+      }
+      this.process.once('exit', () => {
+        this.process = null;
+        resolve();
+      });
       this.process.kill('SIGTERM');
-      this.process = null;
-    }
+      // Force-kill after 5 s if SIGTERM is ignored
+      setTimeout(() => {
+        if (this.process) {
+          this.process.kill('SIGKILL');
+        }
+      }, 5000);
+    });
   }
 
   isRunning(): boolean {

@@ -94,6 +94,27 @@ Enter model name (default: gpt-4o-mini):
 ✅ Model set to gpt-4o
 ```
 
+### outlook
+
+Authenticate with Microsoft for Outlook / Calendar access. Uses the MSAL device code flow — prints a URL and short code to paste into any browser.
+
+```
+> outlook
+
+=== Outlook / Microsoft Graph Authentication ===
+Starting device code authentication...
+A URL and code will be printed below — open the URL and enter the code.
+
+To sign in, visit https://microsoft.com/devicelogin and enter code: ABCD-1234
+
+✅ Outlook authenticated successfully! (account: you@example.com)
+Token cached to disk. The outlook MCP server will use it automatically.
+```
+
+The serialized MSAL token cache (including refresh token) is saved to `AUTH_OUTLOOK` in `.env`. Future server starts acquire tokens silently — you only need to run this once (or after ~90 days of inactivity).
+
+See [OUTLOOK-SERVER.md](OUTLOOK-SERVER.md) for full setup instructions.
+
 ### select
 
 Select an AI agent to chat with.

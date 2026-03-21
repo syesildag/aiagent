@@ -38,8 +38,8 @@ export async function verifyPassword(
   }
   const legacyHash = legacyHashPassword(password, hmacKey);
   const valid = crypto.timingSafeEqual(
-    Buffer.from(legacyHash, 'base64'),
-    Buffer.from(storedHash, 'base64'),
+    new Uint8Array(Buffer.from(legacyHash, 'base64')),
+    new Uint8Array(Buffer.from(storedHash, 'base64')),
   );
   return { valid, needsRehash: valid };
 }

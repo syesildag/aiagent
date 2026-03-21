@@ -81,7 +81,7 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
       // Authenticate with GitHub
       console.log('Starting GitHub authentication...');
       try {
-        const token = await authenticateWithGitHub();
+        await authenticateWithGitHub();
 
         // Update environment variables
         updateEnvVariables({
@@ -360,6 +360,7 @@ async function main() {
     console.log('Type your questions or commands. Special commands:');
     console.log('  - "help" - Show available commands');
     console.log('  - "login" - Configure LLM provider and authenticate');
+    console.log('  - "outlook" - Authenticate with Microsoft for Outlook/Calendar access');
     console.log('  - "model" - List and select available models');
     console.log('  - "status" - Show MCP server status');
     console.log('  - "refresh" - Refresh tools cache');
@@ -432,6 +433,7 @@ async function main() {
           console.log('\nAvailable commands:');
           console.log('  - help: Show this help message');
           console.log('  - login: Configure LLM provider and authenticate');
+          console.log('  - outlook: Authenticate with Microsoft for Outlook/Calendar access');
           console.log('  - model: List and select available models');
           console.log('  - status: Show MCP server status and capabilities');
           console.log('  - refresh: Refresh tools cache from MCP servers');
@@ -456,6 +458,33 @@ async function main() {
 
           console.log('\nOr ask any question to chat with the AI assistant using MCP tools.');
           console.log('While processing, you can press Ctrl+C to cancel the current operation.\n');
+          rl.prompt();
+          return;
+        }
+
+        if (query.toLowerCase() === 'outlook') {
+          console.log('\n=== Outlook / Microsoft Graph Authentication ===');
+          try {
+            const { acquireToken, clearTokenCache, pca } = await import('./mcp/server/outlook/auth.js');
+
+            // Clear all cached state so stale tokens don't interfere
+            clearTokenCache();
+            const accounts = await pca.getTokenCache().getAllAccounts();
+            for (const account of accounts) {
+              await pca.getTokenCache().removeAccount(account);
+            }
+            console.log('Starting device code authentication...');
+            console.log('A URL and code will be printed below — open the URL and enter the code.\n');
+            const result = await acquireToken();
+            if (result) {
+              console.log(`✅ Outlook authenticated successfully! (account: ${result.account?.username})`);
+              console.log('Token cached to disk. The outlook MCP server will use it automatically.\n');
+            } else {
+              console.log('❌ Authentication failed or was cancelled.\n');
+            }
+          } catch (error) {
+            console.error(`Outlook authentication failed: ${error}\n`);
+          }
           rl.prompt();
           return;
         }
