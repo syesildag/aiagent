@@ -815,10 +815,12 @@ export const ChatInterface: React.FC = () => {
           overflow: 'auto',
           overscrollBehavior: 'contain',
           bgcolor: 'background.default',
-          p: { xs: 1, sm: 2 },
+          pt: { xs: 1, sm: 2 },
+          pb: { xs: 1, sm: 2 },
+          px: { xs: 1.5, sm: 2.5, md: 3 },
         }}
       >
-        <Container maxWidth="md">
+        <Box sx={{ width: '100%' }}>
           <List sx={{ width: '100%' }}>
             {messages.length === 0 && (
               <Box
@@ -928,7 +930,7 @@ export const ChatInterface: React.FC = () => {
             )}
             <div ref={messagesEndRef} />
           </List>
-        </Container>
+        </Box>
       </Box>
 
       <Paper

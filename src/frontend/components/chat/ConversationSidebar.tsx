@@ -7,7 +7,6 @@ import {
     ChatBubbleOutline as ChatIcon,
 } from '@mui/icons-material';
 import {
-    Backdrop,
     Box,
     Divider,
     Drawer,
@@ -107,7 +106,6 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
     const drawerWidth = 264;
 
     const drawerSx = {
-        width: drawerWidth,
         flexShrink: 0,
         '& .MuiDrawer-paper': {
             width: drawerWidth,
@@ -311,23 +309,15 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                     {drawerContent}
                 </SwipeableDrawer>
             ) : (
-                <>
-                    <Backdrop
-                        open={open}
-                        invisible
-                        onClick={() => setOpen(false)}
-                        sx={{ zIndex: theme => theme.zIndex.drawer - 1 }}
-                    />
-                    <Drawer
-                        variant="persistent"
-                        anchor="left"
-                        open={open}
-                        onClose={() => setOpen(false)}
-                        sx={drawerSx}
-                    >
-                        {drawerContent}
-                    </Drawer>
-                </>
+                <Drawer
+                    variant="temporary"
+                    anchor="left"
+                    open={open}
+                    onClose={() => setOpen(false)}
+                    sx={drawerSx}
+                >
+                    {drawerContent}
+                </Drawer>
             )}
         </>
     );
