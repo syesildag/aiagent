@@ -10,6 +10,7 @@ import {
     getEmbeddings,
     getEmbeddingService
 } from '../utils/embeddingService';
+import { config } from '../utils/config';
 
 // Example 1: Basic Usage (Drop-in replacement)
 async function basicUsage() {
@@ -57,7 +58,7 @@ async function customConfiguration() {
   const service = createEmbeddingService({
     provider: 'auto', // Try best available provider
     openai: {
-      apiKey: process.env.OPENAI_API_KEY || 'test-key',
+      apiKey: config.OPENAI_API_KEY ?? 'test-key',
       defaultModel: 'text-embedding-3-small',
     },
     ollama: {

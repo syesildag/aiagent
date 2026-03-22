@@ -1,4 +1,5 @@
 import { Configuration, LogLevel } from '@azure/msal-node';
+import { config } from '../../../utils/config.js';
 
 /**
  * Configuration object to be passed to MSAL instance on creation.
@@ -11,7 +12,7 @@ import { Configuration, LogLevel } from '@azure/msal-node';
  */
 export const msalConfig: Configuration = {
     auth: {
-        clientId: process.env.OUTLOOK_CLIENT_ID!,
+        clientId: config.OUTLOOK_CLIENT_ID!,
         // 'common' supports both personal (hotmail/outlook.com) and work accounts.
         // A specific tenant ID only works for organizational (AAD) accounts and will
         // cause HTTP 401 for personal Microsoft accounts even with a valid token.

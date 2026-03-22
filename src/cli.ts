@@ -1,9 +1,11 @@
 import "dotenv/config";
 import * as readline from 'readline';
 import Logger from './utils/logger';
+import { config } from './utils/config';
 import { authenticateWithGitHub, whoami } from './utils/githubAuth';
 import { updateEnvVariables } from './utils/envManager';
 import {
+  AnthropicProvider,
   GitHubCopilotProvider,
   LLMChatResponse,
   LLMMessage,
@@ -142,8 +144,8 @@ async function handleModelCommand(rl: readline.Interface, manager: MCPServerMana
     });
   };
 
-  const currentProvider = process.env.LLM_PROVIDER || 'ollama';
-  const currentModel = process.env.LLM_MODEL || 'llama3.2:3b';
+  const currentProvider = config.LLM_PROVIDER;
+  const currentModel = config.LLM_MODEL;
 
   console.log(`Current provider: ${currentProvider}`);
   console.log(`Current model: ${currentModel}\n`);
@@ -240,8 +242,8 @@ async function main() {
   // - Prompt user for selection
 
   let llmProvider: LLMProvider;
-  let model: string = process.env.LLM_MODEL || 'llama3.2:3b'; // get model from .env or default
-  const providerType = process.env.LLM_PROVIDER || 'ollama';
+  let model: string = config.LLM_MODEL;
+  const providerType = config.LLM_PROVIDER;
   let actualProviderType = providerType; // Track the actual provider being used (after fallbacks)
 
   Logger.debug(`Provider: ${providerType}`);
@@ -261,7 +263,7 @@ async function main() {
           model = 'llama3.2:3b'; // Default model for Ollama
           actualProviderType = 'ollama'; // Update actual provider type
         } else {
-          const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
+          const githubBaseUrl = config.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
           Logger.debug(`GitHub Base URL: ${githubBaseUrl}`);
           llmProvider = new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
           Logger.info('Using GitHub Copilot provider');
@@ -277,7 +279,7 @@ async function main() {
       break;
 
     case 'openai':
-      const openaiApiKey = process.env.OPENAI_API_KEY;
+      const openaiApiKey = config.OPENAI_API_KEY;
       if (!openaiApiKey) {
         Logger.error('OpenAI requires OPENAI_API_KEY environment variable');
         Logger.info('Falling back to Ollama provider...');
@@ -287,9 +289,25 @@ async function main() {
         break;
       }
       else {
-        llmProvider = new OpenAIProvider(openaiApiKey);
+        llmProvider = new OpenAIProvider(openaiApiKey, config.OPENAI_BASE_URL);
         Logger.info('Using OpenAI provider');
         actualProviderType = 'openai';
+        break;
+      }
+
+    case 'anthropic':
+      const anthropicApiKey = config.ANTHROPIC_API_KEY;
+      if (!anthropicApiKey) {
+        Logger.error('Anthropic requires ANTHROPIC_API_KEY environment variable');
+        Logger.info('Falling back to Ollama provider...');
+        llmProvider = new OllamaProvider();
+        model = 'llama3.2:3b'; // Default model for Ollama
+        actualProviderType = 'ollama';
+        break;
+      } else {
+        llmProvider = new AnthropicProvider(anthropicApiKey, config.ANTHROPIC_BASE_URL);
+        Logger.info('Using Anthropic provider');
+        actualProviderType = 'anthropic';
         break;
       }
 
@@ -301,13 +319,13 @@ async function main() {
       break;
   }
 
-  const currentManager = new MCPServerManager(process.env.MCP_SERVERS_PATH, llmProvider, model);
+  const currentManager = new MCPServerManager(config.MCP_SERVERS_PATH, llmProvider, model);
 
   /**
    * Create a new LLM provider based on current environment variables
    */
   async function createLLMProvider(): Promise<LLMProvider> {
-    const currentProviderType = process.env.LLM_PROVIDER || 'ollama';
+    const currentProviderType = config.LLM_PROVIDER;
 
     switch (currentProviderType.toLowerCase()) {
       case 'github':
@@ -320,7 +338,7 @@ async function main() {
             Logger.info('Falling back to Ollama provider...');
             return new OllamaProvider();
           }
-          const githubBaseUrl = process.env.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
+          const githubBaseUrl = config.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
           return new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
         } catch (error) {
           Logger.error(`GitHub Copilot authentication failed: ${error}`);
@@ -329,12 +347,20 @@ async function main() {
         }
 
       case 'openai':
-        const openaiApiKey = process.env.OPENAI_API_KEY;
+        const openaiApiKey = config.OPENAI_API_KEY;
         if (!openaiApiKey) {
           Logger.error('OpenAI requires OPENAI_API_KEY environment variable');
           throw new Error('OpenAI configuration incomplete');
         }
         return new OpenAIProvider(openaiApiKey);
+
+      case 'anthropic':
+        const anthropicApiKey = config.ANTHROPIC_API_KEY;
+        if (!anthropicApiKey) {
+          Logger.error('Anthropic requires ANTHROPIC_API_KEY environment variable');
+          throw new Error('Anthropic configuration incomplete');
+        }
+        return new AnthropicProvider(anthropicApiKey, config.ANTHROPIC_BASE_URL);
 
       case 'ollama':
       default:
@@ -347,7 +373,7 @@ async function main() {
    */
   async function updateManagerConfiguration(): Promise<void> {
     const newProvider = await createLLMProvider();
-    const newModel = process.env.LLM_MODEL || 'llama3.2:3b';
+    const newModel = config.LLM_MODEL;
 
     currentManager.updateConfiguration(newProvider, newModel);
     Logger.info('Manager configuration updated with new provider/model settings');
