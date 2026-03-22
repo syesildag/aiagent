@@ -28,6 +28,7 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
   console.log('1. Ollama (local) - No authentication required');
   console.log('2. GitHub Copilot - Requires GitHub authentication');
   console.log('3. OpenAI - Requires API key');
+  console.log('4. Anthropic - Requires API key');
   console.log('');
 
   // Create a promise-based input function
@@ -39,7 +40,7 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
     });
   };
 
-  const choice = await askQuestion('Select a provider (1-3): ');
+  const choice = await askQuestion('Select a provider (1-4): ');
 
   switch (choice) {
     case '1':
@@ -123,8 +124,30 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
       console.log('Manager instance updated with new provider configuration.\n');
       break;
 
+    case '4':
+      // Anthropic
+      console.log('\nConfiguring Anthropic provider...');
+      const anthropicApiKey = await askQuestion('Enter your Anthropic API key: ');
+
+      if (!anthropicApiKey) {
+        console.log('API key is required for Anthropic provider.\n');
+        break;
+      }
+
+      updateEnvVariables({
+        'LLM_PROVIDER': 'anthropic',
+        'ANTHROPIC_API_KEY': anthropicApiKey
+      });
+
+      // Update the manager with new provider configuration
+      updateManagerCallback();
+
+      console.log('✅ Anthropic provider configured successfully!');
+      console.log('Manager instance updated with new provider configuration.\n');
+      break;
+
     default:
-      console.log('Invalid choice. Please select 1, 2, or 3.\n');
+      console.log('Invalid choice. Please select 1, 2, 3, or 4.\n');
       break;
   }
 }
@@ -399,7 +422,7 @@ async function main() {
     console.log('  - "exit" or "quit" - Exit the program');
     console.log('\nLLM Provider Configuration:');
     console.log('  - Default: Ollama (local)');
-    console.log('  - Use "login" command to configure GitHub Copilot or OpenAI');
+    console.log('  - Use "login" command to configure GitHub Copilot, OpenAI, or Anthropic');
     console.log('\nMCP servers will be initialized on first use.');
     console.log('');
 
