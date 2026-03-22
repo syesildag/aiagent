@@ -1625,7 +1625,7 @@ export class OpenAIProvider implements LLMProvider, ImageGenerationProvider, Res
 
   async getAvailableModels(): Promise<string[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/models`, {
+      const response = await fetch(`${this.baseUrl}/v1/models`,  {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json'
@@ -1660,7 +1660,7 @@ export class OpenAIProvider implements LLMProvider, ImageGenerationProvider, Res
 
     Logger.debug(`Request body: ${JSON.stringify(requestBody, null, 2)}`);
 
-    const chatPromise = fetch(`${this.baseUrl}/chat/completions`, {
+    const chatPromise = fetch(`${this.baseUrl}/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
