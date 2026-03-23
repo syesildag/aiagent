@@ -16,7 +16,7 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { queryDatabase, closeDatabase } from "../../utils/pgClient.js";
-import { getEmbeddings } from "../../utils/embeddingService.js";
+import { getEmbeddingService } from "../../utils/embeddingService.js";
 import Logger from "../../utils/logger.js";
 import { AiAgentMemories } from "../../entities/ai-agent-memories.js";
 import aiagentmemoriesRepository from "../../entities/ai-agent-memories.js";
@@ -269,7 +269,7 @@ server.registerTool(
 
       // Generate embedding for semantic search
       const textForEmbedding = prepareContentForEmbedding(validatedData.content);
-      const embedding = await getEmbeddings(textForEmbedding);
+      const { embedding, embeddingModel } = await getEmbeddingService().generateEmbeddingWithMeta(textForEmbedding);
 
       if (!embedding || embedding.length === 0) {
         throw new Error("Failed to generate embedding for content");
@@ -281,6 +281,7 @@ server.registerTool(
         content: contentForStorage,
         source: validatedData.source,
         embedding: `[${embedding.join(',')}]`,
+        embeddingModel,
         tags: validatedData.tags,
         confidence: validatedData.confidence,
         userLogin: user_login,
@@ -304,7 +305,8 @@ server.registerTool(
          INNER JOIN ai_agent_memories AS m2
             ON m1.id <> m2.id
            AND m1.id < m2.id
-         WHERE (1 - (m1.embedding <=> m2.embedding)) > 0.75
+         WHERE m1.embedding_model = m2.embedding_model
+           AND (1 - (m1.embedding <=> m2.embedding)) > 0.75
            AND (
              (m1.user_login IS NULL AND m2.user_login IS NULL)
              OR m1.user_login = m2.user_login
@@ -343,22 +345,21 @@ server.registerTool(
   async (args) => {
     const { query, type, tags, limit = 10, user_login } = args as unknown as SearchMemoryArgs;
     try {
-      // Generate embedding for search query
-      const queryEmbedding = await getEmbeddings(query);
+      // Generate embedding for search query — capture which model was used
+      // so the WHERE clause only compares same-dimension rows.
+      const { embedding: queryEmbedding, embeddingModel } = await getEmbeddingService().generateEmbeddingWithMeta(query);
       if (!queryEmbedding || queryEmbedding.length === 0) {
         throw new Error("Failed to generate embedding for search query");
       }
 
-      // Complex vector similarity search requires direct SQL for now
-      // Repository pattern doesn't support vector operations yet
       let sqlQuery = `
         SELECT *, 1 - (embedding <=> $1::vector) as similarity
           FROM ai_agent_memories
-         WHERE 1=1
+         WHERE embedding_model = $2
       `;
 
-      const queryParams: any[] = [`[${queryEmbedding.join(',')}]`];
-      let paramCount = 1;
+      const queryParams: any[] = [`[${queryEmbedding.join(',')}]`, embeddingModel];
+      let paramCount = 2;
 
       if (user_login) {
         paramCount++;

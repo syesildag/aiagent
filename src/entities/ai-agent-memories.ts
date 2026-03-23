@@ -19,19 +19,21 @@ export class AiAgentMemories extends Entity {
    private content: any;
    private source: string;
    private embedding: any;
+   private embeddingModel?: string;
    private tags?: string[];
    private confidence?: any;
    private userLogin?: string;
    private createdAt?: Date;
    private updatedAt?: Date;
 
-   constructor({ id, type, content, source, embedding, tags, confidence, userLogin, createdAt, updatedAt }: { id?: number, type: string, content: any, source: string, embedding: any, tags?: string[], confidence?: any, userLogin?: string, createdAt?: Date, updatedAt?: Date }) {
+   constructor({ id, type, content, source, embedding, embeddingModel, tags, confidence, userLogin, createdAt, updatedAt }: { id?: number, type: string, content: any, source: string, embedding: any, embeddingModel?: string, tags?: string[], confidence?: any, userLogin?: string, createdAt?: Date, updatedAt?: Date }) {
       super();
       this.id = id;
       this.type = type;
       this.content = content;
       this.source = source;
       this.embedding = embedding;
+      this.embeddingModel = embeddingModel;
       this.tags = tags;
       this.confidence = confidence;
       this.userLogin = userLogin;
@@ -59,9 +61,14 @@ export class AiAgentMemories extends Entity {
       return this.source;
    }
 
-   @Column({ columnName: 'embedding', notNull: true })
+   @Column({ columnName: 'embedding' })
    public getEmbedding(): any {
       return this.embedding;
+   }
+
+   @Column({ columnName: 'embedding_model' })
+   public getEmbeddingModel(): string | undefined {
+      return this.embeddingModel;
    }
 
    @Column({ columnName: 'tags', hasDefault: true })

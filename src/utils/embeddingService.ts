@@ -884,27 +884,38 @@ export class EmbeddingService {
    * Generate embedding for a single text input
    */
   async generateEmbedding(
-    text: string, 
+    text: string,
     options?: { model?: string; provider?: Exclude<EmbeddingProviderType, 'auto'> }
   ): Promise<number[]> {
-    // Validate input
+    return (await this.generateEmbeddingWithMeta(text, options)).embedding;
+  }
+
+  /**
+   * Like generateEmbedding but also returns the canonical model identifier
+   * (`"provider:modelName"`, e.g. `"local:Xenova/all-MiniLM-L6-v2"`) that
+   * was used to produce the vector.  Store this alongside the embedding so
+   * that similarity searches can filter to matching-dimension rows.
+   */
+  async generateEmbeddingWithMeta(
+    text: string,
+    options?: { model?: string; provider?: Exclude<EmbeddingProviderType, 'auto'> }
+  ): Promise<{ embedding: number[]; embeddingModel: string }> {
     if (!text || text.trim().length === 0) {
       throw new EmbeddingValidationError('Text input cannot be empty or contain only whitespace');
     }
-    
+
     const cacheKey = this.getCacheKey(text, options?.model, options?.provider);
-    
-    // Check cache first
+
     if (this.cacheEnabled) {
       const cached = this.cache.get(cacheKey);
       if (cached) {
         Logger.debug(`Cache hit for embedding: ${text.substring(0, 50)}...`);
-        return cached.embedding;
+        return { embedding: cached.embedding, embeddingModel: cached.model };
       }
     }
 
-    const providers = options?.provider 
-      ? [options.provider] 
+    const providers = options?.provider
+      ? [options.provider]
       : [this.primaryProvider, ...this.fallbackProviders];
 
     let lastError: Error | null = null;
@@ -944,14 +955,14 @@ export class EmbeddingService {
           continue;
         }
 
-        // Cache the result (lru-cache handles TTL automatically)
         if (this.cacheEnabled) {
           this.cache.set(cacheKey, result);
         }
 
         this.providerFailedAt.delete(providerName);
         Logger.debug(`Successfully generated embedding using ${providerName}`);
-        return result.embedding;
+        const embeddingModel = `${providerName}:${result.model}`;
+        return { embedding: result.embedding, embeddingModel };
 
       } catch (error) {
         Logger.warn(`Provider ${providerName} failed: ${error}`);
@@ -961,7 +972,6 @@ export class EmbeddingService {
       }
     }
 
-    // All providers failed
     throw new EmbeddingError(
       'EmbeddingService',
       `All providers failed. Last error: ${lastError?.message}`,
