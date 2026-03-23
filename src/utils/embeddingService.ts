@@ -857,6 +857,9 @@ export class EmbeddingService {
   private cache: LRUCache<string, EmbeddingVector>;
   private cacheEnabled: boolean;
   private cacheTtl: number;
+  /** Tracks when each provider last failed; skip it until cooldown expires. */
+  private providerFailedAt: Map<string, number> = new Map();
+  private readonly providerCooldownMs = 60_000; // 1 minute
 
   constructor(config: EmbeddingConfig) {
     this.cacheEnabled = config.cache?.enabled ?? false;
@@ -913,10 +916,17 @@ export class EmbeddingService {
         continue;
       }
 
+      const failedAt = this.providerFailedAt.get(providerName);
+      if (failedAt && Date.now() - failedAt < this.providerCooldownMs) {
+        Logger.debug(`Provider ${providerName} is in cooldown, skipping`);
+        continue;
+      }
+
       try {
         const isAvailable = await provider.isAvailable();
         if (!isAvailable) {
           Logger.warn(`Provider ${providerName} is not available, trying fallback`);
+          this.providerFailedAt.set(providerName, Date.now());
           continue;
         }
 
@@ -939,12 +949,14 @@ export class EmbeddingService {
           this.cache.set(cacheKey, result);
         }
 
+        this.providerFailedAt.delete(providerName);
         Logger.debug(`Successfully generated embedding using ${providerName}`);
         return result.embedding;
 
       } catch (error) {
         Logger.warn(`Provider ${providerName} failed: ${error}`);
         lastError = error as Error;
+        this.providerFailedAt.set(providerName, Date.now());
         continue;
       }
     }
@@ -980,10 +992,17 @@ export class EmbeddingService {
       const provider = this.providers.get(providerName);
       if (!provider) continue;
 
+      const failedAt = this.providerFailedAt.get(providerName);
+      if (failedAt && Date.now() - failedAt < this.providerCooldownMs) {
+        Logger.debug(`Provider ${providerName} is in cooldown, skipping`);
+        continue;
+      }
+
       try {
         const isAvailable = await provider.isAvailable();
         if (!isAvailable) {
           Logger.warn(`Provider ${providerName} is not available, trying fallback`);
+          this.providerFailedAt.set(providerName, Date.now());
           continue;
         }
 
@@ -1011,12 +1030,14 @@ export class EmbeddingService {
           }
         }
 
+        this.providerFailedAt.delete(providerName);
         Logger.debug(`Batch embeddings generated using ${providerName} for ${texts.length} texts`);
         return embeddings;
 
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         Logger.warn(`Provider ${providerName} failed for batch: ${lastError.message}, trying fallback`);
+        this.providerFailedAt.set(providerName, Date.now());
         continue;
       }
     }
