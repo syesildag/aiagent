@@ -6,6 +6,7 @@ import { AiAgentSession } from "../entities/ai-agent-session";
 import aiagentuserRepository from "../entities/ai-agent-user";
 import Logger from "../utils/logger";
 import { slashCommandRegistry } from "../utils/slashCommandRegistry";
+import { getEmbeddingService } from "../utils/embeddingService";
 
 export default abstract class AbstractAgent implements Agent {
 
@@ -56,6 +57,57 @@ export default abstract class AbstractAgent implements Agent {
    }
 
    /**
+    * Filters the candidate server list by semantic similarity to the prompt.
+    * Servers with a description in mcp-servers.json are scored; those below
+    * the threshold are excluded. Falls back to the full candidate list if the
+    * embedding service is unavailable or no servers have descriptions.
+    */
+   private async filterServersByPromptSimilarity(
+      prompt: string,
+      allowed: string[] | undefined,
+      threshold = 0.35,
+   ): Promise<string[] | undefined> {
+      if (!this.mcpManager) return allowed;
+
+      const configs = this.mcpManager.getEnabledServerConfigs();
+      const candidates = allowed
+         ? configs.filter(s => allowed.includes(s.name))
+         : configs;
+
+      const withDesc = candidates.filter(s => s.description);
+      if (withDesc.length === 0) return allowed;
+
+      try {
+         const embeddingService = getEmbeddingService();
+         const promptEmbedding = await embeddingService.generateEmbedding(prompt);
+         const matched: string[] = [];
+
+         for (const server of candidates) {
+            if (!server.description) {
+               // No description — include unconditionally
+               matched.push(server.name);
+               continue;
+            }
+            const serverEmbedding = await embeddingService.generateEmbedding(server.description);
+            const { similarity } = embeddingService.calculateSimilarity(promptEmbedding, serverEmbedding, 'cosine');
+            Logger.debug(`[Servers] "${server.name}" similarity=${similarity.toFixed(3)} threshold=${threshold}`);
+            if (similarity >= threshold) matched.push(server.name);
+         }
+
+         // If nothing matched, fall back to full candidate list to avoid breaking the agent
+         if (matched.length === 0) {
+            Logger.debug('[Servers] No servers matched similarity threshold; using all candidates');
+            return allowed;
+         }
+
+         return matched;
+      } catch (error) {
+         Logger.warn(`[Servers] Similarity filtering failed (${error instanceof Error ? error.message : String(error)}); using all candidates`);
+         return allowed;
+      }
+   }
+
+   /**
     * Override to use a different LLM model for this agent's calls.
     * File-based agents source this from the `model:` frontmatter field.
     * Returns undefined to use the globally configured model.
@@ -100,7 +152,7 @@ export default abstract class AbstractAgent implements Agent {
            ? `${baseSystemPrompt}\n\n${skillsBlock}`
            : baseSystemPrompt;
 
-         const serverNames = this.getAllowedServerNames();
+         const serverNames = await this.filterServersByPromptSimilarity(prompt, this.getAllowedServerNames());
          const userLogin = this.session?.getUserLogin();
          // If isAdmin was not provided by the caller (e.g. AgentJob), fall back to a DB
          // lookup from the stored session. When provided (web chat route), we trust the
