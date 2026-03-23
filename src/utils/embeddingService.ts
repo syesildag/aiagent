@@ -1194,7 +1194,6 @@ export class EmbeddingService {
 export function createEmbeddingService(overrides?: Partial<EmbeddingConfig>): EmbeddingService {
   const baseConfig: EmbeddingConfig = {
     provider: config.EMBEDDING_PROVIDER as EmbeddingProviderType,
-    expectedDimensions: 1536,
     openai: config.OPENAI_API_KEY
       ? {
           apiKey: config.OPENAI_API_KEY,
@@ -1248,20 +1247,6 @@ export function getEmbeddingService(overrides?: Partial<EmbeddingConfig>): Embed
   return defaultEmbeddingService;
 }
 
-/**
- * Singleton embedding service for similarity comparisons (skills, MCP servers).
- * Does NOT enforce expectedDimensions so that local/lower-dim providers (e.g.
- * Xenova/all-MiniLM-L6-v2 at 384 dims) are accepted as long as both vectors
- * come from the same provider.
- */
-let similarityEmbeddingService: EmbeddingService | null = null;
-
-export function getSimilarityEmbeddingService(): EmbeddingService {
-  if (!similarityEmbeddingService) {
-    similarityEmbeddingService = createEmbeddingService({ expectedDimensions: undefined });
-  }
-  return similarityEmbeddingService;
-}
 
 /**
  * Convenience function for backward compatibility with existing getEmbeddings

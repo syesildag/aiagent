@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { SlashCommand, loadSlashCommands } from './slashCommands';
 import { Skill, loadSkills } from './skillLoader';
-import { getSimilarityEmbeddingService } from './embeddingService';
+import { getEmbeddingService } from './embeddingService';
 import Logger from './logger';
 
 const DEFAULT_COMMANDS_DIR = path.resolve(process.cwd(), '.claude', 'commands');
@@ -65,7 +65,7 @@ export class SlashCommandRegistry {
     if (this.skills.size === 0) return '';
 
     try {
-      const embeddingService = getSimilarityEmbeddingService();
+      const embeddingService = getEmbeddingService();
       const promptEmbedding = await embeddingService.generateEmbedding(prompt);
       const matchedSkills: Skill[] = [];
 
