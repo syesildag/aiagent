@@ -94,7 +94,7 @@ export default abstract class AbstractAgent implements Agent {
          // Initialize registry (no-op after first call) and inject all skills
          // into the system prompt so the LLM is always aware of them.
          slashCommandRegistry.initialize();
-         const skillsBlock = slashCommandRegistry.getSkillsSystemPromptBlock();
+         const skillsBlock = await slashCommandRegistry.getSkillsSystemPromptBlockForPrompt(prompt);
          const baseSystemPrompt = this.getSystemPrompt();
          const systemPrompt = skillsBlock
            ? `${baseSystemPrompt}\n\n${skillsBlock}`

@@ -17,7 +17,7 @@ function makeCommand(body: string, overrides: Partial<SlashCommand> = {}): Slash
 }
 
 function makeSkill(name: string, content: string): Skill {
-  return { name, content, filePath: `/fake/skills/${name}/SKILL.md` };
+  return { name, content, filePath: `/fake/skills/${name}/SKILL.md`, description: name };
 }
 
 // ── Argument substitution ─────────────────────────────────────────────────────

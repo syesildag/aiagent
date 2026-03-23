@@ -1,6 +1,8 @@
 import * as path from 'path';
 import { SlashCommand, loadSlashCommands } from './slashCommands';
 import { Skill, loadSkills } from './skillLoader';
+import { getEmbeddingService } from './embeddingService';
+import Logger from './logger';
 
 const DEFAULT_COMMANDS_DIR = path.resolve(process.cwd(), '.claude', 'commands');
 const DEFAULT_SKILLS_DIR = path.resolve(process.cwd(), '.claude', 'skills');
@@ -49,6 +51,46 @@ export class SlashCommandRegistry {
 
   getSkills(): Map<string, Skill> {
     return this.skills;
+  }
+
+  /**
+   * Returns a `<skills>…</skills>` block with only the skills whose description
+   * is semantically similar to `prompt` (cosine similarity ≥ `threshold`).
+   * Falls back to all skills if the embedding service is unavailable.
+   */
+  async getSkillsSystemPromptBlockForPrompt(
+    prompt: string,
+    threshold = 0.40,
+  ): Promise<string> {
+    if (this.skills.size === 0) return '';
+
+    try {
+      const embeddingService = getEmbeddingService();
+      const promptEmbedding = await embeddingService.generateEmbedding(prompt);
+      const matchedSkills: Skill[] = [];
+
+      for (const skill of this.skills.values()) {
+        const skillEmbedding = await embeddingService.generateEmbedding(skill.description);
+        const { similarity } = embeddingService.calculateSimilarity(
+          promptEmbedding, skillEmbedding, 'cosine',
+        );
+        Logger.debug(`[Skills] "${skill.name}" similarity=${similarity.toFixed(3)} threshold=${threshold}`);
+        if (similarity >= threshold) matchedSkills.push(skill);
+      }
+
+      if (matchedSkills.length === 0) return '';
+
+      const parts: string[] = ['<skills>'];
+      for (const skill of matchedSkills) {
+        parts.push(`## ${skill.name}\n\n${skill.content}`);
+      }
+      parts.push('</skills>');
+      return parts.join('\n\n');
+
+    } catch (error) {
+      Logger.warn(`[Skills] Semantic filtering failed (${error instanceof Error ? error.message : String(error)}); falling back to all skills`);
+      return this.getSkillsSystemPromptBlock();
+    }
   }
 
   /**
