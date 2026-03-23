@@ -958,7 +958,9 @@ export class EmbeddingService {
   }
 
   /**
-   * Generate embeddings for multiple texts efficiently
+   * Generate embeddings for multiple texts using the same provider for all inputs,
+   * guaranteeing consistent vector dimensions suitable for similarity comparisons.
+   * Tries providers in fallback order until one succeeds for the entire batch.
    */
   async generateBatchEmbeddings(
     texts: string[],
@@ -968,34 +970,62 @@ export class EmbeddingService {
       return [];
     }
 
-    const providerName = options?.provider || this.primaryProvider;
-    const provider = this.providers.get(providerName);
-    
-    if (!provider) {
-      throw new EmbeddingError('EmbeddingService', `Provider ${providerName} not found`);
+    const providerOrder: string[] = options?.provider
+      ? [options.provider]
+      : [this.primaryProvider, ...this.fallbackProviders];
+
+    let lastError: Error | undefined;
+
+    for (const providerName of providerOrder) {
+      const provider = this.providers.get(providerName);
+      if (!provider) continue;
+
+      try {
+        const isAvailable = await provider.isAvailable();
+        if (!isAvailable) {
+          Logger.warn(`Provider ${providerName} is not available, trying fallback`);
+          continue;
+        }
+
+        let embeddings: number[][];
+        if (provider.supportsBatch) {
+          const results = await provider.generateBatchEmbeddings({
+            inputs: texts,
+            model: options?.model,
+            batchSize: options?.batchSize,
+          });
+          embeddings = results.map(r => r.embedding);
+        } else {
+          embeddings = [];
+          for (const text of texts) {
+            const result = await provider.generateEmbedding({ input: text, model: options?.model });
+            embeddings.push(result.embedding);
+          }
+        }
+
+        // Cache results under the actual provider that was used
+        if (this.cacheEnabled) {
+          for (let i = 0; i < texts.length; i++) {
+            const key = this.getCacheKey(texts[i], options?.model, providerName);
+            this.cache.set(key, { embedding: embeddings[i], model: options?.model || 'default' });
+          }
+        }
+
+        Logger.debug(`Batch embeddings generated using ${providerName} for ${texts.length} texts`);
+        return embeddings;
+
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        Logger.warn(`Provider ${providerName} failed for batch: ${lastError.message}, trying fallback`);
+        continue;
+      }
     }
 
-    try {
-      if (provider.supportsBatch) {
-        const results = await provider.generateBatchEmbeddings({
-          inputs: texts,
-          model: options?.model,
-          batchSize: options?.batchSize,
-        });
-        return results.map(r => r.embedding);
-      } else {
-        // Fallback to sequential processing
-        const results: number[][] = [];
-        for (const text of texts) {
-          const embedding = await this.generateEmbedding(text, options);
-          results.push(embedding);
-        }
-        return results;
-      }
-    } catch (error) {
-      Logger.error(`Batch embedding generation failed: ${error}`);
-      throw error;
-    }
+    throw new EmbeddingError(
+      'EmbeddingService',
+      `All providers failed for batch. Last error: ${lastError?.message}`,
+      'ALL_PROVIDERS_FAILED'
+    );
   }
 
   /**

@@ -79,17 +79,20 @@ export default abstract class AbstractAgent implements Agent {
 
       try {
          const embeddingService = getEmbeddingService();
-         const promptEmbedding = await embeddingService.generateEmbedding(prompt);
-         const matched: string[] = [];
 
-         for (const server of candidates) {
-            if (!server.description) {
-               // No description — include unconditionally
-               matched.push(server.name);
-               continue;
-            }
-            const serverEmbedding = await embeddingService.generateEmbedding(server.description);
-            const { similarity } = embeddingService.calculateSimilarity(promptEmbedding, serverEmbedding, 'cosine');
+         // Servers without a description are always included
+         const noDesc = candidates.filter(s => !s.description).map(s => s.name);
+         const withDesc = candidates.filter(s => s.description);
+
+         // Batch all texts together so they use the same provider → consistent dimensions
+         const texts = [prompt, ...withDesc.map(s => s.description as string)];
+         const embeddings = await embeddingService.generateBatchEmbeddings(texts);
+         const promptEmbedding = embeddings[0];
+         const matched: string[] = [...noDesc];
+
+         for (let i = 0; i < withDesc.length; i++) {
+            const server = withDesc[i];
+            const { similarity } = embeddingService.calculateSimilarity(promptEmbedding, embeddings[i + 1], 'cosine');
             Logger.debug(`[Servers] "${server.name}" similarity=${similarity.toFixed(3)} threshold=${threshold}`);
             if (similarity >= threshold) {
                Logger.info(`[Servers] Loaded "${server.name}" (similarity=${similarity.toFixed(3)})`);

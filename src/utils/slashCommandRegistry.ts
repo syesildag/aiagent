@@ -66,13 +66,16 @@ export class SlashCommandRegistry {
 
     try {
       const embeddingService = getEmbeddingService();
-      const promptEmbedding = await embeddingService.generateEmbedding(prompt);
+      const skills = Array.from(this.skills.values());
+      const texts = [prompt, ...skills.map(s => s.description)];
+      const embeddings = await embeddingService.generateBatchEmbeddings(texts);
+      const promptEmbedding = embeddings[0];
       const matchedSkills: Skill[] = [];
 
-      for (const skill of this.skills.values()) {
-        const skillEmbedding = await embeddingService.generateEmbedding(skill.description);
+      for (let i = 0; i < skills.length; i++) {
+        const skill = skills[i];
         const { similarity } = embeddingService.calculateSimilarity(
-          promptEmbedding, skillEmbedding, 'cosine',
+          promptEmbedding, embeddings[i + 1], 'cosine',
         );
         Logger.debug(`[Skills] "${skill.name}" similarity=${similarity.toFixed(3)} threshold=${threshold}`);
         if (similarity >= threshold) {
