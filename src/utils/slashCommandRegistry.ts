@@ -75,7 +75,10 @@ export class SlashCommandRegistry {
           promptEmbedding, skillEmbedding, 'cosine',
         );
         Logger.debug(`[Skills] "${skill.name}" similarity=${similarity.toFixed(3)} threshold=${threshold}`);
-        if (similarity >= threshold) matchedSkills.push(skill);
+        if (similarity >= threshold) {
+          Logger.info(`[Skills] Loaded "${skill.name}" (similarity=${similarity.toFixed(3)})`);
+          matchedSkills.push(skill);
+        }
       }
 
       if (matchedSkills.length === 0) return '';

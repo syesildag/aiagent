@@ -91,7 +91,10 @@ export default abstract class AbstractAgent implements Agent {
             const serverEmbedding = await embeddingService.generateEmbedding(server.description);
             const { similarity } = embeddingService.calculateSimilarity(promptEmbedding, serverEmbedding, 'cosine');
             Logger.debug(`[Servers] "${server.name}" similarity=${similarity.toFixed(3)} threshold=${threshold}`);
-            if (similarity >= threshold) matched.push(server.name);
+            if (similarity >= threshold) {
+               Logger.info(`[Servers] Loaded "${server.name}" (similarity=${similarity.toFixed(3)})`);
+               matched.push(server.name);
+            }
          }
 
          // If nothing matched, fall back to full candidate list to avoid breaking the agent
