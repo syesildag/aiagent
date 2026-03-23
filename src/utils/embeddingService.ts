@@ -1249,6 +1249,21 @@ export function getEmbeddingService(overrides?: Partial<EmbeddingConfig>): Embed
 }
 
 /**
+ * Singleton embedding service for similarity comparisons (skills, MCP servers).
+ * Does NOT enforce expectedDimensions so that local/lower-dim providers (e.g.
+ * Xenova/all-MiniLM-L6-v2 at 384 dims) are accepted as long as both vectors
+ * come from the same provider.
+ */
+let similarityEmbeddingService: EmbeddingService | null = null;
+
+export function getSimilarityEmbeddingService(): EmbeddingService {
+  if (!similarityEmbeddingService) {
+    similarityEmbeddingService = createEmbeddingService({ expectedDimensions: undefined });
+  }
+  return similarityEmbeddingService;
+}
+
+/**
  * Convenience function for backward compatibility with existing getEmbeddings
  */
 export async function getEmbeddings(text: string, options?: { provider?: Exclude<EmbeddingProviderType, 'auto'>; model?: string }): Promise<number[]> {

@@ -6,7 +6,7 @@ import { AiAgentSession } from "../entities/ai-agent-session";
 import aiagentuserRepository from "../entities/ai-agent-user";
 import Logger from "../utils/logger";
 import { slashCommandRegistry } from "../utils/slashCommandRegistry";
-import { getEmbeddingService } from "../utils/embeddingService";
+import { getSimilarityEmbeddingService } from "../utils/embeddingService";
 
 export default abstract class AbstractAgent implements Agent {
 
@@ -78,7 +78,7 @@ export default abstract class AbstractAgent implements Agent {
       if (withDesc.length === 0) return allowed;
 
       try {
-         const embeddingService = getEmbeddingService();
+         const embeddingService = getSimilarityEmbeddingService();
          const promptEmbedding = await embeddingService.generateEmbedding(prompt);
          const matched: string[] = [];
 
