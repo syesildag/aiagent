@@ -859,7 +859,7 @@ export class EmbeddingService {
   private cacheTtl: number;
   /** Tracks when each provider last failed; skip it until cooldown expires. */
   private providerFailedAt: Map<string, number> = new Map();
-  private readonly providerCooldownMs = 60_000; // 1 minute
+  private readonly providerCooldownMs = 300_000; // 5 minute
 
   constructor(config: EmbeddingConfig) {
     this.cacheEnabled = config.cache?.enabled ?? false;
