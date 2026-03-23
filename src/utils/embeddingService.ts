@@ -250,7 +250,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
         if (Array.isArray(batchResult.embedding[0])) {
           // Multiple embeddings returned
           const embeddings = batchResult.embedding as unknown as number[][];
-          embeddings.forEach((emb, idx) => {
+          embeddings.forEach((emb) => {
             results.push({
               embedding: emb,
               model: batchResult.model,
@@ -723,8 +723,8 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   readonly maxTokensPerRequest = 512;
 
   private defaultModel: string;
-  private pipeline: any = null;
   private modelCache: Map<string, any> = new Map();
+  private loadingPromises: Map<string, Promise<any>> = new Map();
 
   constructor(config: EmbeddingConfig['local']) {
     this.defaultModel = config?.defaultModel || 'Xenova/all-MiniLM-L6-v2';
@@ -732,7 +732,6 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
 
   async isAvailable(): Promise<boolean> {
     try {
-      const { pipeline } = await import('@xenova/transformers');
       return true;
     } catch (error) {
       Logger.warn(`Transformers.js not available for local embeddings: ${error}`);
@@ -752,36 +751,37 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
 
   private async getPipeline(model?: string): Promise<any> {
     const modelName = model || this.defaultModel;
-    
+
     if (this.modelCache.has(modelName)) {
       return this.modelCache.get(modelName);
     }
 
-    try {
-      const { pipeline } = await import('@xenova/transformers');
-      Logger.info(`Loading local embedding model: ${modelName}`);
-      
-      const pipe = await pipeline('feature-extraction', modelName, {
-        quantized: false,
-        local_files_only: false,
-        cache_dir: './.transformers-cache'
-      });
-      
-      this.modelCache.set(modelName, pipe);
-      Logger.info(`Local embedding model loaded successfully: ${modelName}`);
-      return pipe;
-    } catch (error) {
-      throw new EmbeddingError('Local', `Failed to load model ${modelName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    // Deduplicate concurrent load requests for the same model
+    if (this.loadingPromises.has(modelName)) {
+      return this.loadingPromises.get(modelName);
     }
+
+    const loadPromise = (async () => {
+      try {
+        const { pipeline } = await import('@xenova/transformers');
+        Logger.info(`Loading local embedding model: ${modelName}`);
+        const pipe = await pipeline('feature-extraction', modelName, {
+          quantized: false,
+          local_files_only: false,
+          cache_dir: './.transformers-cache'
+        });
+        this.modelCache.set(modelName, pipe);
+        Logger.info(`Local embedding model loaded successfully: ${modelName}`);
+        return pipe;
+      } finally {
+        this.loadingPromises.delete(modelName);
+      }
+    })();
+
+    this.loadingPromises.set(modelName, loadPromise);
+    return loadPromise;
   }
 
-  private async mean_pooling(model_output: any, attention_mask: any): Promise<number[]> {
-    // Perform mean pooling on the token embeddings
-    const input_mask_expanded = attention_mask.unsqueeze(-1).expand(model_output.size()).to(model_output.dtype);
-    const sum_embeddings = model_output.mul(input_mask_expanded).sum(1);
-    const sum_mask = input_mask_expanded.sum(1);
-    return sum_embeddings.div(sum_mask.clamp(1e-9));
-  }
 
   async generateEmbedding(request: EmbeddingRequest): Promise<EmbeddingVector> {
     if (Array.isArray(request.input)) {
