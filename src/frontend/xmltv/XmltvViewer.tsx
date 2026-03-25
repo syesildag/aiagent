@@ -585,7 +585,11 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
       const body = minutesBefore > 0
         ? `Starts in ${minutesBefore} min · ${formatTime(prog.start)}`
         : `Starting now · ${formatTime(prog.start)}`;
-      reg.active?.postMessage({ type: 'SHOW_NOTIFICATION', title: prog.title, body, icon: '/icons/icon-192.png' });
+      await reg.showNotification(prog.title, {
+        body,
+        icon: '/static/icons/icon-192.png',
+        badge: '/static/icons/icon-96.png',
+      });
     } catch {
       // service worker unavailable
     }

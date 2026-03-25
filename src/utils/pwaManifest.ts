@@ -34,6 +34,12 @@ export function generateManifest(agentName: string): PwaManifest {
         type: 'image/svg+xml',
         purpose: 'any',
       },
+      {
+        src: '/static/icons/icon-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any maskable',
+      },
     ],
   };
 }

@@ -6,7 +6,7 @@
  *  - API routes (/chat, /info, /model, /auth) → network only (no cache)
  */
 
-const CACHE = 'aiagent-pwa-v2';
+const CACHE = 'aiagent-pwa-v3';
 
 const PRECACHE_URLS = [
   '/static/vendors.js',
@@ -48,8 +48,8 @@ self.addEventListener('message', (event) => {
     event.waitUntil(
       self.registration.showNotification(title, {
         body,
-        icon: icon || '/icons/icon-192.png',
-        badge: '/icons/icon-96.png',
+        icon: icon || '/static/icons/icon-192.png',
+        badge: '/static/icons/icon-96.png',
       })
     );
   }

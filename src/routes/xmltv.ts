@@ -50,6 +50,12 @@ xmltvRouter.get('/xmltv/manifest.json', (_req: Request, res: Response) => {
         type: 'image/svg+xml',
         purpose: 'any',
       },
+      {
+        src: '/static/icons/icon-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any maskable',
+      },
     ],
   });
 });
