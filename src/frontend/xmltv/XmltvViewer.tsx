@@ -579,15 +579,24 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   const [notifAnchorEl, setNotifAnchorEl] = useState<HTMLButtonElement | null>(null);
 
   const sendProgrammeNotification = useCallback(async (prog: Programme, minutesBefore: number) => {
-    if (!('serviceWorker' in navigator)) return;
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      const body = minutesBefore > 0
-        ? `Starts in ${minutesBefore} min · ${formatTime(prog.start)}`
-        : `Starting now · ${formatTime(prog.start)}`;
-      reg.active?.postMessage({ type: 'SHOW_NOTIFICATION', title: prog.title, body, icon: '/icons/icon-192.png' });
-    } catch {
-      // service worker unavailable
+    const body = minutesBefore > 0
+      ? `Starts in ${minutesBefore} min · ${formatTime(prog.start)}`
+      : `Starting now · ${formatTime(prog.start)}`;
+    // Try service worker first (required for background / Android notifications)
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        if (reg.active) {
+          reg.active.postMessage({ type: 'SHOW_NOTIFICATION', title: prog.title, body, icon: '/icons/icon-192.png', tag: getProgrammeKey(prog) });
+          return;
+        }
+      } catch {
+        // fall through to direct Notification
+      }
+    }
+    // Fallback: direct Notification API (foreground only)
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(prog.title, { body, icon: '/icons/icon-192.png' });
     }
   }, []);
 
@@ -623,28 +632,42 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     return () => clearInterval(id);
   }, []);
 
+  // ── Re-check on page visibility (Android: timers pause when backgrounded) ─
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') setNow(new Date());
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
+
   // ── Check notifications on every minute tick ──────────────────────────
   useEffect(() => {
     if (!notifiedProgs.size) return;
-    const WINDOW_MS = 61_000; // fire within the past minute
+    // Use a 10-minute fire window: Android timers can be paused for several
+    // minutes when the browser is backgrounded. Notifications that were missed
+    // while the screen was off should still fire when the page becomes visible.
+    const FIRE_WINDOW_MS = 10 * 60_000;
+    // Only discard entries that are more than 10 minutes stale (already too late)
+    const STALE_MS = 10 * 60_000;
     for (const prog of programmes) {
       const key = getProgrammeKey(prog);
       const minutesBefore = notifiedProgs.get(key);
       if (minutesBefore === undefined) continue;
       const notifyAt = prog.start.getTime() - minutesBefore * 60_000;
       const diff = now.getTime() - notifyAt;
-      if (diff >= 0 && diff < WINDOW_MS) {
+      if (diff >= 0 && diff < FIRE_WINDOW_MS) {
         sendProgrammeNotification(prog, minutesBefore);
         setNotifiedProgs(prev => { const next = new Map(prev); next.delete(key); return next; });
       }
     }
-    // Remove stale entries: orphaned keys or past the fire window
+    // Remove stale entries: orphaned keys or definitively past the fire window
     const toRemove: string[] = [];
     for (const [key, minutesBefore] of notifiedProgs) {
       const prog = programmes.find(p => getProgrammeKey(p) === key);
       if (!prog) { toRemove.push(key); continue; }
       const notifyAt = prog.start.getTime() - minutesBefore * 60_000;
-      if (now.getTime() - notifyAt >= WINDOW_MS) toRemove.push(key);
+      if (now.getTime() - notifyAt >= STALE_MS) toRemove.push(key);
     }
     if (toRemove.length) {
       setNotifiedProgs(prev => {

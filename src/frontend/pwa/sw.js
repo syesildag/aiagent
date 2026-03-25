@@ -44,12 +44,17 @@ self.addEventListener('activate', (event) => {
 // ---------------------------------------------------------------------------
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SHOW_NOTIFICATION') {
-    const { title, body, icon } = event.data;
+    const { title, body, icon, tag } = event.data;
     event.waitUntil(
       self.registration.showNotification(title, {
         body,
         icon: icon || '/icons/icon-192.png',
         badge: '/icons/icon-96.png',
+        // vibrate is required on Android for the notification to be audible/felt
+        vibrate: [200, 100, 200],
+        // tag deduplicates: a second notification for the same show replaces the first
+        tag: tag || title,
+        renotify: true,
       })
     );
   }
