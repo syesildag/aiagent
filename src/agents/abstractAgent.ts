@@ -152,7 +152,7 @@ export default abstract class AbstractAgent implements Agent {
          // Initialize registry (no-op after first call) and inject all skills
          // into the system prompt so the LLM is always aware of them.
          slashCommandRegistry.initialize();
-         const { block: skillsBlock, maxIterations: skillsMaxIterations } =
+         const { block: skillsBlock, maxIterations: skillsMaxIterations, allowedTools: skillAllowedTools } =
            await slashCommandRegistry.getSkillsSystemPromptBlockForPrompt(prompt);
          const baseSystemPrompt = this.getSystemPrompt();
          const systemPrompt = skillsBlock
@@ -163,7 +163,13 @@ export default abstract class AbstractAgent implements Agent {
          maxIterations = maxIterations ?? skillsMaxIterations;
 
          const effectivePrompt = `${systemPrompt}\n\n${prompt}`;
-         const serverNames = await this.filterServersByPromptSimilarity(effectivePrompt, this.getAllowedServerNames());
+         const similarityServers = await this.filterServersByPromptSimilarity(effectivePrompt, this.getAllowedServerNames());
+         // Force-include servers declared by matched skills' allowed-tools so
+         // multi-step skills (e.g. forecast needing weather + time + outlook)
+         // are always available regardless of similarity score.
+         const serverNames = skillAllowedTools && skillAllowedTools.length > 0
+           ? [...new Set([...(similarityServers ?? []), ...skillAllowedTools])]
+           : similarityServers;
          const userLogin = this.session?.getUserLogin();
          // If isAdmin was not provided by the caller (e.g. AgentJob), fall back to a DB
          // lookup from the stored session. When provided (web chat route), we trust the

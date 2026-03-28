@@ -79,7 +79,7 @@ export class SlashCommandRegistry {
   async getSkillsSystemPromptBlockForPrompt(
     prompt: string,
     threshold = 0.40,
-  ): Promise<{ block: string; maxIterations?: number }> {
+  ): Promise<{ block: string; maxIterations?: number; allowedTools?: string[] }> {
     const injectableSkills = Array.from(this.skills.values()).filter(s => s.injectable);
     if (injectableSkills.length === 0) return { block: '' };
 
@@ -118,7 +118,12 @@ export class SlashCommandRegistry {
         .filter((n): n is number => n !== undefined)
         .reduce((a, b) => Math.max(a, b), 0) || undefined;
 
-      return { block, maxIterations };
+      // Collect the union of all allowed-tools from matched skills so the
+      // server loader can force-include them regardless of similarity score.
+      const allAllowedTools = matchedSkills.flatMap(s => s.commandMeta?.allowedTools ?? []);
+      const allowedTools = allAllowedTools.length > 0 ? [...new Set(allAllowedTools)] : undefined;
+
+      return { block, maxIterations, allowedTools };
 
     } catch (error) {
       Logger.warn(`[Skills] Semantic filtering failed (${error instanceof Error ? error.message : String(error)}); falling back to all skills`);
