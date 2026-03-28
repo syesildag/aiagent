@@ -34,6 +34,16 @@ Omit the location argument — the tool will auto-detect it via IP.
 $ENDIF
 Use `days: 3`. Save the exact markdown table returned — you will paste it verbatim into the briefing.
 
+### 4. Email delivery (only if the user explicitly asked to send the forecast by email)
+
+If the user's request includes sending the forecast to their email:
+- Call `outlook_sendEmail` with:
+  - `to`: the user's email address (retrieve from memory if not stated explicitly — query: `user email address`)
+  - `subject`: `Weather Forecast — [Location], [Date]`
+  - `body`: the full forecast markdown produced in the final output step
+
+Do NOT send an email unless the user explicitly asked for it.
+
 ---
 
 ### Final output

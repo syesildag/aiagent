@@ -57,6 +57,8 @@ disable-model-invocation:  # true → return skill body directly, no LLM call (e
 # Project-specific keys (must go under `metadata:`)
 metadata:
   allowed-tools:           # Comma-separated MCP server names (e.g. "memory, weather, time")
+                           # ⚠️  Only applied for slash commands ("/cmd"). Ignored for natural-language
+                           #     prompts — all enabled MCP tools are always available in that path.
   max-iterations:          # Max LLM tool-call loops (default: global MAX_LLM_ITERATIONS)
   fresh-context:           # true → start with a clean conversation history
   injectable:              # true/false — override the default injection behaviour (see below)
@@ -66,6 +68,15 @@ metadata:
 ### Why `metadata:`?
 
 Only a fixed set of keys are officially supported at the top level (`description`, `argument-hint`, `user-invocable`, `disable-model-invocation`, `name`, `compatibility`, `license`). Project-specific operational settings (`allowed-tools`, `max-iterations`, `fresh-context`, `injectable`) live under `metadata:` to avoid schema conflicts.
+
+### `allowed-tools` scope
+
+`allowed-tools` is a **slash-command-only** constraint. When a skill is activated by a natural-language prompt (semantic injection), the filter is **not applied** — the LLM has access to all enabled MCP tools. This is by design:
+
+- Slash commands run in a focused, well-defined context where tool restriction makes sense (e.g. `/jobs` should only call `jobs_list_jobs`, nothing else).
+- Natural-language injection is open-ended; the user's intent may combine multiple capabilities, so restricting tools would be counterproductive.
+
+If a skill's body needs to instruct the LLM to use a specific tool when activated via natural language, add explicit instructions in the body (e.g. *"If the user asks to send by email, call `outlook_sendEmail`"*).
 
 ---
 

@@ -116,6 +116,10 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
    // ── Slash command processing ───────────────────────────────────────────────
    slashCommandRegistry.initialize();
    let effectivePrompt = prompt;
+   // toolNameFilter, cmdMaxIterations, and cmdFreshContext are ONLY set for slash
+   // commands ("/cmd args"). Natural-language prompts always get undefined here,
+   // meaning all enabled MCP tools are available — the skill's `allowed-tools`
+   // metadata is intentionally ignored for the semantic-injection path.
    let toolNameFilter: string[] | undefined;
    let cmdMaxIterations: number | undefined;
    let cmdFreshContext: boolean | undefined;
