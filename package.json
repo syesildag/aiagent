@@ -35,7 +35,7 @@
       "dev:watch": "ts-node-dev --respawn --transpile-only src/index.ts",
       "lint": "eslint . --ext .ts",
       "lint:fix": "eslint . --ext .ts --fix",
-      "xmltv:download": "bash scripts/download-xmltv.sh"
+      "xmltv:download": "bash src/scripts/download-xmltv.sh"
    },
    "author": "Serkan YESILDAG",
    "license": "MIT",

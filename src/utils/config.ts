@@ -70,6 +70,9 @@ const envSchema = z.object({
   // Serialized MSAL token cache + access token, populated automatically after device-flow login
   AUTH_OUTLOOK: z.string().optional(),
 
+  // --- Debug ---
+  DEBUG: z.string().optional(),
+
   // --- MCP ---
   MCP_SERVERS_PATH: z.string().min(1).default('./mcp-servers.json'),
 

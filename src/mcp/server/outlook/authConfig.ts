@@ -21,7 +21,7 @@ export const msalConfig: Configuration = {
     system: {
         loggerOptions: {
             loggerCallback(loglevel: any, message: any, containsPii: any) {
-                if (process.env.DEBUG && !containsPii) {
+                if (config.DEBUG && !containsPii) {
                     process.stderr.write(`MSAL [${loglevel}]: ${message}\n`);
                 }
             },
