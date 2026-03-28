@@ -727,7 +727,7 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   private loadingPromises: Map<string, Promise<any>> = new Map();
 
   constructor(config: EmbeddingConfig['local']) {
-    this.defaultModel = config?.defaultModel || 'Xenova/all-MiniLM-L6-v2';
+    this.defaultModel = config?.defaultModel || 'nomic-ai/nomic-embed-text-v1.5';
   }
 
   async isAvailable(): Promise<boolean> {
@@ -741,11 +741,11 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
 
   async getAvailableModels(): Promise<string[]> {
     return [
+      'nomic-ai/nomic-embed-text-v1.5', // 768 dimensions (Matryoshka)
       'Xenova/all-MiniLM-L6-v2',        // 384 dimensions
-      'Xenova/all-mpnet-base-v2',       // 768 dimensions
-      'Xenova/e5-small-v2',             // 384 dimensions
-      'Xenova/e5-base-v2',              // 768 dimensions
-      'Xenova/sentence-transformers/paraphrase-MiniLM-L6-v2', // 384 dimensions
+      'Xenova/all-mpnet-base-v2',        // 768 dimensions
+      'Xenova/e5-small-v2',              // 384 dimensions
+      'Xenova/e5-base-v2',               // 768 dimensions
     ];
   }
 
@@ -1274,7 +1274,7 @@ export function createEmbeddingService(overrides?: Partial<EmbeddingConfig>): Em
       defaultModel: 'nomic-embed-text',
     },
     local: {
-      defaultModel: 'Xenova/all-MiniLM-L6-v2',
+      defaultModel: config.EMBEDDING_MODEL_LOCAL,
     },
     cache: {
       enabled: true,
