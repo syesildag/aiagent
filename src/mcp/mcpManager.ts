@@ -858,14 +858,19 @@ export class MCPServerManager {
     }
     // ──────────────────────────────────────────────────────────────────────────
 
+    Logger.info(`[Tool] ${name} args=${JSON.stringify(parsedArgs ?? {})}`);
+    const toolStart = Date.now();
+
     try {
       // Handle different types of calls
       if (methodParts[0] === 'get' && methodParts[1] === 'resource') {
         const result = await connection.getResource(parsedArgs.uri);
+        Logger.info(`[Tool] ${name} completed in ${Date.now() - toolStart}ms`);
         return JSON.stringify(result, null, 2);
       } else if (methodParts[0] === 'prompt') {
         const promptName = methodParts.slice(1).join('_');
         const result = await connection.getPrompt(promptName, parsedArgs);
+        Logger.info(`[Tool] ${name} completed in ${Date.now() - toolStart}ms`);
         return JSON.stringify(result, null, 2);
       } else {
         // Regular tool call
@@ -879,9 +884,11 @@ export class MCPServerManager {
           };
         }
         const result = await connection.callTool(toolName, argsToSend);
+        Logger.info(`[Tool] ${name} completed in ${Date.now() - toolStart}ms`);
         return JSON.stringify(result, null, 2);
       }
     } catch (error) {
+      Logger.error(`[Tool] ${name} failed after ${Date.now() - toolStart}ms: ${error instanceof Error ? error.message : String(error)}`);
       return `Error calling ${name}: ${error instanceof Error ? error.message : String(error)}`;
     }
   }
