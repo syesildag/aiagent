@@ -106,7 +106,7 @@ export class SlashCommandRegistry {
 
       const parts: string[] = ['<skills>'];
       for (const skill of matchedSkills) {
-        parts.push(`## ${skill.name}\n\n${skill.content}`);
+        parts.push(`## ${skill.name}\n\n${matter(skill.content).content.trim()}`);
       }
       parts.push('</skills>');
       const block = parts.join('\n\n');
@@ -137,7 +137,7 @@ export class SlashCommandRegistry {
 
     const parts: string[] = ['<skills>'];
     for (const skill of injectableSkills) {
-      parts.push(`## ${skill.name}\n\n${skill.content}`);
+      parts.push(`## ${skill.name}\n\n${matter(skill.content).content.trim()}`);
     }
     parts.push('</skills>');
     return parts.join('\n\n');
