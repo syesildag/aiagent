@@ -379,6 +379,7 @@ server.registerTool(
       `;
       queryParams.push(limit);
 
+      Logger.debug(`[Memory] SQL: ${sqlQuery.replace(/\s+/g, ' ').trim()} | params: ${JSON.stringify(queryParams.map((p, i) => i === 0 ? '<embedding>' : p))}`);
       const result = await queryDatabase(sqlQuery, queryParams);
 
       Logger.info(`Found ${result.length} memories for query: "${query}"`);
