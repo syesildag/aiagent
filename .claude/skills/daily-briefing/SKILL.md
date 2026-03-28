@@ -1,9 +1,12 @@
 ---
 description: Daily briefing — weather, time, news and personal context from memory
-argument-hint: [city or location]
-allowed-tools: memory, weather, time, tavily-search, fetch
-max-iterations: 20
-fresh-context: true
+argument-hint: "[city or location]"
+user-invocable: true
+metadata:
+  allowed-tools: memory, weather, time, tavily-search, fetch
+  max-iterations: 20
+  fresh-context: true
+  injectable: false
 ---
 
 **CALL TOOLS IMMEDIATELY. Do NOT write any text before your first tool call. Do not narrate, plan, or describe what you will do — execute the tools directly.**

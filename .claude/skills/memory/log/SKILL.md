@@ -1,6 +1,9 @@
 ---
 description: Store a note into long-term memory for future conversations
-allowed-tools: memory
+user-invocable: true
+metadata:
+  allowed-tools: memory
+  injectable: false
 ---
 
 ## Task

@@ -1,10 +1,10 @@
 import * as path from 'path';
-import { SlashCommand, loadSlashCommands } from './slashCommands';
+import matter from 'gray-matter';
+import { SlashCommand } from './slashCommands';
 import { Skill, loadSkills } from './skillLoader';
 import { getEmbeddingService } from './embeddingService';
 import Logger from './logger';
 
-const DEFAULT_COMMANDS_DIR = path.resolve(process.cwd(), '.claude', 'commands');
 const DEFAULT_SKILLS_DIR = path.resolve(process.cwd(), '.claude', 'skills');
 
 /** Hardcoded CLI built-in command names that must NOT be shadowed by .md files */
@@ -19,25 +19,42 @@ export class SlashCommandRegistry {
   private skills: Map<string, Skill> = new Map();
   private initialized = false;
 
-  private readonly commandsDir: string;
   private readonly skillsDir: string;
 
-  constructor(commandsDir?: string, skillsDir?: string) {
-    this.commandsDir = commandsDir ?? DEFAULT_COMMANDS_DIR;
+  constructor(skillsDir?: string) {
     this.skillsDir = skillsDir ?? DEFAULT_SKILLS_DIR;
   }
 
   /** Lazy-initialize on first use. Safe to call multiple times. */
   initialize(): void {
     if (this.initialized) return;
-    this.commands = loadSlashCommands(this.commandsDir);
     this.skills = loadSkills(this.skillsDir);
+
+    // Register skills that have command frontmatter as slash commands
+    for (const [skillName, skill] of this.skills) {
+      if (!skill.commandMeta) continue;
+      const meta = skill.commandMeta;
+      this.commands.set(skillName, {
+        name: skillName,
+        filePath: skill.filePath,
+        description: meta.description ?? skill.description,
+        argumentHint: meta.argumentHint,
+        allowedTools: meta.allowedTools,
+        model: meta.model,
+        disableModelInvocation: meta.disableModelInvocation ?? false,
+        maxIterations: meta.maxIterations,
+        freshContext: meta.freshContext ?? false,
+        body: matter(skill.content).content.trim(),
+      });
+    }
+
     this.initialized = true;
   }
 
   /** Force-reload commands and skills from disk. */
   reload(): void {
     this.initialized = false;
+    this.commands = new Map();
     this.initialize();
   }
 
@@ -54,26 +71,26 @@ export class SlashCommandRegistry {
   }
 
   /**
-   * Returns a `<skills>…</skills>` block with only the skills whose description
-   * is semantically similar to `prompt` (cosine similarity ≥ `threshold`).
-   * Falls back to all skills if the embedding service is unavailable.
+   * Returns a `<skills>…</skills>` block with only the injectable skills whose
+   * description is semantically similar to `prompt` (cosine similarity ≥ `threshold`).
+   * Falls back to all injectable skills if the embedding service is unavailable.
    */
   async getSkillsSystemPromptBlockForPrompt(
     prompt: string,
     threshold = 0.40,
   ): Promise<string> {
-    if (this.skills.size === 0) return '';
+    const injectableSkills = Array.from(this.skills.values()).filter(s => s.injectable);
+    if (injectableSkills.length === 0) return '';
 
     try {
       const embeddingService = getEmbeddingService();
-      const skills = Array.from(this.skills.values());
-      const texts = [prompt, ...skills.map(s => s.description)];
+      const texts = [prompt, ...injectableSkills.map(s => s.description)];
       const embeddings = await embeddingService.generateBatchEmbeddings(texts);
       const promptEmbedding = embeddings[0];
       const matchedSkills: Skill[] = [];
 
-      for (let i = 0; i < skills.length; i++) {
-        const skill = skills[i];
+      for (let i = 0; i < injectableSkills.length; i++) {
+        const skill = injectableSkills[i];
         const { similarity } = embeddingService.calculateSimilarity(
           promptEmbedding, embeddings[i + 1], 'cosine',
         );
@@ -100,15 +117,16 @@ export class SlashCommandRegistry {
   }
 
   /**
-   * Returns a `<skills>…</skills>` block containing all skill contents,
+   * Returns a `<skills>…</skills>` block containing all injectable skill contents,
    * suitable for appending to an agent's system prompt (auto-inject).
-   * Returns empty string when no skills are loaded.
+   * Returns empty string when no injectable skills are loaded.
    */
   getSkillsSystemPromptBlock(): string {
-    if (this.skills.size === 0) return '';
+    const injectableSkills = Array.from(this.skills.values()).filter(s => s.injectable);
+    if (injectableSkills.length === 0) return '';
 
     const parts: string[] = ['<skills>'];
-    for (const skill of this.skills.values()) {
+    for (const skill of injectableSkills) {
       parts.push(`## ${skill.name}\n\n${skill.content}`);
     }
     parts.push('</skills>');

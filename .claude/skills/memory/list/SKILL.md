@@ -1,6 +1,9 @@
 ---
 description: List long-term memories, optionally filtered by type or tag
-allowed-tools: memory
+user-invocable: true
+metadata:
+  allowed-tools: memory
+  injectable: false
 ---
 
 ## Task

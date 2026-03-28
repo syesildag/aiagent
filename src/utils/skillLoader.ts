@@ -1,16 +1,39 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import matter from 'gray-matter';
 import Logger from './logger';
 
+/** Command-execution metadata parsed from SKILL.md frontmatter. */
+export interface SkillCommandMeta {
+  description?: string;
+  argumentHint?: string;
+  allowedTools?: string[];
+  model?: string;
+  disableModelInvocation?: boolean;
+  maxIterations?: number;
+  freshContext?: boolean;
+}
+
 export interface Skill {
-  /** Directory name under `.claude/skills/` */
+  /** Skill name derived from directory path, e.g. "memory:list" */
   name: string;
-  /** Full content of SKILL.md */
+  /** Full content of SKILL.md (including frontmatter) */
   content: string;
   /** Absolute path to SKILL.md */
   filePath: string;
   /** Extracted H1 title + first paragraph. Used for semantic similarity matching. */
   description: string;
+  /**
+   * Present when the SKILL.md declares slash-command frontmatter keys.
+   * When set, the skill is also registered as a slash command.
+   */
+  commandMeta?: SkillCommandMeta;
+  /**
+   * Whether this skill should be injected into agent system prompts.
+   * Defaults to true for knowledge skills, false for command-only skills.
+   * Can be overridden with `injectable: true/false` frontmatter.
+   */
+  injectable: boolean;
 }
 
 /**
@@ -18,7 +41,9 @@ export interface Skill {
  * Uses the H1 title and the first paragraph before the first ## section.
  */
 export function extractSkillDescription(content: string): string {
-  const lines = content.split('\n');
+  // Strip YAML frontmatter before scanning for markdown structure
+  const body = matter(content).content;
+  const lines = body.split('\n');
   let title = '';
   const descLines: string[] = [];
   let inDesc = false;
@@ -40,34 +65,122 @@ export function extractSkillDescription(content: string): string {
     }
   }
 
-  const body = descLines.join(' ');
-  if (title && body) return `${title} - ${body}`;
-  return title || body || content.slice(0, 200);
+  const desc = descLines.join(' ');
+  if (title && desc) return `${title} - ${desc}`;
+  return title || desc || content.slice(0, 200);
+}
+
+/**
+ * Parse the `allowed-tools` frontmatter value.
+ * Supports a comma-separated string or a YAML array.
+ */
+function parseAllowedTools(value: unknown): string[] | undefined {
+  if (!value) return undefined;
+  if (Array.isArray(value)) return value.map(String).map(s => s.trim()).filter(Boolean);
+  if (typeof value === 'string') return value.split(',').map(s => s.trim()).filter(Boolean);
+  return undefined;
+}
+
+/**
+ * A skill is also a slash command when `user-invocable: true` is declared.
+ * Command-specific config that is not in the supported schema lives under `metadata`.
+ */
+
+/**
+ * Recursively walk `dir`, collecting [absolutePath, relativeDir] for every
+ * directory that contains a SKILL.md file.
+ */
+function collectSkillDirs(
+  dir: string,
+  base: string = dir,
+): Array<[string, string]> {
+  if (!fs.existsSync(dir)) return [];
+  const results: Array<[string, string]> = [];
+
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const fullDir = path.join(dir, entry.name);
+    const skillMd = path.join(fullDir, 'SKILL.md');
+    if (fs.existsSync(skillMd)) {
+      results.push([skillMd, path.relative(base, fullDir)]);
+    }
+    // Recurse regardless — nested skills like memory/list are valid
+    results.push(...collectSkillDirs(fullDir, base));
+  }
+
+  return results;
+}
+
+/**
+ * Derive a skill/command name from a relative directory path.
+ *   "daily-briefing"   → "daily-briefing"
+ *   "memory/list"      → "memory:list"
+ */
+function deriveSkillName(relativeDir: string): string {
+  const parts = relativeDir.split(/[/\\]/);
+  return parts.join(':');
 }
 
 /**
  * Load all skills from `skillsDir`.
- * Each skill is a directory containing a `SKILL.md` file.
- * Returns a Map keyed by skill name (the directory name).
+ * Each skill is a directory (at any depth) containing a `SKILL.md` file.
+ * Returns a Map keyed by skill name (e.g. "memory:list").
  */
 export function loadSkills(skillsDir: string): Map<string, Skill> {
   const skills = new Map<string, Skill>();
 
   if (!fs.existsSync(skillsDir)) return skills;
 
-  for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-
-    const skillMdPath = path.join(skillsDir, entry.name, 'SKILL.md');
-    if (!fs.existsSync(skillMdPath)) continue;
-
+  for (const [skillMdPath, relativeDir] of collectSkillDirs(skillsDir)) {
     try {
-      const content = fs.readFileSync(skillMdPath, 'utf-8').trim();
-      skills.set(entry.name, {
-        name: entry.name,
-        content,
+      const raw = fs.readFileSync(skillMdPath, 'utf-8').trim();
+      const { data } = matter(raw);
+      const name = deriveSkillName(relativeDir);
+
+      // A skill becomes a slash command when `user-invocable: true` is declared.
+      // Command-specific config that falls outside the supported schema lives under `metadata`.
+      const isUserInvocable = data['user-invocable'] === true;
+      let commandMeta: SkillCommandMeta | undefined;
+
+      if (isUserInvocable) {
+        const meta = (data.metadata ?? {}) as Record<string, unknown>;
+        const rawMaxIter = meta['max-iterations'];
+        commandMeta = {
+          description: data.description ? String(data.description) : undefined,
+          argumentHint: data['argument-hint'] ? String(data['argument-hint']) : undefined,
+          allowedTools: parseAllowedTools(meta['allowed-tools']),
+          model: data.model ? String(data.model) : undefined,
+          disableModelInvocation: data['disable-model-invocation'] === true,
+          maxIterations:
+            rawMaxIter !== undefined && rawMaxIter !== null
+              ? parseInt(String(rawMaxIter), 10) || undefined
+              : undefined,
+          freshContext: meta['fresh-context'] === true,
+        };
+      }
+
+      // injectable defaults: true for knowledge skills, false for command skills.
+      // Can be overridden with `injectable: true/false` under metadata.
+      const meta = (data.metadata ?? {}) as Record<string, unknown>;
+      let injectable: boolean;
+      if ('injectable' in meta) {
+        injectable = meta.injectable === true;
+      } else {
+        injectable = !isUserInvocable;
+      }
+
+      // Use frontmatter description for semantic matching if available
+      const description =
+        (data.description ? String(data.description) : '') ||
+        extractSkillDescription(raw);
+
+      skills.set(name, {
+        name,
+        content: raw,
         filePath: skillMdPath,
-        description: extractSkillDescription(content),
+        description,
+        commandMeta,
+        injectable,
       });
     } catch (err) {
       Logger.warn(`[Skills] Failed to load ${skillMdPath}: ${err}`);

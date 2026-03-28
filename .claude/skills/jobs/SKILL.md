@@ -1,6 +1,9 @@
 ---
 description: List all scheduled jobs with their current status
-allowed-tools: jobs
+user-invocable: true
+metadata:
+  allowed-tools: jobs
+  injectable: false
 ---
 
 ## Scheduled Jobs

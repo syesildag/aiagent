@@ -430,7 +430,7 @@ async function main() {
     slashCommandRegistry.initialize();
     const loadedCommands = slashCommandRegistry.listCommands();
     if (loadedCommands.length > 0) {
-      console.log(`Loaded ${loadedCommands.length} slash command(s) from .claude/commands/. Type /help for list.`);
+      console.log(`Loaded ${loadedCommands.length} slash command(s). Type /help for list.`);
       console.log('');
     }
 
@@ -497,7 +497,7 @@ async function main() {
           // Show loaded slash commands
           const cmds = slashCommandRegistry.listCommands();
           if (cmds.length > 0) {
-            console.log('\nSlash commands (from .claude/commands/):');
+            console.log('\nSlash commands (from .claude/skills/):');
             for (const cmd of cmds) {
               const hint = cmd.argumentHint ? ` ${cmd.argumentHint}` : '';
               const desc = cmd.description ? ` — ${cmd.description}` : '';

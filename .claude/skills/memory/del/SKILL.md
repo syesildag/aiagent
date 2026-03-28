@@ -1,6 +1,9 @@
 ---
 description: Remove a note from long-term memory
-allowed-tools: memory
+user-invocable: true
+metadata:
+  allowed-tools: memory
+  injectable: false
 ---
 
 ## Task
