@@ -6,7 +6,7 @@ metadata:
   allowed-tools: memory, weather, time, tavily-search, fetch
   max-iterations: 20
   fresh-context: true
-  injectable: false
+  injectable: true
 ---
 
 **CALL TOOLS IMMEDIATELY. Do NOT write any text before your first tool call. Do not narrate, plan, or describe what you will do — execute the tools directly.**
