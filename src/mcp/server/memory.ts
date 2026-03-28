@@ -382,7 +382,10 @@ server.registerTool(
       const result = await queryDatabase(sqlQuery, queryParams);
 
       Logger.info(`Found ${result.length} memories for query: "${query}"`);
-      result.forEach((row: any) => Logger.debug(`[Memory] id=${row.id} type=${row.type} similarity=${(row.similarity * 100).toFixed(1)}% content="${String(row.content).substring(0, 80)}"`));
+      result.forEach((row: any) => {
+        const content = typeof row.content === 'object' ? JSON.stringify(row.content) : String(row.content);
+        Logger.debug(`[Memory] id=${row.id} type=${row.type} similarity=${(row.similarity * 100).toFixed(1)}% content="${content.substring(0, 120)}"`);
+      });
 
       if (result.length === 0) {
         return {
