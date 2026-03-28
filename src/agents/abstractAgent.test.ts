@@ -11,6 +11,7 @@ jest.mock('../utils/slashCommandRegistry', () => ({
   slashCommandRegistry: {
     initialize: jest.fn(),
     getSkillsSystemPromptBlock: jest.fn().mockReturnValue(''),
+    getSkillsSystemPromptBlockForPrompt: jest.fn().mockResolvedValue({ block: '', maxIterations: undefined }),
   },
 }));
 jest.mock('../entities/ai-agent-user', () => ({

@@ -71,16 +71,17 @@ export class SlashCommandRegistry {
   }
 
   /**
-   * Returns a `<skills>…</skills>` block with only the injectable skills whose
-   * description is semantically similar to `prompt` (cosine similarity ≥ `threshold`).
+   * Returns the `<skills>…</skills>` block and the highest `maxIterations` declared
+   * across matched skills, for injectable skills semantically similar to `prompt`
+   * (cosine similarity ≥ `threshold`).
    * Falls back to all injectable skills if the embedding service is unavailable.
    */
   async getSkillsSystemPromptBlockForPrompt(
     prompt: string,
     threshold = 0.40,
-  ): Promise<string> {
+  ): Promise<{ block: string; maxIterations?: number }> {
     const injectableSkills = Array.from(this.skills.values()).filter(s => s.injectable);
-    if (injectableSkills.length === 0) return '';
+    if (injectableSkills.length === 0) return { block: '' };
 
     try {
       const embeddingService = getEmbeddingService();
@@ -101,18 +102,27 @@ export class SlashCommandRegistry {
         }
       }
 
-      if (matchedSkills.length === 0) return '';
+      if (matchedSkills.length === 0) return { block: '' };
 
       const parts: string[] = ['<skills>'];
       for (const skill of matchedSkills) {
         parts.push(`## ${skill.name}\n\n${skill.content}`);
       }
       parts.push('</skills>');
-      return parts.join('\n\n');
+      const block = parts.join('\n\n');
+
+      // Propagate the highest max-iterations declared across matched skills so
+      // the LLM loop budget is not capped at the global default for skill prompts.
+      const maxIterations = matchedSkills
+        .map(s => s.commandMeta?.maxIterations)
+        .filter((n): n is number => n !== undefined)
+        .reduce((a, b) => Math.max(a, b), 0) || undefined;
+
+      return { block, maxIterations };
 
     } catch (error) {
       Logger.warn(`[Skills] Semantic filtering failed (${error instanceof Error ? error.message : String(error)}); falling back to all skills`);
-      return this.getSkillsSystemPromptBlock();
+      return { block: this.getSkillsSystemPromptBlock() };
     }
   }
 

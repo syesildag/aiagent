@@ -152,11 +152,15 @@ export default abstract class AbstractAgent implements Agent {
          // Initialize registry (no-op after first call) and inject all skills
          // into the system prompt so the LLM is always aware of them.
          slashCommandRegistry.initialize();
-         const skillsBlock = await slashCommandRegistry.getSkillsSystemPromptBlockForPrompt(prompt);
+         const { block: skillsBlock, maxIterations: skillsMaxIterations } =
+           await slashCommandRegistry.getSkillsSystemPromptBlockForPrompt(prompt);
          const baseSystemPrompt = this.getSystemPrompt();
          const systemPrompt = skillsBlock
            ? `${baseSystemPrompt}\n\n${skillsBlock}`
            : baseSystemPrompt;
+         // Use the caller-supplied maxIterations (slash command) if present;
+         // otherwise fall back to the highest value declared by matched skills.
+         maxIterations = maxIterations ?? skillsMaxIterations;
 
          const effectivePrompt = `${systemPrompt}\n\n${prompt}`;
          const serverNames = await this.filterServersByPromptSimilarity(effectivePrompt, this.getAllowedServerNames());
