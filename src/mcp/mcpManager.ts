@@ -342,13 +342,14 @@ export class MCPServerConnection extends EventEmitter {
         reject(new Error('Process not available'));
       }
 
-      // Set timeout
+      // Set timeout — tool calls can be slow (DB + embeddings), so they get more time
+      const timeoutMs = method === 'tools/call' ? 120000 : 30000;
       setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
           reject(new Error(`Request timeout for method: ${method}`));
         }
-      }, 30000);
+      }, timeoutMs);
     });
   }
 
