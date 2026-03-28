@@ -70,7 +70,10 @@ export class WinstonLogger implements Logger {
    info(message: any)   { this.w.info(String(message)); }
    warn(message: any)   { this.w.warn(String(message)); }
    error(message?: any, ...optionalParams: any[]) {
-      this.w.error(String(message), optionalParams.length ? { params: optionalParams } : {});
+      const serialized = optionalParams.map(p =>
+         p instanceof Error ? { message: p.message, stack: p.stack, name: p.name } : p
+      );
+      this.w.error(String(message), serialized.length ? { params: serialized } : {});
    }
 }
 
