@@ -158,7 +158,8 @@ export default abstract class AbstractAgent implements Agent {
            ? `${baseSystemPrompt}\n\n${skillsBlock}`
            : baseSystemPrompt;
 
-         const serverNames = await this.filterServersByPromptSimilarity(prompt, this.getAllowedServerNames());
+         const effectivePrompt = `${systemPrompt}\n\n${prompt}`;
+         const serverNames = await this.filterServersByPromptSimilarity(effectivePrompt, this.getAllowedServerNames());
          const userLogin = this.session?.getUserLogin();
          // If isAdmin was not provided by the caller (e.g. AgentJob), fall back to a DB
          // lookup from the stored session. When provided (web chat route), we trust the

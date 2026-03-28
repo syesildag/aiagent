@@ -395,7 +395,7 @@ export class GitHubCopilotEmbeddingProvider implements EmbeddingProvider {
     };
 
     try {
-  const response = await fetch(`${this.baseUrl}/v1/embeddings`, {
+  const response = await fetch(`${this.baseUrl}/embeddings`, {
         method: 'POST',
         headers: await this.createHeaders(),
         body: JSON.stringify(requestBody),

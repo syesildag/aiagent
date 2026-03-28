@@ -53,7 +53,7 @@ const envSchema = z.object({
   // --- GitHub Copilot ---
   GITHUB_COPILOT_CLIENT_ID: z.string().min(1).default('Iv1.b507a08c87ecfe98'),
   GITHUB_COPILOT_BASE_URL: z.string().url().default('https://api.githubcopilot.com'),
-  GITHUB_COPILOT_EMBEDDINGS_BASE_URL: z.string().url().default('https://copilot-proxy.githubusercontent.com'),
+  GITHUB_COPILOT_EMBEDDINGS_BASE_URL: z.string().url().default('https://api.githubcopilot.com'),
   // Serialized OAuth token object populated automatically after device-flow login
   AUTH_GITHUB_COPILOT: z.string().optional(),
 
@@ -135,7 +135,7 @@ function validateEnvironment(): Environment {
       ANTHROPIC_API_KEY: undefined,
       ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
       GITHUB_COPILOT_BASE_URL: 'https://api.githubcopilot.com',
-      GITHUB_COPILOT_EMBEDDINGS_BASE_URL: 'https://copilot-proxy.githubusercontent.com',
+      GITHUB_COPILOT_EMBEDDINGS_BASE_URL: 'https://api.githubcopilot.com',
       AUTH_GITHUB_COPILOT: undefined,
       DEFAULT_USERNAME: undefined,
       DEFAULT_PASSWORD: undefined,
