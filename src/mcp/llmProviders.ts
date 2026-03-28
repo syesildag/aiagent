@@ -391,14 +391,85 @@ export function stripBinaryContent(messages: LLMMessage[]): LLMMessage[] {
 }
 
 /**
+ * Sanitize a message sequence to remove structurally invalid tool messages.
+ *
+ * Two cases are fixed:
+ *  1. A `tool` message whose `tool_call_id` has no matching preceding assistant
+ *     `tool_calls` entry (e.g. the assistant message was sliced off by token
+ *     budget trimming) → the orphaned tool message is dropped.
+ *  2. An `assistant` message with `tool_calls` that is not followed by all of
+ *     its expected `tool` responses before the next non-tool message → the
+ *     incomplete assistant message (and any partial tool responses already
+ *     collected for it) are dropped.
+ *
+ * This prevents 400 errors from OpenAI-compatible APIs which require every
+ * `tool` message to be a direct response to a preceding `tool_calls` block.
+ */
+function sanitizeMessageSequence(messages: LLMMessage[]): LLMMessage[] {
+  const result: LLMMessage[] = [];
+  // IDs of tool_calls we are still waiting for responses to
+  let pendingIds: Set<string> | null = null;
+  // Index in `result` of the assistant message whose tool_calls are pending
+  let pendingAssistantIndex = -1;
+
+  for (const msg of messages) {
+    if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+      // If a previous assistant block was incomplete, drop it before opening a new one
+      if (pendingIds && pendingIds.size > 0 && pendingAssistantIndex !== -1) {
+        // Remove the incomplete assistant + any partial tool responses
+        result.splice(pendingAssistantIndex);
+      }
+      pendingIds = new Set(msg.tool_calls.map(tc => tc.id));
+      pendingAssistantIndex = result.length;
+      result.push(msg);
+    } else if (msg.role === 'tool') {
+      if (pendingIds && msg.tool_call_id && pendingIds.has(msg.tool_call_id)) {
+        result.push(msg);
+        pendingIds.delete(msg.tool_call_id);
+        if (pendingIds.size === 0) {
+          pendingIds = null;
+          pendingAssistantIndex = -1;
+        }
+      }
+      // Orphaned tool message (no preceding assistant tool_calls) — drop silently
+    } else {
+      // Non-tool message: if the previous assistant block is still incomplete, drop it
+      if (pendingIds && pendingIds.size > 0 && pendingAssistantIndex !== -1) {
+        result.splice(pendingAssistantIndex);
+        pendingIds = null;
+        pendingAssistantIndex = -1;
+      }
+      result.push(msg);
+    }
+  }
+
+  // Trailing incomplete assistant block
+  if (pendingIds && pendingIds.size > 0 && pendingAssistantIndex !== -1) {
+    result.splice(pendingAssistantIndex);
+  }
+
+  return result;
+}
+
+/**
  * Handle token limits by truncating messages if needed
  * This function can be used by any LLM provider to manage token limits
- * 
+ *
  * @param request - The original chat request
  * @param maxTokens - Maximum token limit (if undefined, no limits applied)
  * @returns Adjusted request with messages truncated if needed
  */
 export function handleTokenLimits(request: LLMChatRequest, maxTokens?: number): LLMChatRequest {
+  // Always sanitize the message sequence first to prevent orphaned tool messages
+  // from reaching the API (can happen when conversation history is naively trimmed).
+  const sanitized = sanitizeMessageSequence(request.messages);
+  if (sanitized.length !== request.messages.length) {
+    Logger.warn(
+      `sanitizeMessageSequence: removed ${request.messages.length - sanitized.length} orphaned message(s) from conversation history`
+    );
+    request = { ...request, messages: sanitized };
+  }
+
   // If maxTokens is undefined, treat as infinity (no limits)
   if (maxTokens === undefined) {
     return request;
