@@ -87,12 +87,15 @@ export default abstract class AbstractAgent implements Agent {
       try {
          const embeddingService = getEmbeddingService();
 
-         // Build a flat list of tool descriptions and track which server each belongs to
+         // Build a flat list of tool descriptions and track which server each belongs to.
+         // Strip the "[serverName] " prefix added for LLM attribution — it adds noise to embeddings
+         // (e.g. "[outlook]" pulls the vector toward email semantics, hurting calendar matches).
          const toolEntries: { serverName: string; description: string }[] = [];
          for (const server of withTools) {
             for (const tool of toolsByServer[server.name]) {
                if (tool.function.description) {
-                  toolEntries.push({ serverName: server.name, description: tool.function.description });
+                  const desc = tool.function.description.replace(/^\[[^\]]+\]\s*/, '');
+                  toolEntries.push({ serverName: server.name, description: desc });
                }
             }
          }

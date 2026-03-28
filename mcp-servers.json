@@ -2,7 +2,6 @@
   "servers": [
     {
       "name": "context7",
-      "description": "Library documentation lookup and code examples for third-party libraries and frameworks",
       "command": "./node_modules/.bin/context7-mcp",
       "args": [],
       "env": {},
@@ -10,7 +9,6 @@
     },
     {
       "name": "tavily-search",
-      "description": "Web search and internet browsing to find current information and news online",
       "command": "./node_modules/.bin/tavily-mcp",
       "args": [],
       "env": {
@@ -20,7 +18,6 @@
     },
     {
       "name": "outlook",
-      "description": "Email management — reading, sending, and organizing emails via Microsoft Outlook",
       "command": "node",
       "args": [
         "dist/src/mcp/server/outlook/index.js"
@@ -30,7 +27,6 @@
     },
     {
       "name": "memory",
-      "description": "Persistent memory storage and retrieval — remembering facts and information across conversations",
       "command": "node",
       "args": [
         "dist/src/mcp/server/memory.js"
@@ -39,7 +35,6 @@
     },
     {
       "name": "documentation",
-      "description": "Project documentation lookup and technical reference for internal codebase docs",
       "command": "node",
       "args": [
         "dist/src/mcp/server/documentation.js"
@@ -48,7 +43,6 @@
     },
     {
       "name": "weather",
-      "description": "Weather forecasts and current conditions for any location or city",
       "command": "node",
       "args": [
         "dist/src/mcp/server/weather.js"
@@ -57,7 +51,6 @@
     },
     {
       "name": "time",
-      "description": "Current date and time information, timezone conversions, and scheduling",
       "command": "node",
       "args": [
         "dist/src/mcp/server/time.js"
@@ -66,7 +59,6 @@
     },
     {
       "name": "fetch",
-      "description": "HTTP requests and web content fetching — retrieve data from any URL",
       "command": "node",
       "args": [
         "dist/src/mcp/server/fetch.js"
@@ -75,7 +67,6 @@
     },
     {
       "name": "playwright",
-      "description": "Browser automation, web scraping, and interaction with web pages using a real browser",
       "command": "node",
       "args": [
         "./node_modules/@playwright/mcp/cli.js",
@@ -87,7 +78,6 @@
     },
     {
       "name": "jobs",
-      "description": "Background job management — listing, scheduling, and controlling automated tasks",
       "command": "node",
       "args": [
         "dist/src/mcp/server/jobs.js"
@@ -96,7 +86,6 @@
     },
     {
       "name": "google-messages",
-      "description": "Google Messages integration for sending and reading SMS and chat messages",
       "protocol": "sse",
       "httpUrl": "http://localhost:7007/mcp",
       "env": {

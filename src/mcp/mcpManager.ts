@@ -117,8 +117,6 @@ export interface MCPServer {
   protocol?: 'stdio' | 'sse';
   /** Base URL for SSE-based MCP servers, e.g. 'http://localhost:7007/mcp'. */
   httpUrl?: string;
-  /** Human-readable description used for semantic similarity filtering. */
-  description?: string;
 }
 
 export interface MCPConfig {
@@ -640,7 +638,6 @@ export class MCPServerManager {
     return Array.from(this.connections.keys());
   }
 
-  // Get enabled server configs (includes description field for similarity filtering)
   getEnabledServerConfigs(): MCPServer[] {
     return this.servers;
   }
