@@ -58,9 +58,11 @@ export default abstract class AbstractAgent implements Agent {
 
    /**
     * Filters the candidate server list by semantic similarity to the prompt.
-    * Servers with a description in mcp-servers.json are scored; those below
-    * the threshold are excluded. Falls back to the full candidate list if the
-    * embedding service is unavailable or no servers have descriptions.
+    * Uses cached tool descriptions (the same data shown by /mcp-status) rather
+    * than the coarse server-level description in mcp-servers.json. For each
+    * server the maximum similarity across all its tools is used. Servers with
+    * no cached tools yet are always included. Falls back to the full candidate
+    * list if the embedding service is unavailable or no servers have cached tools.
     */
    private async filterServersByPromptSimilarity(
       prompt: string,
@@ -74,28 +76,49 @@ export default abstract class AbstractAgent implements Agent {
          ? configs.filter(s => allowed.includes(s.name))
          : configs;
 
-      const withDesc = candidates.filter(s => s.description);
-      if (withDesc.length === 0) return allowed;
+      const toolsByServer = this.mcpManager.getToolsByServer();
+
+      // Servers not yet in the tools cache are always included (not yet started)
+      const noTools = candidates.filter(s => !toolsByServer[s.name] || toolsByServer[s.name].length === 0).map(s => s.name);
+      const withTools = candidates.filter(s => toolsByServer[s.name]?.length > 0);
+
+      if (withTools.length === 0) return allowed;
 
       try {
          const embeddingService = getEmbeddingService();
 
-         // Servers without a description are always included
-         const noDesc = candidates.filter(s => !s.description).map(s => s.name);
-         const withDesc = candidates.filter(s => s.description);
+         // Build a flat list of tool descriptions and track which server each belongs to
+         const toolEntries: { serverName: string; description: string }[] = [];
+         for (const server of withTools) {
+            for (const tool of toolsByServer[server.name]) {
+               if (tool.function.description) {
+                  toolEntries.push({ serverName: server.name, description: tool.function.description });
+               }
+            }
+         }
 
-         // Batch all texts together so they use the same provider → consistent dimensions
-         const texts = [prompt, ...withDesc.map(s => s.description as string)];
+         if (toolEntries.length === 0) return allowed;
+
+         // Batch all texts so they use the same provider → consistent dimensions
+         const texts = [prompt, ...toolEntries.map(e => e.description)];
          const embeddings = await embeddingService.generateBatchEmbeddings(texts);
          const promptEmbedding = embeddings[0];
-         const matched: string[] = [...noDesc];
 
-         for (let i = 0; i < withDesc.length; i++) {
-            const server = withDesc[i];
+         // Compute max similarity per server across all its tools
+         const maxSimilarityByServer = new Map<string, number>();
+         for (let i = 0; i < toolEntries.length; i++) {
+            const { serverName } = toolEntries[i];
             const { similarity } = embeddingService.calculateSimilarity(promptEmbedding, embeddings[i + 1], 'cosine');
-            Logger.debug(`[Servers] "${server.name}" similarity=${similarity.toFixed(3)} threshold=${threshold}`);
+            const prev = maxSimilarityByServer.get(serverName) ?? 0;
+            if (similarity > prev) maxSimilarityByServer.set(serverName, similarity);
+         }
+
+         const matched: string[] = [...noTools];
+         for (const server of withTools) {
+            const similarity = maxSimilarityByServer.get(server.name) ?? 0;
+            Logger.debug(`[Servers] "${server.name}" max-tool-similarity=${similarity.toFixed(3)} threshold=${threshold}`);
             if (similarity >= threshold) {
-               Logger.info(`[Servers] Loaded "${server.name}" (similarity=${similarity.toFixed(3)})`);
+               Logger.info(`[Servers] Loaded "${server.name}" (max-tool-similarity=${similarity.toFixed(3)})`);
                matched.push(server.name);
             }
          }
