@@ -25,6 +25,10 @@ function getPool(): Pool {
          max: config.DB_POOL_MAX,
          idleTimeoutMillis: config.DB_POOL_IDLE_TIMEOUT_MS,
          connectionTimeoutMillis: config.DB_POOL_CONNECTION_TIMEOUT_MS,
+         // Keep TCP connections alive to prevent silent drops by firewalls/postgres
+         // when the pool sits idle between MCP subprocess calls
+         keepAlive: true,
+         keepAliveInitialDelayMillis: 10000,
       });
 
       pool.on('error', (err) => {
