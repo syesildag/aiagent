@@ -339,7 +339,7 @@ server.registerTool(
   "memory_search",
   {
     title: "Search Memories",
-    description: "Search memories using semantic similarity with optional filters",
+    description: "Search stored memories using semantic similarity. Use this whenever the user asks about personal context, preferences, location, past events, or anything that may have been remembered before (e.g. 'where am I', 'what do I like', 'remind me about X', 'what did we discuss').",
     inputSchema: SearchMemoryInputSchema.shape
   } as any,
   async (args) => {
