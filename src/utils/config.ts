@@ -97,7 +97,7 @@ const envSchema = z.object({
   // --- Embeddings ---
   // 'auto' selects the provider that matches LLM_PROVIDER; falls back to local transformers.js
   EMBEDDING_PROVIDER: z.enum(['openai', 'ollama', 'local', 'github', 'auto']).default('auto'),
-  EMBEDDING_MODEL_OPENAI: z.string().default('text-embedding-3-small'),
+  EMBEDDING_MODEL_OPENAI: z.string().default('text-embedding-nomic-embed-text-v1.5'),
   EMBEDDING_MODEL_OLLAMA: z.string().default('nomic-embed-text'),
   EMBEDDING_MODEL_LOCAL: z.string().default('Snowflake/snowflake-arctic-embed-s'),
   EMBEDDING_SIMILARITY_THRESHOLD: z.string().transform(Number).pipe(z.number().min(0).max(1)).default('0.5'),
@@ -153,7 +153,7 @@ function validateEnvironment(): Environment {
       CONVERSATION_HISTORY_TOKEN_BUDGET: 8000,
       MAX_CONVERSATIONS: 100,
       EMBEDDING_PROVIDER: 'auto',
-      EMBEDDING_MODEL_OPENAI: 'text-embedding-3-small',
+      EMBEDDING_MODEL_OPENAI: 'text-embedding-nomic-embed-text-v1.5',
       EMBEDDING_MODEL_OLLAMA: 'nomic-embed-text',
       EMBEDDING_MODEL_LOCAL: 'Snowflake/snowflake-arctic-embed-s',
       EMBEDDING_SIMILARITY_THRESHOLD: 0.5,

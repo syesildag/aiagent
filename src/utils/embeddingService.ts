@@ -1261,13 +1261,13 @@ export function createEmbeddingService(overrides?: Partial<EmbeddingConfig>): Em
       ? {
           apiKey: config.OPENAI_API_KEY,
           baseUrl: `${config.OPENAI_BASE_URL}/v1`,
-          defaultModel: 'text-embedding-3-small',
+          defaultModel: config.EMBEDDING_MODEL_OPENAI,
         }
       : undefined,
     github: {
       apiKey: config.AUTH_GITHUB_COPILOT,
       baseUrl: config.GITHUB_COPILOT_EMBEDDINGS_BASE_URL,
-      defaultModel: 'text-embedding-3-small',
+      defaultModel: config.EMBEDDING_MODEL_OPENAI,
       // Use OAuth by default if no explicit API key is provided
       useOAuth: true,
     },
