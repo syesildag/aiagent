@@ -64,6 +64,20 @@ function isConnectionError(err: unknown): boolean {
       CONNECTION_ERROR_MESSAGES.some(msg => (err as Error).message.includes(msg));
 }
 
+async function connectWithRetry(activePool: Pool): Promise<ReturnType<Pool['connect']>> {
+   const MAX_RETRIES = 2;
+   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+         return await activePool.connect();
+      } catch (error) {
+         if (!isConnectionError(error) || attempt >= MAX_RETRIES) throw error;
+         Logger.warn(`[Pool ${poolId}] connect() failed (attempt ${attempt + 1}), retrying in ${Math.pow(2, attempt) * 500}ms...`);
+         await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 500));
+      }
+   }
+   throw new Error('unreachable');
+}
+
 export async function queryDatabase(query: string, values: any[] = []) {
    const MAX_RETRIES = 2;
    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -100,7 +114,7 @@ export async function queryDatabase(query: string, values: any[] = []) {
  */
 export async function withTransaction<T>(callback: (query: (sql: string, values?: any[]) => Promise<any[]>) => Promise<T>): Promise<T> {
    const activePool = getPool();
-   const client = await activePool.connect();
+   const client = await connectWithRetry(activePool);
    
    try {
       await client.query('BEGIN');
