@@ -1092,7 +1092,7 @@ export class MCPServerManager {
       // Get all tools and filter by server names if specified
       let tools = this.convertMCPToolsToLLMFormat();
       
-      if (serverNames && serverNames.length > 0) {
+      if (serverNames != null) {
         // Virtual tools (no serverName) always pass through — they are not MCP-server-specific
         tools = tools.filter(tool =>
           !tool.serverName || serverNames.includes(tool.serverName)
