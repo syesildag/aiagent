@@ -289,8 +289,8 @@ server.registerTool(
         updatedAt: new Date()
       });
       
-      await memory.save();
-      const createdMemory = { id: memory.getId(), type: memory.getType() };
+      const savedMemory = await memory.save();
+      const createdMemory = { id: savedMemory?.getId(), type: savedMemory?.getType() };
       Logger.info(`Memory created successfully with ID: ${createdMemory.id}`);
 
       // Optional: Clean up near-duplicate embeddings (threshold 0.75 catches
