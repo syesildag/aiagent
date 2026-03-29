@@ -7,6 +7,7 @@ import aiagentuserRepository from "../entities/ai-agent-user";
 import Logger from "../utils/logger";
 import { slashCommandRegistry } from "../utils/slashCommandRegistry";
 import { getEmbeddingService } from "../utils/embeddingService";
+import { config } from "../utils/config";
 
 export default abstract class AbstractAgent implements Agent {
 
@@ -67,7 +68,7 @@ export default abstract class AbstractAgent implements Agent {
    private async filterServersByPromptSimilarity(
       prompt: string,
       allowed: string[] | undefined,
-      threshold = 0.35,
+      threshold = config.EMBEDDING_SIMILARITY_THRESHOLD,
    ): Promise<string[] | undefined> {
       if (!this.mcpManager) return allowed;
 
