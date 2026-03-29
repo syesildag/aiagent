@@ -99,7 +99,7 @@ const envSchema = z.object({
   EMBEDDING_PROVIDER: z.enum(['openai', 'ollama', 'local', 'github', 'auto']).default('auto'),
   EMBEDDING_MODEL_OPENAI: z.string().default('text-embedding-3-small'),
   EMBEDDING_MODEL_OLLAMA: z.string().default('nomic-embed-text'),
-  EMBEDDING_MODEL_LOCAL: z.string().default('nomic-ai/nomic-embed-text-v1.5'),
+  EMBEDDING_MODEL_LOCAL: z.string().default('Snowflake/snowflake-arctic-embed-s'),
   EMBEDDING_CACHE_ENABLED: z.string().transform((val) => val === 'true').default('true'),
   EMBEDDING_CACHE_TTL: z.string().transform(Number).pipe(z.number().positive()).default('3600000'), // 1 hour
 
@@ -154,7 +154,7 @@ function validateEnvironment(): Environment {
       EMBEDDING_PROVIDER: 'auto',
       EMBEDDING_MODEL_OPENAI: 'text-embedding-3-small',
       EMBEDDING_MODEL_OLLAMA: 'nomic-embed-text',
-      EMBEDDING_MODEL_LOCAL: 'nomic-ai/nomic-embed-text-v1.5',
+      EMBEDDING_MODEL_LOCAL: 'Snowflake/snowflake-arctic-embed-s',
       EMBEDDING_CACHE_ENABLED: true,
       EMBEDDING_CACHE_TTL: 3600000,
       USE_DB_CONVERSATION_HISTORY: false,

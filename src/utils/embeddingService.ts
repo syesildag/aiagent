@@ -727,7 +727,7 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   private loadingPromises: Map<string, Promise<any>> = new Map();
 
   constructor(config: EmbeddingConfig['local']) {
-    this.defaultModel = config?.defaultModel || 'nomic-ai/nomic-embed-text-v1.5';
+    this.defaultModel = config?.defaultModel || 'Snowflake/snowflake-arctic-embed-s';
   }
 
   async isAvailable(): Promise<boolean> {
@@ -741,11 +741,12 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
 
   async getAvailableModels(): Promise<string[]> {
     return [
-      'nomic-ai/nomic-embed-text-v1.5', // 768 dimensions (Matryoshka)
-      'Xenova/all-MiniLM-L6-v2',        // 384 dimensions
-      'Xenova/all-mpnet-base-v2',        // 768 dimensions
-      'Xenova/e5-small-v2',              // 384 dimensions
-      'Xenova/e5-base-v2',               // 768 dimensions
+      'Snowflake/snowflake-arctic-embed-s', // 384 dimensions
+      'nomic-ai/nomic-embed-text-v1.5',     // 768 dimensions (Matryoshka)
+      'Xenova/all-MiniLM-L6-v2',            // 384 dimensions
+      'Xenova/all-mpnet-base-v2',            // 768 dimensions
+      'Xenova/e5-small-v2',                  // 384 dimensions
+      'Xenova/e5-base-v2',                   // 768 dimensions
     ];
   }
 
