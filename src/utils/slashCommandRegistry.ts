@@ -4,6 +4,7 @@ import { SlashCommand } from './slashCommands';
 import { Skill, loadSkills } from './skillLoader';
 import { getEmbeddingService } from './embeddingService';
 import Logger from './logger';
+import { config } from './config';
 
 const DEFAULT_SKILLS_DIR = path.resolve(process.cwd(), '.claude', 'skills');
 
@@ -78,7 +79,7 @@ export class SlashCommandRegistry {
    */
   async getSkillsSystemPromptBlockForPrompt(
     prompt: string,
-    threshold = 0.40,
+    threshold = config.EMBEDDING_SIMILARITY_THRESHOLD,
   ): Promise<{ block: string; maxIterations?: number; allowedTools?: string[] }> {
     const injectableSkills = Array.from(this.skills.values()).filter(s => s.injectable);
     if (injectableSkills.length === 0) return { block: '' };
