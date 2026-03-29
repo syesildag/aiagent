@@ -50,18 +50,47 @@ function getPool(): Pool {
    return pool;
 }
 
+const CONNECTION_ERROR_MESSAGES = [
+   'Connection terminated',
+   'connection timeout',
+   'ECONNRESET',
+   'ECONNREFUSED',
+   'read ECONNRESET',
+   'write EPIPE',
+];
+
+function isConnectionError(err: unknown): boolean {
+   return err instanceof Error &&
+      CONNECTION_ERROR_MESSAGES.some(msg => (err as Error).message.includes(msg));
+}
+
 export async function queryDatabase(query: string, values: any[] = []) {
-   const activePool = getPool();
-   const client = await activePool.connect();
-   try {
-      const res = await client.query(query, values);
-      return res.rows;
-   } catch (error) {
-      Logger.error(`[Pool ${poolId}] Database query failed: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
-   } finally {
-      client.release();
+   const MAX_RETRIES = 2;
+   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const activePool = getPool();
+      let client;
+      try {
+         client = await activePool.connect();
+         const res = await client.query(query, values);
+         client.release();
+         return res.rows;
+      } catch (error) {
+         if (client) client.release(isConnectionError(error));
+         if (!isConnectionError(error) || attempt >= MAX_RETRIES) {
+            Logger.error(`[Pool ${poolId}] Database query failed: ${error instanceof Error ? error.message : String(error)}`);
+            throw error;
+         }
+         Logger.warn(`[Pool ${poolId}] Connection error on attempt ${attempt + 1}, resetting pool and retrying...`);
+         if (pool) {
+            const old = pool;
+            pool = null;
+            poolId = null;
+            old.end().catch(() => {});
+         }
+         await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 500));
+      }
    }
+   throw new Error('unreachable');
 }
 
 /**

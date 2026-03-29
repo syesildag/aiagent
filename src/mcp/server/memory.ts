@@ -353,8 +353,9 @@ server.registerTool(
         throw new Error("Failed to generate embedding for search query");
       }
 
+      const dim = queryEmbedding.length;
       let sqlQuery = `
-        SELECT *, 1 - (embedding <=> $1::vector) as similarity
+        SELECT *, 1 - ((embedding::vector(${dim})) <=> $1::vector) as similarity
           FROM ai_agent_memories
          WHERE embedding_model = $2
       `;
