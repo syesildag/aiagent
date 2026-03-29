@@ -3,7 +3,7 @@ description: Daily briefing — weather, time, news and personal context from me
 argument-hint: "[city or location]"
 user-invocable: true
 metadata:
-  allowed-tools: memory, weather, time, tavily-search, fetch
+  allowed-tools: memory, weather, time, tavily-search, fetch, outlook
   max-iterations: 20
   fresh-context: true
   injectable: true
@@ -26,7 +26,11 @@ Store the results; use them to personalise every subsequent step.
 ### 2. Current time — call get_current_time NOW
 Use the result for the briefing header.
 
-### 3. Weather — call weather_forecast NOW
+### 3. Calendar — call outlook_listCalendarEvents NOW
+Use the current time from step 2 to set `startDateTime` to now and `endDateTime` to the end of the current week (Sunday 23:59:59).
+Save all returned events for the briefing.
+
+### 4. Weather — call weather_forecast NOW
 $IF $1
 Location: **$1**
 $ELSE
@@ -34,36 +38,36 @@ Omit the location argument — the tool will auto-detect it via IP.
 $ENDIF
 Use `days: 3`. Save the exact markdown table returned — you will paste it verbatim into the briefing.
 
-### 4. Local news — call tavily_search NOW (query 1)
-Construct the query from the location determined in step 3, e.g.:
+### 5. Local news — call tavily_search NOW (query 1)
+Construct the query from the location determined in step 4, e.g.:
 `"[city] local news today"`
 Collect the top 3–5 results. Save the URLs.
 
-### 4b. Scrape local news articles — call fetch_url for each URL from step 4
-For the top 3 URLs from step 4, call `fetch_url` on each one.
+### 5b. Scrape local news articles — call fetch_url for each URL from step 5
+For the top 3 URLs from step 5, call `fetch_url` on each one.
 Store the scraped `textContent` for each article — this is the real article body.
 If a URL fails, skip it and continue.
 
-### 5. World headlines — call tavily_search NOW (query 2)
+### 6. World headlines — call tavily_search NOW (query 2)
 Query: `"top world news headlines today"`
 Collect the top 5 results. Save the URLs.
 
-### 5b. Scrape world news articles — call fetch_url for each URL from step 5
-For the top 3 URLs from step 5, call `fetch_url` on each one.
+### 6b. Scrape world news articles — call fetch_url for each URL from step 6
+For the top 3 URLs from step 6, call `fetch_url` on each one.
 Store the scraped `textContent` for each article.
 If a URL fails, skip it and continue.
 
-### 6. Topic news — call tavily_search NOW (query 3)
+### 7. Topic news — call tavily_search NOW (query 3)
 Based on the user's interests from step 1, search for a relevant topic, e.g.:
 `"[interest] news today"`
 Collect 2–3 results. Save the URLs.
 
-### 6b. Scrape topic articles — call fetch_url for each URL from step 6
-For the top 2 URLs from step 6, call `fetch_url` on each one.
+### 7b. Scrape topic articles — call fetch_url for each URL from step 7
+For the top 2 URLs from step 7, call `fetch_url` on each one.
 Store the scraped `textContent` for each article.
 If a URL fails, skip it and continue.
 
-### 7. Recall active tasks — call memory_search NOW
+### 8. Recall active tasks — call memory_search NOW
 Query: `tasks goals reminders todos action items`
 Use these to inform the suggestions section.
 
@@ -72,15 +76,18 @@ Use these to inform the suggestions section.
 ### Final output
 
 After all tool calls are complete, write the briefing in this format.
-**For each news item, use the scraped article text from fetch_url (steps 4b/5b/6b) as the basis for the summary — not just the Tavily snippet.** If an article failed to scrape, fall back to the Tavily snippet.
+**For each news item, use the scraped article text from fetch_url (steps 5b/6b/7b) as the basis for the summary — not just the Tavily snippet.** If an article failed to scrape, fall back to the Tavily snippet.
 
 ```
 # 📅 Daily Briefing — [Day, Date] at [Time]
 
 ## 👤 Good [morning/afternoon/evening], [current authenticated username]
 
+## 📅 This Week's Calendar
+[List each event: time, title, and location if present. If no events, say "No upcoming events this week."]
+
 ## 🌤 Weather — [Location]
-[Paste the markdown table from step 3 exactly as returned — do not reformat]
+[Paste the markdown table from step 4 exactly as returned — do not reformat]
 
 ## 🗞 Local News — [Location]
 1. **[Headline]** — [2–3 sentence summary based on scraped article content] ([source URL])
