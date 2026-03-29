@@ -911,7 +911,8 @@ export class EmbeddingService {
       const cached = this.cache.get(cacheKey);
       if (cached) {
         Logger.debug(`Cache hit for embedding: ${text.substring(0, 50)}...`);
-        return { embedding: cached.embedding, embeddingModel: cached.model };
+        const providerName = options?.provider || this.primaryProvider;
+        return { embedding: cached.embedding, embeddingModel: `${providerName}:${cached.model}` };
       }
     }
 
