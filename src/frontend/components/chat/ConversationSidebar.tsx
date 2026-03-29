@@ -1,7 +1,5 @@
 import {
     Add as AddIcon,
-    ChevronLeft as ChevronLeftIcon,
-    ChevronRight as ChevronRightIcon,
     DeleteOutline as DeleteIcon,
     DeleteSweep as DeleteSweepIcon,
     ChatBubbleOutline as ChatIcon,
@@ -30,6 +28,8 @@ interface Conversation {
 }
 
 interface ConversationSidebarProps {
+    open: boolean;
+    onToggle: () => void;
     activeConversationId: number | null;
     onSelectConversation: (id: number) => void;
     onNewConversation: () => void;
@@ -53,6 +53,8 @@ function formatRelativeDate(dateStr: string): string {
 }
 
 export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
+    open,
+    onToggle,
     activeConversationId,
     onSelectConversation,
     onNewConversation,
@@ -61,7 +63,6 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
     const { session } = useAuth();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-    const [open, setOpen] = useState(false);
     const [conversations, setConversations] = useState<Conversation[]>([]);
 
     const refresh = useCallback(() => {
@@ -266,42 +267,12 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
 
     return (
         <>
-            {/* Toggle button */}
-            <Tooltip title={open ? 'Hide history' : 'Show history'}>
-                <IconButton
-                    onClick={() => setOpen(o => !o)}
-                    size="small"
-                    sx={{
-                        position: 'fixed',
-                        left: open ? drawerWidth - 16 : 8,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        zIndex: theme => theme.zIndex.drawer + 1,
-                        bgcolor: 'background.paper',
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        boxShadow: 2,
-                        transition: open
-                  ? 'left 225ms cubic-bezier(0, 0, 0.2, 1)'
-                  : 'left 195ms cubic-bezier(0.4, 0, 0.6, 1)',
-                        borderRadius: 1.5,
-                        p: '5px',
-                        '&:hover': {
-                            borderColor: 'primary.main',
-                            color: 'primary.main',
-                        },
-                    }}
-                >
-                    {open ? <ChevronLeftIcon sx={{ fontSize: 16 }} /> : <ChevronRightIcon sx={{ fontSize: 16 }} />}
-                </IconButton>
-            </Tooltip>
-
             {isMobile ? (
                 <SwipeableDrawer
                     anchor="left"
                     open={open}
-                    onOpen={() => setOpen(true)}
-                    onClose={() => setOpen(false)}
+                    onOpen={onToggle}
+                    onClose={onToggle}
                     swipeAreaWidth={20}
                     disableSwipeToOpen={false}
                     sx={drawerSx}
@@ -313,7 +284,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                     variant="temporary"
                     anchor="left"
                     open={open}
-                    onClose={() => setOpen(false)}
+                    onClose={onToggle}
                     sx={drawerSx}
                 >
                     {drawerContent}

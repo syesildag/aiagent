@@ -1,6 +1,7 @@
 import {
     SmartToy as BotIcon,
     Logout as LogoutIcon,
+    Menu as MenuIcon,
     Send as SendIcon,
     AttachFile as AttachFileIcon,
     Close as CloseIcon,
@@ -51,6 +52,7 @@ import ContextMeter from '../ui/ContextMeter';
 
 export const ChatInterface: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -653,6 +655,14 @@ export const ChatInterface: React.FC = () => {
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
       <AppBar position="static" elevation={0}>
         <Toolbar sx={{ gap: 0.5, minHeight: { xs: 56, sm: 64 } }}>
+          <IconButton
+            edge="start"
+            onClick={() => setSidebarOpen(o => !o)}
+            sx={{ mr: 0.5 }}
+            aria-label="toggle conversation history"
+          >
+            <MenuIcon />
+          </IconButton>
           <BotIcon sx={{ mr: { xs: 0.5, sm: 0.75 }, flexShrink: 0, fontSize: 20, color: 'primary.main' }} />
           <Tooltip
             title={releaseData ? (
@@ -788,10 +798,12 @@ export const ChatInterface: React.FC = () => {
 
       <Box sx={{ display: 'flex', flexDirection: 'row', flexGrow: 1, overflow: 'hidden' }}>
         <ConversationSidebar
+          open={sidebarOpen}
+          onToggle={() => setSidebarOpen(o => !o)}
           activeConversationId={activeConversationId}
           onSelectConversation={handleLoadConversation}
           onNewConversation={handleNewConversation}
-          onConversationDeleted={(id) => { if (id === activeConversationId) handleNewConversation(); }}
+          onConversationDeleted={(id) => { if (id === activeConversationId || id === -1) handleNewConversation(); }}
         />
         <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
 
