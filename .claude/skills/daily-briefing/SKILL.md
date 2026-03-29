@@ -27,7 +27,7 @@ Store the results; use them to personalise every subsequent step.
 Use the result for the briefing header.
 
 ### 3. Calendar — call outlook_listCalendarEvents NOW
-Use the current time from step 2 to set `startDateTime` to now and `endDateTime` to the end of the current week (Sunday 23:59:59).
+Use the current time from step 2 to set `startDateTime` to now and `endDateTime` to the coming Saturday at 23:59:59 (i.e. the Saturday that ends the Mon–Sat work week, not next Sunday).
 Save all returned events for the briefing.
 
 ### 4. Weather — call weather_forecast NOW
