@@ -127,12 +127,6 @@ export default abstract class AbstractAgent implements Agent {
             }
          }
 
-         // If nothing matched, fall back to full candidate list to avoid breaking the agent
-         if (matched.length === 0) {
-            Logger.debug('[Servers] No servers matched similarity threshold; using all candidates');
-            return allowed;
-         }
-
          return matched;
       } catch (error) {
          Logger.warn(`[Servers] Similarity filtering failed (${error instanceof Error ? error.message : String(error)}); using all candidates`);
