@@ -136,7 +136,7 @@ function makePNG(size) {
 const outDir = path.join(__dirname, '../frontend/pwa/icons');
 fs.mkdirSync(outDir, { recursive: true });
 
-for (const size of [192, 512]) {
+for (const size of [96, 192, 512]) {
   const file = path.join(outDir, `icon-${size}.png`);
   fs.writeFileSync(file, makePNG(size));
   console.log(`✔ Generated ${file}`);

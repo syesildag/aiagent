@@ -15,7 +15,7 @@
       "copy:pwa": "mkdir -p dist/src/frontend/pwa dist/static/icons && cp src/frontend/pwa/sw.js dist/src/frontend/pwa/ && cp src/frontend/pwa/icons/* dist/static/icons/",
       "copy:templates": "mkdir -p dist/src/frontend/templates && cp -r src/frontend/templates/. dist/src/frontend/templates/",
       "generate:icons": "node src/utils/generateIcons.js",
-      "build": "npm run clean && npm run compile && npm run copy:pwa",
+      "build": "npm run clean && npm run compile && npm run generate:icons && npm run copy:pwa",
       "build:frontend": "webpack --mode production",
       "build:all": "npm run clean:all && npm run compile && npm run build:frontend && npm run copy:pwa",
       "buildStart": "npm run build:all && npm start",
