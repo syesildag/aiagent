@@ -1,4 +1,5 @@
 ---
+name: jobs
 description: List all scheduled jobs with their current status
 user-invocable: true
 metadata:

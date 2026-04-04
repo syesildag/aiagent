@@ -1,3 +1,8 @@
+---
+name: code-standards
+description: Coding standards for the aiagent project — TypeScript, naming, error handling, testing, and security conventions
+---
+
 # Code Standards Skill
 
 This skill defines the coding standards for the aiagent project. Apply these when reviewing or writing code.

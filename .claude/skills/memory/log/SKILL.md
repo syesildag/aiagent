@@ -1,4 +1,5 @@
 ---
+name: log
 description: Store a note into long-term memory for future conversations
 user-invocable: true
 metadata:

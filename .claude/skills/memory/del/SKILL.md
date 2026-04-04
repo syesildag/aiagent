@@ -1,4 +1,5 @@
 ---
+name: del
 description: Remove a note from long-term memory
 user-invocable: true
 metadata:

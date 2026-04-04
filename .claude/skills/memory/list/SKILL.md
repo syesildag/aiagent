@@ -1,4 +1,5 @@
 ---
+name: list
 description: List long-term memories, optionally filtered by type or tag
 user-invocable: true
 metadata:
