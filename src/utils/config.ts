@@ -101,7 +101,7 @@ const envSchema = z.object({
   EMBEDDING_MODEL_OLLAMA: z.string().default('nomic-embed-text'),
   EMBEDDING_MODEL_LOCAL: z.string().default('Snowflake/snowflake-arctic-embed-s'),
   EMBEDDING_SIMILARITY_THRESHOLD: z.string().transform(Number).pipe(z.number().min(0).max(1)).default('0.5'),
-  EMBEDDING_MIN_PROMPT_WORDS: z.string().transform(Number).pipe(z.number().int().min(0)).default('10'),
+  EMBEDDING_MIN_PROMPT_WORDS: z.string().transform(Number).pipe(z.number().int().min(0)).default('4'),
   EMBEDDING_CACHE_ENABLED: z.string().transform((val) => val === 'true').default('true'),
   EMBEDDING_CACHE_TTL: z.string().transform(Number).pipe(z.number().positive()).default('3600000'), // 1 hour
 
