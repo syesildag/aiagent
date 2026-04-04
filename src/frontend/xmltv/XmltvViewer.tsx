@@ -578,6 +578,19 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
 
   const [notifAnchorEl, setNotifAnchorEl] = useState<HTMLButtonElement | null>(null);
 
+  // Listen for NOTIFICATION_FIRED from the service worker to keep UI in sync
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'NOTIFICATION_FIRED') {
+        const { id } = event.data as { id: string };
+        setNotifiedProgs(prev => { const next = new Map(prev); next.delete(id); return next; });
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handler);
+    return () => navigator.serviceWorker.removeEventListener('message', handler);
+  }, []);
+
   const sendProgrammeNotification = useCallback(async (prog: Programme, minutesBefore: number) => {
     if (!('serviceWorker' in navigator)) return;
     try {
@@ -585,7 +598,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
       const body = minutesBefore > 0
         ? `Starts in ${minutesBefore} min · ${formatTime(prog.start)}`
         : `Starting now · ${formatTime(prog.start)}`;
-      reg.active?.postMessage({ type: 'SHOW_NOTIFICATION', title: prog.title, body, icon: '/icons/icon-192.png' });
+      reg.active?.postMessage({ type: 'SHOW_NOTIFICATION', title: prog.title, body, icon: '/static/icons/icon-192.png' });
     } catch {
       // service worker unavailable
     }
@@ -595,6 +608,12 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     const key = getProgrammeKey(prog);
     if (minutesBefore === null) {
       setNotifiedProgs(prev => { const next = new Map(prev); next.delete(key); return next; });
+      if ('serviceWorker' in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          reg.active?.postMessage({ type: 'CANCEL_NOTIFICATION', id: key });
+        } catch { /* SW unavailable */ }
+      }
       return;
     }
     if (!('Notification' in window)) return;
@@ -604,6 +623,20 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     }
     if (Notification.permission !== 'granted') return;
     setNotifiedProgs(prev => new Map(prev).set(key, minutesBefore));
+    // Schedule in service worker so notification fires even when page is backgrounded
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const fireAt = prog.start.getTime() - minutesBefore * 60_000;
+        const body = minutesBefore > 0
+          ? `Starts in ${minutesBefore} min · ${formatTime(prog.start)}`
+          : `Starting now · ${formatTime(prog.start)}`;
+        reg.active?.postMessage({
+          type: 'SCHEDULE_NOTIFICATION',
+          notification: { id: key, title: prog.title, body, icon: '/static/icons/icon-192.png', fireAt, url: '/xmltv' },
+        });
+      } catch { /* SW unavailable – minute-tick fallback will handle it */ }
+    }
   }, []);
 
   const [hoveredChannelId, setHoveredChannelId] = useState<string | null>(null);
