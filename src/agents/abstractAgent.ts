@@ -72,14 +72,6 @@ export default abstract class AbstractAgent implements Agent {
    ): Promise<string[] | undefined> {
       if (!this.mcpManager) return allowed;
 
-      // Short/generic prompts (e.g. greetings) produce near-centroid embeddings
-      // that spuriously match every server. Skip similarity filtering for them.
-      const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
-      if (wordCount < config.EMBEDDING_MIN_PROMPT_WORDS) {
-         Logger.debug(`[Servers] Prompt too short (${wordCount} words < ${config.EMBEDDING_MIN_PROMPT_WORDS}); skipping similarity filter`);
-         return [];
-      }
-
       const configs = this.mcpManager.getEnabledServerConfigs();
       const candidates = allowed
          ? configs.filter(s => allowed.includes(s.name))
@@ -192,7 +184,10 @@ export default abstract class AbstractAgent implements Agent {
          maxIterations = maxIterations ?? skillsMaxIterations;
 
          const effectivePrompt = `${systemPrompt}\n\n${prompt}`;
-         const similarityServers = await this.filterServersByPromptSimilarity(effectivePrompt, this.getAllowedServerNames());
+         const promptWordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
+         const similarityServers = promptWordCount < config.EMBEDDING_MIN_PROMPT_WORDS
+            ? (Logger.debug(`[Servers] Prompt too short (${promptWordCount} words < ${config.EMBEDDING_MIN_PROMPT_WORDS}); skipping similarity filter`), [])
+            : await this.filterServersByPromptSimilarity(effectivePrompt, this.getAllowedServerNames());
          // Force-include servers declared by matched skills' allowed-tools so
          // multi-step skills (e.g. forecast needing weather + time + outlook)
          // are always available regardless of similarity score.
