@@ -32,6 +32,6 @@ export class WeatherAgent extends AbstractAgent {
    }
 
    getAllowedServerNames(): string[] {
-      return ['weather', 'time'];
+      return ['weather', 'time', 'memory'];
    }
 }
