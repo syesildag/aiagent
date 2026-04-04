@@ -84,6 +84,14 @@ export class SlashCommandRegistry {
     const injectableSkills = Array.from(this.skills.values()).filter(s => s.injectable);
     if (injectableSkills.length === 0) return { block: '' };
 
+    // Short/generic prompts (e.g. greetings) produce near-centroid embeddings
+    // that spuriously match every skill. Skip similarity filtering for them.
+    const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
+    if (wordCount < config.EMBEDDING_MIN_PROMPT_WORDS) {
+      Logger.debug(`[Skills] Prompt too short (${wordCount} words < ${config.EMBEDDING_MIN_PROMPT_WORDS}); skipping similarity filter`);
+      return { block: '' };
+    }
+
     try {
       const embeddingService = getEmbeddingService();
       const texts = [prompt, ...injectableSkills.map(s => s.description)];

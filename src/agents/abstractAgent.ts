@@ -72,6 +72,14 @@ export default abstract class AbstractAgent implements Agent {
    ): Promise<string[] | undefined> {
       if (!this.mcpManager) return allowed;
 
+      // Short/generic prompts (e.g. greetings) produce near-centroid embeddings
+      // that spuriously match every server. Skip similarity filtering for them.
+      const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
+      if (wordCount < config.EMBEDDING_MIN_PROMPT_WORDS) {
+         Logger.debug(`[Servers] Prompt too short (${wordCount} words < ${config.EMBEDDING_MIN_PROMPT_WORDS}); skipping similarity filter`);
+         return [];
+      }
+
       const configs = this.mcpManager.getEnabledServerConfigs();
       const candidates = allowed
          ? configs.filter(s => allowed.includes(s.name))
