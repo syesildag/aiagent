@@ -191,8 +191,13 @@ export default abstract class AbstractAgent implements Agent {
          // Force-include servers declared by matched skills' allowed-tools so
          // multi-step skills (e.g. forecast needing weather + time + outlook)
          // are always available regardless of similarity score.
-         const serverNames = skillAllowedTools && skillAllowedTools.length > 0
-           ? [...new Set([...(similarityServers ?? []), ...skillAllowedTools])]
+         // Constrain to the agent's own allowed set to prevent privilege escalation.
+         const agentAllowed = this.getAllowedServerNames();
+         const filteredSkillTools = skillAllowedTools
+           ? skillAllowedTools.filter(s => !agentAllowed || agentAllowed.includes(s))
+           : undefined;
+         const serverNames = filteredSkillTools && filteredSkillTools.length > 0
+           ? [...new Set([...(similarityServers ?? []), ...filteredSkillTools])]
            : similarityServers;
          const userLogin = this.session?.getUserLogin();
          // If isAdmin was not provided by the caller (e.g. AgentJob), fall back to a DB
