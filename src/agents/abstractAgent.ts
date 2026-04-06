@@ -304,6 +304,7 @@ export default abstract class AbstractAgent implements Agent {
                isAdmin = user?.getIsAdmin() ?? false;
             }
          }
+         Logger.debug(`[Agent] "${this.getName()}" system prompt: "${systemPrompt}"`);
          return await this.mcpManager.chatWithLLM({
             message: prompt,
             customSystemPrompt: systemPrompt,
