@@ -270,6 +270,7 @@ export default abstract class AbstractAgent implements Agent {
          // Initialize registry (no-op after first call) and inject all skills
          // into the system prompt so the LLM is always aware of them.
          slashCommandRegistry.initialize();
+         Logger.debug(`[Agent] "${this.getName()}" system prompt before skills injection: "${this.getSystemPrompt()}"`);
          const { block: skillsBlock, maxIterations: skillsMaxIterations, allowedTools: skillAllowedTools } =
             await slashCommandRegistry.getSkillsSystemPromptBlockForPrompt(prompt);
          const baseSystemPrompt = this.getSystemPrompt();
@@ -292,7 +293,9 @@ export default abstract class AbstractAgent implements Agent {
          const serverNames = filteredSkillTools && filteredSkillTools.length > 0
             ? [...new Set([...(similarityServers ?? []), ...filteredSkillTools])]
             : similarityServers;
+         Logger.debug(`[Agent] "${this.getName()}" final server list after filtering and skill injection: ${serverNames ? serverNames.join(', ') : 'all'}`);
          const userLogin = this.session?.getUserLogin();
+         Logger.debug(`[Agent] "${this.getName()}" user login: ${userLogin ?? '<<none>>'}`);
          // If isAdmin was not provided by the caller (e.g. AgentJob), fall back to a DB
          // lookup from the stored session. When provided (web chat route), we trust the
          // caller's value, which was captured before any awaits that could race with
