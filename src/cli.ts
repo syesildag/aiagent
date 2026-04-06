@@ -446,8 +446,6 @@ async function main() {
     let isShuttingDown = false;
 
     const chatLoop = () => {
-      rl.prompt();
-
       rl.on('line', async (input: string) => {
         const query = input.trim();
 
