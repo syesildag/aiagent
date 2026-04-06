@@ -91,7 +91,7 @@ export default abstract class AbstractAgent implements Agent {
          ? configs.filter(s => allowed.includes(s.name))
          : configs;
 
-      const toolsByServer = this.mcpManager.getToolsByServer();Ò
+      const toolsByServer = this.mcpManager.getToolsByServer();
       const alwaysOn = candidates.filter(s => s.alwaysInclude).map(s => s.name);
       const filterable = candidates.filter(s => !s.alwaysInclude);
       const noTools = filterable
