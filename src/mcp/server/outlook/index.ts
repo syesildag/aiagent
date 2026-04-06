@@ -28,7 +28,7 @@ async function main(): Promise<void> {
     // =========================================================================
 
     server.registerTool(
-      "listCalendarEvents",
+      "list_calendar_events",
       {
         title: "List Calendar Events",
         description: "Lists the user's calendar events for a specified time range",
@@ -62,14 +62,14 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: JSON.stringify(formattedEvents, null, 2) }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] listCalendarEvents error: ${msg}`);
+          Logger.error(`[outlook-mcp] list_calendar_events error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error listing calendar events: ${msg}` }], isError: true };
         }
       }
     );
 
     server.registerTool(
-      "createCalendarEvent",
+      "create_calendar_event",
       {
         title: "Create Calendar Event",
         description: "Creates a new calendar event. Ensure availability and user confirmation before sending invites.",
@@ -81,14 +81,14 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: JSON.stringify(createdEvent, null, 2) }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] createCalendarEvent error: ${msg}`);
+          Logger.error(`[outlook-mcp] create_calendar_event error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error creating calendar event: ${msg}` }], isError: true };
         }
       }
     );
 
     server.registerTool(
-      "getCalendarEvent",
+      "get_calendar_event",
       {
         title: "Get Calendar Event",
         description: "Gets details of a specific calendar event",
@@ -102,14 +102,14 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: JSON.stringify(event, null, 2) }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] getCalendarEvent error: ${msg}`);
+          Logger.error(`[outlook-mcp] get_calendar_event error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error getting calendar event: ${msg}` }], isError: true };
         }
       }
     );
 
     server.registerTool(
-      "updateCalendarEvent",
+      "update_calendar_event",
       {
         title: "Update Calendar Event",
         description: "Updates an existing calendar event",
@@ -130,14 +130,14 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: JSON.stringify(updatedEvent, null, 2) }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] updateCalendarEvent error: ${msg}`);
+          Logger.error(`[outlook-mcp] update_calendar_event error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error updating calendar event: ${msg}` }], isError: true };
         }
       }
     );
 
     server.registerTool(
-      "deleteCalendarEvent",
+      "delete_calendar_event",
       {
         title: "Delete Calendar Event",
         description: "Deletes a calendar event",
@@ -151,14 +151,14 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: `Event ${params.eventId} successfully deleted` }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] deleteCalendarEvent error: ${msg}`);
+          Logger.error(`[outlook-mcp] delete_calendar_event error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error deleting calendar event: ${msg}` }], isError: true };
         }
       }
     );
 
     server.registerTool(
-      "addAttendeesToCalendarEvent",
+      "add_attendees_to_calendar_event",
       {
         title: "Add Attendees To Calendar Event",
         description:
@@ -172,7 +172,7 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: JSON.stringify(updatedEvent, null, 2) }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] addAttendeesToCalendarEvent error: ${msg}`);
+          Logger.error(`[outlook-mcp] add_attendees_to_calendar_event error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error adding attendees to calendar event: ${msg}` }], isError: true };
         }
       }
@@ -183,7 +183,7 @@ async function main(): Promise<void> {
     // =========================================================================
 
     server.registerTool(
-      "listEmails",
+      "list_emails",
       {
         title: "List Emails",
         description: "Lists the user's emails from a specified folder",
@@ -214,14 +214,14 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: JSON.stringify(formattedEmails, null, 2) }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] listEmails error: ${msg}`);
+          Logger.error(`[outlook-mcp] list_emails error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error listing emails: ${msg}` }], isError: true };
         }
       }
     );
 
     server.registerTool(
-      "getEmail",
+      "get_email",
       {
         title: "Get Email",
         description: "Gets details of a specific email message",
@@ -235,14 +235,14 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: JSON.stringify(email, null, 2) }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] getEmail error: ${msg}`);
+          Logger.error(`[outlook-mcp] get_email error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error getting email: ${msg}` }], isError: true };
         }
       }
     );
 
     server.registerTool(
-      "sendEmail",
+      "send_email",
       {
         title: "Send Email",
         description: "Sends a new email message",
@@ -254,14 +254,14 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: "Email successfully sent" }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] sendEmail error: ${msg}`);
+          Logger.error(`[outlook-mcp] send_email error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error sending email: ${msg}` }], isError: true };
         }
       }
     );
 
     server.registerTool(
-      "createDraft",
+      "create_draft",
       {
         title: "Create Draft",
         description: "Creates a draft email message without sending it",
@@ -273,14 +273,14 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: JSON.stringify(draft, null, 2) }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] createDraft error: ${msg}`);
+          Logger.error(`[outlook-mcp] create_draft error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error creating draft email: ${msg}` }], isError: true };
         }
       }
     );
 
     server.registerTool(
-      "markEmailAsRead",
+      "mark_email_as_read",
       {
         title: "Mark Email As Read",
         description: "Marks an email message as read",
@@ -294,14 +294,14 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: `Email ${params.messageId} marked as read` }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] markEmailAsRead error: ${msg}`);
+          Logger.error(`[outlook-mcp] mark_email_as_read error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error marking email as read: ${msg}` }], isError: true };
         }
       }
     );
 
     server.registerTool(
-      "markEmailAsUnread",
+      "mark_email_as_unread",
       {
         title: "Mark Email As Unread",
         description: "Marks an email message as unread",
@@ -315,14 +315,14 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: `Email ${params.messageId} marked as unread` }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] markEmailAsUnread error: ${msg}`);
+          Logger.error(`[outlook-mcp] mark_email_as_unread error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error marking email as unread: ${msg}` }], isError: true };
         }
       }
     );
 
     server.registerTool(
-      "deleteEmail",
+      "delete_email",
       {
         title: "Delete Email",
         description: "Deletes an email message",
@@ -336,7 +336,7 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: `Email ${params.messageId} successfully deleted` }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] deleteEmail error: ${msg}`);
+          Logger.error(`[outlook-mcp] delete_email error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error deleting email: ${msg}` }], isError: true };
         }
       }
@@ -347,7 +347,7 @@ async function main(): Promise<void> {
     // =========================================================================
 
     server.registerTool(
-      "searchPeople",
+      "search_people",
       {
         title: "Search People",
         description: "Searches for people relevant to the current user (colleagues, contacts, etc.)",
@@ -380,14 +380,14 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: JSON.stringify(formattedPeople, null, 2) }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] searchPeople error: ${msg}`);
+          Logger.error(`[outlook-mcp] search_people error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error searching people: ${msg}` }], isError: true };
         }
       }
     );
 
     server.registerTool(
-      "getPerson",
+      "get_person",
       {
         title: "Get Person",
         description: "Gets details of a specific person by ID",
@@ -401,7 +401,7 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: JSON.stringify(person, null, 2) }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] getPerson error: ${msg}`);
+          Logger.error(`[outlook-mcp] get_person error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error getting person: ${msg}` }], isError: true };
         }
       }
@@ -412,7 +412,7 @@ async function main(): Promise<void> {
     // =========================================================================
 
     server.registerTool(
-      "getSchedule",
+      "get_schedule",
       {
         title: "Get Schedule",
         description: "Gets free/busy schedule information for specified users",
@@ -439,14 +439,14 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: JSON.stringify(formattedSchedule, null, 2) }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] getSchedule error: ${msg}`);
+          Logger.error(`[outlook-mcp] get_schedule error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error getting schedule: ${msg}` }], isError: true };
         }
       }
     );
 
     server.registerTool(
-      "findMeetingTimes",
+      "find_meeting_times",
       {
         title: "Find Meeting Times",
         description: "Finds suitable meeting times for a group of attendees. Correct e-mail addresses are required.",
@@ -471,7 +471,7 @@ async function main(): Promise<void> {
           return { content: [{ type: "text" as const, text: JSON.stringify(formattedSuggestions, null, 2) }] };
         } catch (err) {
           const msg = await formatGraphError(err);
-          Logger.error(`[outlook-mcp] findMeetingTimes error: ${msg}`);
+          Logger.error(`[outlook-mcp] find_meeting_times error: ${msg}`);
           return { content: [{ type: "text" as const, text: `Error finding meeting times: ${msg}` }], isError: true };
         }
       }

@@ -37,6 +37,7 @@ const DANGEROUS_TOOL_PATTERNS: RegExp[] = [
   /(^|_)format($|_)/i,
   /(^|_)nuke($|_)/i,
   /(^|_)purge($|_)/i,
+  /(^|_)mark($|_)/i,
 ];
 
 const VIRTUAL_TASK_TOOL_NAME = 'task';
