@@ -102,6 +102,12 @@ const envSchema = z.object({
   EMBEDDING_MODEL_LOCAL: z.string().default('Snowflake/snowflake-arctic-embed-s'),
   EMBEDDING_SIMILARITY_THRESHOLD: z.string().transform(Number).pipe(z.number().min(0).max(1)).default('0.5'),
   EMBEDDING_MIN_PROMPT_WORDS: z.string().transform(Number).pipe(z.number().int().min(0)).default('4'),
+  // Routing strategy for selecting MCP servers: 'embedding' (neural cosine sim), 'bm25' (keyword),
+  // or 'none' (include all candidate servers).
+  TOOL_ROUTING_STRATEGY: z.enum(['embedding', 'bm25', 'none']).default('bm25'),
+  // Routing strategy for selecting injectable skills: 'embedding', 'tags' (frontmatter keyword tags),
+  // 'bm25', or 'none' (include all injectable skills).
+  SKILL_ROUTING_STRATEGY: z.enum(['embedding', 'tags', 'bm25', 'none']).default('tags'),
   EMBEDDING_CACHE_ENABLED: z.string().transform((val) => val === 'true').default('true'),
   EMBEDDING_CACHE_TTL: z.string().transform(Number).pipe(z.number().positive()).default('3600000'), // 1 hour
 
@@ -159,6 +165,8 @@ function validateEnvironment(): Environment {
       EMBEDDING_MODEL_LOCAL: 'Snowflake/snowflake-arctic-embed-s',
       EMBEDDING_SIMILARITY_THRESHOLD: 0.5,
       EMBEDDING_MIN_PROMPT_WORDS: 4,
+      TOOL_ROUTING_STRATEGY: 'bm25',
+      SKILL_ROUTING_STRATEGY: 'tags',
       EMBEDDING_CACHE_ENABLED: true,
       EMBEDDING_CACHE_TTL: 3600000,
       USE_DB_CONVERSATION_HISTORY: false,

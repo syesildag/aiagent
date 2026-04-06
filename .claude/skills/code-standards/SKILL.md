@@ -1,6 +1,8 @@
 ---
 name: code-standards
 description: Coding standards for the aiagent project — TypeScript, naming, error handling, testing, and security conventions
+metadata:
+  tags: [code, coding, standards, typescript, naming, style, conventions, review, lint, testing, security]
 ---
 
 # Code Standards Skill

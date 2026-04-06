@@ -732,6 +732,7 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
 
   async isAvailable(): Promise<boolean> {
     try {
+      await import('@xenova/transformers');
       return true;
     } catch (error) {
       Logger.warn(`Transformers.js not available for local embeddings: ${error}`);
@@ -774,6 +775,11 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
         this.modelCache.set(modelName, pipe);
         Logger.info(`Local embedding model loaded successfully: ${modelName}`);
         return pipe;
+      } catch (error) {
+        throw new EmbeddingError(
+          `Failed to load local embedding model "${modelName}": ${error instanceof Error ? error.message : String(error)}`,
+          'Local',
+        );
       } finally {
         this.loadingPromises.delete(modelName);
       }

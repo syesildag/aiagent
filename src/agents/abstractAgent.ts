@@ -7,6 +7,7 @@ import aiagentuserRepository from "../entities/ai-agent-user";
 import Logger from "../utils/logger";
 import { slashCommandRegistry } from "../utils/slashCommandRegistry";
 import { getEmbeddingService } from "../utils/embeddingService";
+import { BM25Index } from "../utils/bm25Index";
 import { config } from "../utils/config";
 
 export default abstract class AbstractAgent implements Agent {
@@ -58,6 +59,91 @@ export default abstract class AbstractAgent implements Agent {
    }
 
    /**
+    * Builds a flat list of (serverName, description) entries from the tools cache,
+    * stripping the "[serverName] " attribution prefix.
+    */
+   private buildToolEntries(withTools: { name: string }[], toolsByServer: Record<string, { function: { description?: string } }[]>) {
+      const toolEntries: { serverName: string; description: string }[] = [];
+      for (const server of withTools) {
+         for (const tool of toolsByServer[server.name]) {
+            if (tool.function.description) {
+               const desc = tool.function.description.replace(/^\[[^\]]+\]\s*/, '');
+               toolEntries.push({ serverName: server.name, description: desc });
+            }
+         }
+      }
+      return toolEntries;
+   }
+
+   /**
+    * Filters the candidate server list using BM25 keyword scoring over cached
+    * tool descriptions. No neural-inference calls — runs entirely in-process.
+    */
+   private filterServersByBM25(
+      prompt: string,
+      allowed: string[] | undefined,
+      threshold = config.EMBEDDING_SIMILARITY_THRESHOLD,
+   ): string[] | undefined {
+      if (!this.mcpManager) return allowed;
+
+      const configs = this.mcpManager.getEnabledServerConfigs();
+      const candidates = allowed
+         ? configs.filter(s => allowed.includes(s.name))
+         : configs;
+
+      const toolsByServer = this.mcpManager.getToolsByServer();
+      const noTools = candidates
+         .filter(s => !toolsByServer[s.name] || toolsByServer[s.name].length === 0)
+         .map(s => s.name);
+      const withTools = candidates.filter(s => toolsByServer[s.name]?.length > 0);
+
+      if (withTools.length === 0) return allowed;
+
+      const toolEntries = this.buildToolEntries(withTools, toolsByServer);
+      if (toolEntries.length === 0) return allowed;
+
+      const bm25 = new BM25Index(toolEntries.map(e => e.description));
+      const normalizedScores = bm25.normalizedScoreAll(prompt);
+
+      const maxScoreByServer = new Map<string, number>();
+      for (let i = 0; i < toolEntries.length; i++) {
+         const { serverName } = toolEntries[i];
+         const prev = maxScoreByServer.get(serverName) ?? 0;
+         if (normalizedScores[i] > prev) maxScoreByServer.set(serverName, normalizedScores[i]);
+      }
+
+      const matched: string[] = [...noTools];
+      for (const server of withTools) {
+         const score = maxScoreByServer.get(server.name) ?? 0;
+         Logger.debug(`[Servers] "${server.name}" max-tool-bm25=${score.toFixed(3)} threshold=${threshold}`);
+         if (score >= threshold) {
+            Logger.info(`[Servers] Loaded "${server.name}" (max-tool-bm25=${score.toFixed(3)})`);
+            matched.push(server.name);
+         }
+      }
+
+      return matched;
+   }
+
+   /**
+    * Dispatches to the appropriate server-filtering strategy based on
+    * TOOL_ROUTING_STRATEGY config. Short prompts skip filtering entirely.
+    */
+   private async filterServers(
+      prompt: string,
+      allowed: string[] | undefined,
+   ): Promise<string[] | undefined> {
+      const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
+      if (wordCount < config.EMBEDDING_MIN_PROMPT_WORDS) {
+         Logger.debug(`[Servers] Prompt too short (${wordCount} words < ${config.EMBEDDING_MIN_PROMPT_WORDS}); skipping filter`);
+         return [];
+      }
+      if (config.TOOL_ROUTING_STRATEGY === 'none') return allowed;
+      if (config.TOOL_ROUTING_STRATEGY === 'bm25') return this.filterServersByBM25(prompt, allowed);
+      return this.filterServersByPromptSimilarity(prompt, allowed);
+   }
+
+   /**
     * Filters the candidate server list by semantic similarity to the prompt.
     * Uses cached tool descriptions (the same data shown by /mcp-status) rather
     * than the coarse server-level description in mcp-servers.json. For each
@@ -91,15 +177,7 @@ export default abstract class AbstractAgent implements Agent {
          // Build a flat list of tool descriptions and track which server each belongs to.
          // Strip the "[serverName] " prefix added for LLM attribution — it adds noise to embeddings
          // (e.g. "[outlook]" pulls the vector toward email semantics, hurting calendar matches).
-         const toolEntries: { serverName: string; description: string }[] = [];
-         for (const server of withTools) {
-            for (const tool of toolsByServer[server.name]) {
-               if (tool.function.description) {
-                  const desc = tool.function.description.replace(/^\[[^\]]+\]\s*/, '');
-                  toolEntries.push({ serverName: server.name, description: desc });
-               }
-            }
-         }
+         const toolEntries = this.buildToolEntries(withTools, toolsByServer);
 
          if (toolEntries.length === 0) return allowed;
 
@@ -184,10 +262,7 @@ export default abstract class AbstractAgent implements Agent {
          maxIterations = maxIterations ?? skillsMaxIterations;
 
          const effectivePrompt = `${systemPrompt}\n\n${prompt}`;
-         const promptWordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
-         const similarityServers = promptWordCount < config.EMBEDDING_MIN_PROMPT_WORDS
-            ? (Logger.debug(`[Servers] Prompt too short (${promptWordCount} words < ${config.EMBEDDING_MIN_PROMPT_WORDS}); skipping similarity filter`), [])
-            : await this.filterServersByPromptSimilarity(effectivePrompt, this.getAllowedServerNames());
+         const similarityServers = await this.filterServers(effectivePrompt, this.getAllowedServerNames());
          // Force-include servers declared by matched skills' allowed-tools so
          // multi-step skills (e.g. forecast needing weather + time + outlook)
          // are always available regardless of similarity score.

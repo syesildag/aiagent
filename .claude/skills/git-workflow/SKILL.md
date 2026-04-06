@@ -1,6 +1,8 @@
 ---
 name: git-workflow
 description: Git workflow conventions for the aiagent project — branching, commits, and PR guidelines
+metadata:
+  tags: [git, commit, branch, pull request, pr, push, merge, workflow, rebase, release]
 ---
 
 # Git Workflow Skill

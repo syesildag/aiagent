@@ -3,6 +3,7 @@ import matter from 'gray-matter';
 import { SlashCommand } from './slashCommands';
 import { Skill, loadSkills } from './skillLoader';
 import { getEmbeddingService } from './embeddingService';
+import { BM25Index } from './bm25Index';
 import Logger from './logger';
 import { config } from './config';
 
@@ -85,13 +86,34 @@ export class SlashCommandRegistry {
     if (injectableSkills.length === 0) return { block: '' };
 
     // Short/generic prompts (e.g. greetings) produce near-centroid embeddings
-    // that spuriously match every skill. Skip similarity filtering for them.
+    // that spuriously match every skill. Skip filtering for them.
     const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
     if (wordCount < config.EMBEDDING_MIN_PROMPT_WORDS) {
       Logger.debug(`[Skills] Prompt too short (${wordCount} words < ${config.EMBEDDING_MIN_PROMPT_WORDS}); skipping similarity filter`);
       return { block: '' };
     }
 
+    if (config.SKILL_ROUTING_STRATEGY === 'none') {
+      return this.buildSkillsResult(injectableSkills);
+    }
+
+    if (config.SKILL_ROUTING_STRATEGY === 'tags') {
+      const matched = this.filterSkillsByTags(prompt, injectableSkills);
+      for (const skill of matched) {
+        Logger.info(`[Skills] Loaded "${skill.name}" (tags match)`);
+      }
+      return this.buildSkillsResult(matched);
+    }
+
+    if (config.SKILL_ROUTING_STRATEGY === 'bm25') {
+      const matched = this.filterSkillsByBM25(prompt, injectableSkills, threshold);
+      for (const skill of matched) {
+        Logger.info(`[Skills] Loaded "${skill.name}" (BM25 match)`);
+      }
+      return this.buildSkillsResult(matched);
+    }
+
+    // 'embedding' strategy
     try {
       const embeddingService = getEmbeddingService();
       const texts = [prompt, ...injectableSkills.map(s => s.description)];
@@ -111,33 +133,60 @@ export class SlashCommandRegistry {
         }
       }
 
-      if (matchedSkills.length === 0) return { block: '' };
-
-      const parts: string[] = ['<skills>'];
-      for (const skill of matchedSkills) {
-        parts.push(`## ${skill.name}\n\n${matter(skill.content).content.trim()}`);
-      }
-      parts.push('</skills>');
-      const block = parts.join('\n\n');
-
-      // Propagate the highest max-iterations declared across matched skills so
-      // the LLM loop budget is not capped at the global default for skill prompts.
-      const maxIterations = matchedSkills
-        .map(s => s.commandMeta?.maxIterations)
-        .filter((n): n is number => n !== undefined)
-        .reduce((a, b) => Math.max(a, b), 0) || undefined;
-
-      // Collect the union of all allowed-tools from matched skills so the
-      // server loader can force-include them regardless of similarity score.
-      const allAllowedTools = matchedSkills.flatMap(s => s.commandMeta?.allowedTools ?? []);
-      const allowedTools = allAllowedTools.length > 0 ? [...new Set(allAllowedTools)] : undefined;
-
-      return { block, maxIterations, allowedTools };
+      return this.buildSkillsResult(matchedSkills);
 
     } catch (error) {
       Logger.warn(`[Skills] Semantic filtering failed (${error instanceof Error ? error.message : String(error)}); falling back to all skills`);
       return { block: this.getSkillsSystemPromptBlock() };
     }
+  }
+
+  /** Builds the result object from a list of matched skills. */
+  private buildSkillsResult(
+    matchedSkills: Skill[],
+  ): { block: string; maxIterations?: number; allowedTools?: string[] } {
+    if (matchedSkills.length === 0) return { block: '' };
+
+    const parts: string[] = ['<skills>'];
+    for (const skill of matchedSkills) {
+      parts.push(`## ${skill.name}\n\n${matter(skill.content).content.trim()}`);
+    }
+    parts.push('</skills>');
+    const block = parts.join('\n\n');
+
+    const maxIterations = matchedSkills
+      .map(s => s.commandMeta?.maxIterations)
+      .filter((n): n is number => n !== undefined)
+      .reduce((a, b) => Math.max(a, b), 0) || undefined;
+
+    const allAllowedTools = matchedSkills.flatMap(s => s.commandMeta?.allowedTools ?? []);
+    const allowedTools = allAllowedTools.length > 0 ? [...new Set(allAllowedTools)] : undefined;
+
+    return { block, maxIterations, allowedTools };
+  }
+
+  /**
+   * Returns skills whose `tags` list contains at least one tag that appears
+   * as a substring of `prompt` (case-insensitive). Skills without tags are
+   * excluded when the tags strategy is active.
+   */
+  private filterSkillsByTags(prompt: string, skills: Skill[]): Skill[] {
+    const normalized = prompt.toLowerCase();
+    return skills.filter(
+      skill => skill.tags && skill.tags.length > 0 &&
+        skill.tags.some(tag => normalized.includes(tag.toLowerCase())),
+    );
+  }
+
+  /**
+   * Returns skills whose BM25 normalized score against `prompt` meets `threshold`.
+   * Scores are normalized to [0, 1] relative to the top-scoring skill.
+   */
+  private filterSkillsByBM25(prompt: string, skills: Skill[], threshold: number): Skill[] {
+    if (skills.length === 0) return [];
+    const bm25 = new BM25Index(skills.map(s => s.description));
+    const scores = bm25.normalizedScoreAll(prompt);
+    return skills.filter((_, i) => scores[i] >= threshold);
   }
 
   /**

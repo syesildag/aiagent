@@ -3,6 +3,7 @@ name: jobs
 description: List all scheduled jobs with their current status
 user-invocable: true
 metadata:
+  tags: [jobs, scheduled, cron, task, status, schedule, background, run]
   allowed-tools: jobs
   injectable: true
 ---

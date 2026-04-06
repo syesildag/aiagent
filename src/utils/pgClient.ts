@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { isMainThread } from 'worker_threads';
 import { config } from './config';
 import Logger from './logger';
@@ -64,7 +64,7 @@ function isConnectionError(err: unknown): boolean {
       CONNECTION_ERROR_MESSAGES.some(msg => (err as Error).message.includes(msg));
 }
 
-async function connectWithRetry(activePool: Pool): Promise<ReturnType<Pool['connect']>> {
+async function connectWithRetry(activePool: Pool): Promise<PoolClient> {
    const MAX_RETRIES = 2;
    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {

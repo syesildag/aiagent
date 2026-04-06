@@ -4,6 +4,7 @@ description: Weather forecast — weather, time and personal context from memory
 argument-hint: "[city or location]"
 user-invocable: true
 metadata:
+  tags: [weather, forecast, temperature, rain, wind, sun, humidity, climate, meteo]
   allowed-tools: memory, weather, time, tavily-search, fetch, outlook
   max-iterations: 20
   fresh-context: true

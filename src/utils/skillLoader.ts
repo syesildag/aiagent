@@ -34,6 +34,13 @@ export interface Skill {
    * Can be overridden with `injectable: true/false` frontmatter.
    */
   injectable: boolean;
+  /**
+   * Optional keyword tags used by the tag-based routing strategy.
+   * When `SKILL_ROUTING_STRATEGY=tags`, a skill is injected only when at
+   * least one tag appears as a substring in the user's prompt.
+   * Parsed from `tags:` frontmatter (array or comma-separated string).
+   */
+  tags?: string[];
 }
 
 /**
@@ -174,6 +181,13 @@ export function loadSkills(skillsDir: string): Map<string, Skill> {
         (data.description ? String(data.description) : '') ||
         extractSkillDescription(raw);
 
+      const rawTags = (data.metadata ?? {} as Record<string, unknown>)['tags'];
+      const tags: string[] | undefined = Array.isArray(rawTags)
+        ? rawTags.map(String).map(s => s.trim()).filter(Boolean)
+        : typeof rawTags === 'string'
+        ? rawTags.split(',').map(s => s.trim()).filter(Boolean)
+        : undefined;
+
       skills.set(name, {
         name,
         content: raw,
@@ -181,6 +195,7 @@ export function loadSkills(skillsDir: string): Map<string, Skill> {
         description,
         commandMeta,
         injectable,
+        tags,
       });
     } catch (err) {
       Logger.warn(`[Skills] Failed to load ${skillMdPath}: ${err}`);

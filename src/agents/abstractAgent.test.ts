@@ -67,6 +67,7 @@ describe('AbstractAgent', () => {
       getToolsForServers: jest.fn(),
       getToolsByServer: jest.fn(),
       getAvailableServerNames: jest.fn(),
+      getEnabledServerConfigs: jest.fn().mockReturnValue([]),
     } as any;
 
     // Mock session

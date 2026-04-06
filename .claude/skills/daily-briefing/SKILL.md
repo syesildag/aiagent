@@ -4,6 +4,7 @@ description: Daily briefing — weather, time, news and personal context from me
 argument-hint: "[city or location]"
 user-invocable: true
 metadata:
+  tags: [briefing, daily, morning, news, weather, today, summary, digest]
   allowed-tools: memory, weather, time, tavily-search, fetch, outlook
   max-iterations: 20
   fresh-context: true
