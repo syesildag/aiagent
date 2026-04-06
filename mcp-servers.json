@@ -14,7 +14,7 @@
       "env": {
         "TAVILY_API_KEY": "${TAVILY_API_KEY}"
       },
-      "enabled": false
+      "enabled": true
     },
     {
       "name": "outlook",
@@ -71,7 +71,7 @@
       "args": [
         "dist/src/mcp/server/agent-browser/index.js"
       ],
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "jobs",
