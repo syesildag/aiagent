@@ -91,7 +91,7 @@ export default abstract class AbstractAgent implements Agent {
          ? configs.filter(s => allowed.includes(s.name))
          : configs;
 
-      const toolsByServer = this.mcpManager.getToolsByServer();
+      const toolsByServer = this.mcpManager.getToolsByServer();Ò
       const alwaysOn = candidates.filter(s => s.alwaysInclude).map(s => s.name);
       const filterable = candidates.filter(s => !s.alwaysInclude);
       const noTools = filterable
@@ -192,6 +192,7 @@ export default abstract class AbstractAgent implements Agent {
          // (e.g. "[outlook]" pulls the vector toward email semantics, hurting calendar matches).
          const toolEntries = this.buildToolEntries(withTools, toolsByServer);
 
+         Logger.debug(`Filtering servers by embedding similarity: prompt="${prompt}", tools=[${toolEntries.map(e => `"${e.serverName}": "${e.description}"`).join(', ')}], threshold=${threshold}`);
          if (toolEntries.length === 0) return allowed;
 
          // Batch all texts so they use the same provider → consistent dimensions
@@ -208,6 +209,7 @@ export default abstract class AbstractAgent implements Agent {
             if (similarity > prev) maxSimilarityByServer.set(serverName, similarity);
          }
 
+         Logger.debug(`Embedding similarities: ${toolEntries.map((e, i) => `"${e.serverName}": ${maxSimilarityByServer.get(e.serverName)?.toFixed(3) ?? 'n/a'}`).join(', ')}`);
          const matched: string[] = [...alwaysOn, ...noTools];
          for (const server of withTools) {
             const similarity = maxSimilarityByServer.get(server.name) ?? 0;
@@ -274,7 +276,6 @@ export default abstract class AbstractAgent implements Agent {
          // otherwise fall back to the highest value declared by matched skills.
          maxIterations = maxIterations ?? skillsMaxIterations;
 
-         const effectivePrompt = `${systemPrompt}\n\n${prompt}`;
          const similarityServers = await this.filterServers(prompt, this.getAllowedServerNames());
          // Force-include servers declared by matched skills' allowed-tools so
          // multi-step skills (e.g. forecast needing weather + time + outlook)
