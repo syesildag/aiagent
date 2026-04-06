@@ -71,7 +71,7 @@
       "args": [
         "dist/src/mcp/server/agent-browser/index.js"
       ],
-      "enabled": false
+      "enabled": true
     },
     {
       "name": "jobs",
