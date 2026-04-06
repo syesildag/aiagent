@@ -280,7 +280,7 @@ async function main() {
       try {
         const githubApiKey = await AuthGithubCopilot.access();
         if (!githubApiKey) {
-          Logger.error('GitHub Copilot requires authentication. Run "login" command to authenticate.');
+          Logger.error('GitHub Copilot requires authentication. Run "/login" command to authenticate.');
           Logger.info('Falling back to Ollama provider...');
           llmProvider = new OllamaProvider();
           model = 'llama3.2:3b'; // Default model for Ollama
@@ -357,7 +357,7 @@ async function main() {
         try {
           const githubApiKey = await AuthGithubCopilot.access();
           if (!githubApiKey) {
-            Logger.error('GitHub Copilot requires authentication. Run "login" command to authenticate.');
+            Logger.error('GitHub Copilot requires authentication. Run "/login" command to authenticate.');
             Logger.info('Falling back to Ollama provider...');
             return new OllamaProvider();
           }
@@ -407,19 +407,19 @@ async function main() {
     // Example interactions with the LLM using MCP tools
     console.log(`\n--- Interactive Chat with ${actualProviderType.toUpperCase()} (${model}) ---`);
     console.log('Type your questions or commands. Special commands:');
-    console.log('  - "help" - Show available commands');
-    console.log('  - "login" - Configure LLM provider and authenticate');
-    console.log('  - "outlook" - Authenticate with Microsoft for Outlook/Calendar access');
-    console.log('  - "model" - List and select available models');
-    console.log('  - "status" - Show MCP server status');
-    console.log('  - "refresh" - Refresh tools cache');
-    console.log('  - "new/newchat" - Start a new conversation');
-    console.log('  - "history" - Show conversation history');
-    console.log('  - "current" - Show current conversation');
-    console.log('  - "clearchat" - Clear conversation history');
-    console.log('  - "cancel" - Cancel current operation');
-    console.log('  - "clear" - Clear the screen');
-    console.log('  - "exit" or "quit" - Exit the program');
+    console.log('  - "/help" - Show available commands');
+    console.log('  - "/login" - Configure LLM provider and authenticate');
+    console.log('  - "/outlook" - Authenticate with Microsoft for Outlook/Calendar access');
+    console.log('  - "/model" - List and select available models');
+    console.log('  - "/status" - Show MCP server status');
+    console.log('  - "/refresh" - Refresh tools cache');
+    console.log('  - "/new or /newchat" - Start a new conversation');
+    console.log('  - "/history" - Show conversation history');
+    console.log('  - "/current" - Show current conversation');
+    console.log('  - "/clearchat" - Clear conversation history');
+    console.log('  - "/cancel" - Cancel current operation');
+    console.log('  - "/clear" - Clear the screen');
+    console.log('  - "/exit" or "/quit" - Exit the program');
     console.log('\nLLM Provider Configuration:');
     console.log('  - Default: Ollama (local)');
     console.log('  - Use "login" command to configure GitHub Copilot, OpenAI, or Anthropic');
@@ -451,7 +451,7 @@ async function main() {
       rl.on('line', async (input: string) => {
         const query = input.trim();
 
-        if (query.toLowerCase() === 'exit' || query.toLowerCase() === 'quit') {
+        if (query.toLowerCase() === '/exit' || query.toLowerCase() === '/quit') {
           // Cancel any ongoing operation
           if (currentAbortController) {
             currentAbortController.abort();
@@ -466,7 +466,7 @@ async function main() {
           }
         }
 
-        if (query.toLowerCase() === 'cancel') {
+        if (query.toLowerCase() === '/cancel') {
           if (currentAbortController) {
             currentAbortController.abort();
             currentAbortController = null;
@@ -478,21 +478,21 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === 'help') {
+        if (query.toLowerCase() === '/help') {
           console.log('\nAvailable commands:');
-          console.log('  - help: Show this help message');
-          console.log('  - login: Configure LLM provider and authenticate');
-          console.log('  - outlook: Authenticate with Microsoft for Outlook/Calendar access');
-          console.log('  - model: List and select available models');
-          console.log('  - status: Show MCP server status and capabilities');
-          console.log('  - refresh: Refresh tools cache from MCP servers');
-          console.log('  - clear: Clear the screen');
-          console.log('  - new/newchat: Start a new conversation');
-          console.log('  - history: Show conversation history');
-          console.log('  - current: Show current conversation messages');
-          console.log('  - clearchat: Clear all conversation history');
-          console.log('  - cancel: Cancel current operation');
-          console.log('  - exit/quit: Exit the program');
+          console.log('  - /help: Show this help message');
+          console.log('  - /login: Configure LLM provider and authenticate');
+          console.log('  - /outlook: Authenticate with Microsoft for Outlook/Calendar access');
+          console.log('  - /model: List and select available models');
+          console.log('  - /status: Show MCP server status and capabilities');
+          console.log('  - /refresh: Refresh tools cache from MCP servers');
+          console.log('  - /clear: Clear the screen');
+          console.log('  - /new or /newchat: Start a new conversation');
+          console.log('  - /history: Show conversation history');
+          console.log('  - /current: Show current conversation messages');
+          console.log('  - /clearchat: Clear all conversation history');
+          console.log('  - /cancel: Cancel current operation');
+          console.log('  - /exit or /quit: Exit the program');
 
           // Show loaded slash commands
           const cmds = slashCommandRegistry.listCommands();
@@ -511,7 +511,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === 'outlook') {
+        if (query.toLowerCase() === '/outlook') {
           console.log('\n=== Outlook / Microsoft Graph Authentication ===');
           try {
             const { acquireToken, clearTokenCache, pca } = await import('./mcp/server/outlook/auth.js');
@@ -538,7 +538,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === 'login') {
+        if (query.toLowerCase() === '/login') {
           try {
             await handleLoginCommand(rl, updateManagerConfiguration);
           } catch (error) {
@@ -548,7 +548,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === 'model') {
+        if (query.toLowerCase() === '/model') {
           try {
             await handleModelCommand(rl, currentManager, updateManagerConfiguration);
           } catch (error) {
@@ -558,7 +558,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === 'status') {
+        if (query.toLowerCase() === '/status') {
           console.log('\nMCP Server Status:');
           console.log('\nllmProvider:' + currentManager.getProviderName());
           console.log('\nmodel:' + currentManager.getCurrentModel());
@@ -574,7 +574,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === 'refresh') {
+        if (query.toLowerCase() === '/refresh') {
           console.log('Refreshing tools cache...');
           const tools = await currentManager.refreshToolsCache();
           console.log(`Tools cache refreshed with ${tools.length} tools.\n`);
@@ -582,15 +582,15 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === 'clear') {
+        if (query.toLowerCase() === '/clear') {
           console.clear();
           console.log('--- Interactive Chat with LLM using MCP tools ---');
-          console.log('Type "help" for available commands.\n');
+          console.log('Type "/help" for available commands.\n');
           rl.prompt();
           return;
         }
 
-        if (query.toLowerCase() === 'new' || query.toLowerCase() === 'newchat') {
+        if (query.toLowerCase() === '/new' || query.toLowerCase() === '/newchat') {
           try {
             const conversationId = await currentManager.startNewConversation();
             console.log(`Started new conversation: ${conversationId}\n`);
@@ -601,7 +601,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === 'history') {
+        if (query.toLowerCase() === '/history') {
           try {
             const conversations = await currentManager.getConversations();
             console.log('\nConversation History:');
@@ -620,7 +620,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === 'current') {
+        if (query.toLowerCase() === '/current') {
           try {
             const messages = await currentManager.getCurrentConversation();
             console.log('\nCurrent Conversation:');
@@ -639,7 +639,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === 'clearchat') {
+        if (query.toLowerCase() === '/clearchat') {
           try {
             await currentManager.clearConversationHistory();
             console.log('All conversation history cleared.\n');
@@ -697,14 +697,14 @@ async function main() {
                   assistantMessage += value;
                 }
                 console.log('\n');
-                currentManager.addAssistantMessageToHistory(assistantMessage);
+                await currentManager.addAssistantMessageToHistory(assistantMessage);
               } finally {
                 reader.releaseLock();
               }
             } else {
               const text = typeof response === 'string' ? response : 'kind' in response && response.kind === 'mixed' ? response.text : '';
               console.log(`Assistant: ${text}\n`);
-              currentManager.addAssistantMessageToHistory(text);
+              await currentManager.addAssistantMessageToHistory(text);
             }
           } catch (error) {
             currentAbortController = null;
@@ -715,6 +715,7 @@ async function main() {
             }
           }
 
+          rl.resume();
           rl.prompt();
           return;
         }
@@ -751,7 +752,7 @@ async function main() {
                 assistantMessage += value;
               }
               console.log('\n'); // Add newline after streaming is complete
-              currentManager.addAssistantMessageToHistory(assistantMessage);
+              await currentManager.addAssistantMessageToHistory(assistantMessage);
             } finally {
               reader.releaseLock();
             }
@@ -759,7 +760,7 @@ async function main() {
             // Handle non-streaming response (fallback)
             const text = typeof response === 'string' ? response : 'kind' in response && response.kind === 'mixed' ? response.text : '';
             console.log(`Assistant: ${text}\n`);
-            currentManager.addAssistantMessageToHistory(text);
+            await currentManager.addAssistantMessageToHistory(text);
           }
         } catch (error) {
           // Clear the abort controller
@@ -772,6 +773,7 @@ async function main() {
           }
         }
 
+        rl.resume();
         rl.prompt();
       });
 
@@ -790,11 +792,11 @@ async function main() {
           // If there's an ongoing operation, cancel it
           currentAbortController.abort();
           currentAbortController = null;
-          console.log('\nOperation cancelled. Type "exit" to quit or continue chatting.');
+          console.log('\nOperation cancelled. Type "/exit" to quit or continue chatting.');
           rl.prompt();
         } else {
           // If no operation is running, just show the prompt
-          console.log('\nType "exit" to quit gracefully.');
+          console.log('\nType "/exit" to quit gracefully.');
           rl.prompt();
         }
       });

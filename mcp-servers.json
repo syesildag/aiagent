@@ -63,18 +63,15 @@
       "args": [
         "dist/src/mcp/server/fetch.js"
       ],
-      "enabled": true
+      "enabled": false
     },
     {
-      "name": "playwright",
+      "name": "agent-browser",
       "command": "node",
       "args": [
-        "./node_modules/@playwright/mcp/cli.js",
-        "--browser", "chromium",
-        "--headless"
+        "dist/src/mcp/server/agent-browser/index.js"
       ],
-      "env": {},
-      "enabled": false
+      "enabled": true
     },
     {
       "name": "jobs",
