@@ -32,6 +32,7 @@ export class SlashCommandRegistry {
     if (this.initialized) return;
     this.skills = loadSkills(this.skillsDir);
 
+    Logger.info(`[SlashCommandRegistry] Loaded ${this.skills.size} skills from "${this.skillsDir}"`);
     // Register skills that have command frontmatter as slash commands
     for (const [skillName, skill] of this.skills) {
       if (!skill.commandMeta) continue;
