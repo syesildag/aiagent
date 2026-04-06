@@ -798,6 +798,8 @@ async function main() {
           rl.prompt();
         }
       });
+
+      rl.prompt();
     };
 
     // Start the interactive chat
