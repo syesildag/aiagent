@@ -275,6 +275,7 @@ export default abstract class AbstractAgent implements Agent {
          const systemPrompt = skillsBlock
            ? `${baseSystemPrompt}\n\n${skillsBlock}`
            : baseSystemPrompt;
+           Logger.debug(`Constructed system prompt: ${systemPrompt}`);
          // Use the caller-supplied maxIterations (slash command) if present;
          // otherwise fall back to the highest value declared by matched skills.
          maxIterations = maxIterations ?? skillsMaxIterations;
