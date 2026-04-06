@@ -117,6 +117,8 @@ export interface MCPServer {
   protocol?: 'stdio' | 'sse';
   /** Base URL for SSE-based MCP servers, e.g. 'http://localhost:7007/mcp'. */
   httpUrl?: string;
+  /** Always include this server regardless of BM25/embedding similarity filtering. */
+  alwaysInclude?: boolean;
 }
 
 export interface MCPConfig {

@@ -60,6 +60,15 @@ export class BM25Index {
     return scores.map(s => s / max);
   }
 
+  /**
+   * Score a document string against a query string using the stored corpus IDF
+   * weights. Pass the same string for both arguments to get the self-similarity
+   * ceiling — useful for normalization independent of what other documents exist.
+   */
+  scoreAgainstQuery(query: string, doc: string): number {
+    return this.scoreDoc(tokenize(query), tokenize(doc));
+  }
+
   private scoreDoc(queryTokens: string[], doc: string[]): number {
     const tf = new Map<string, number>();
     for (const token of doc) {

@@ -92,10 +92,12 @@ export default abstract class AbstractAgent implements Agent {
          : configs;
 
       const toolsByServer = this.mcpManager.getToolsByServer();
-      const noTools = candidates
+      const alwaysOn = candidates.filter(s => s.alwaysInclude).map(s => s.name);
+      const filterable = candidates.filter(s => !s.alwaysInclude);
+      const noTools = filterable
          .filter(s => !toolsByServer[s.name] || toolsByServer[s.name].length === 0)
          .map(s => s.name);
-      const withTools = candidates.filter(s => toolsByServer[s.name]?.length > 0);
+      const withTools = filterable.filter(s => toolsByServer[s.name]?.length > 0);
 
       if (withTools.length === 0) return allowed;
 
@@ -103,7 +105,15 @@ export default abstract class AbstractAgent implements Agent {
       if (toolEntries.length === 0) return allowed;
 
       const bm25 = new BM25Index(toolEntries.map(e => e.description));
-      const normalizedScores = bm25.normalizedScoreAll(prompt);
+      // Normalize by self-score: how well the query matches itself using the
+      // corpus IDF weights. This gives an absolute [0,1] value independent of
+      // which other documents happen to score highest in the current corpus.
+      // Relative normalization (÷ global max) breaks when a catch-all description
+      // (e.g. memory's search tool) matches a rare token in every query.
+      const rawScores = bm25.scoreAll(prompt);
+      const selfScore = bm25.scoreAgainstQuery(prompt, prompt);
+      const norm = selfScore > 0 ? selfScore : Math.max(...rawScores, Number.EPSILON);
+      const normalizedScores = rawScores.map(s => s / norm);
 
       const maxScoreByServer = new Map<string, number>();
       for (let i = 0; i < toolEntries.length; i++) {
@@ -112,7 +122,7 @@ export default abstract class AbstractAgent implements Agent {
          if (normalizedScores[i] > prev) maxScoreByServer.set(serverName, normalizedScores[i]);
       }
 
-      const matched: string[] = [...noTools];
+      const matched: string[] = [...alwaysOn, ...noTools];
       for (const server of withTools) {
          const score = maxScoreByServer.get(server.name) ?? 0;
          Logger.debug(`[Servers] "${server.name}" max-tool-bm25=${score.toFixed(3)} threshold=${threshold}`);
@@ -136,7 +146,7 @@ export default abstract class AbstractAgent implements Agent {
       const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
       if (wordCount < config.EMBEDDING_MIN_PROMPT_WORDS) {
          Logger.debug(`[Servers] Prompt too short (${wordCount} words < ${config.EMBEDDING_MIN_PROMPT_WORDS}); skipping filter`);
-         return [];
+         return allowed;
       }
       if (config.TOOL_ROUTING_STRATEGY === 'none') return allowed;
       if (config.TOOL_ROUTING_STRATEGY === 'bm25') return this.filterServersByBM25(prompt, allowed);
@@ -165,9 +175,11 @@ export default abstract class AbstractAgent implements Agent {
 
       const toolsByServer = this.mcpManager.getToolsByServer();
 
+      const alwaysOn = candidates.filter(s => s.alwaysInclude).map(s => s.name);
+      const filterable = candidates.filter(s => !s.alwaysInclude);
       // Servers not yet in the tools cache are always included (not yet started)
-      const noTools = candidates.filter(s => !toolsByServer[s.name] || toolsByServer[s.name].length === 0).map(s => s.name);
-      const withTools = candidates.filter(s => toolsByServer[s.name]?.length > 0);
+      const noTools = filterable.filter(s => !toolsByServer[s.name] || toolsByServer[s.name].length === 0).map(s => s.name);
+      const withTools = filterable.filter(s => toolsByServer[s.name]?.length > 0);
 
       if (withTools.length === 0) return allowed;
 
@@ -195,7 +207,7 @@ export default abstract class AbstractAgent implements Agent {
             if (similarity > prev) maxSimilarityByServer.set(serverName, similarity);
          }
 
-         const matched: string[] = [...noTools];
+         const matched: string[] = [...alwaysOn, ...noTools];
          for (const server of withTools) {
             const similarity = maxSimilarityByServer.get(server.name) ?? 0;
             Logger.debug(`[Servers] "${server.name}" max-tool-similarity=${similarity.toFixed(3)} threshold=${threshold}`);
@@ -262,7 +274,7 @@ export default abstract class AbstractAgent implements Agent {
          maxIterations = maxIterations ?? skillsMaxIterations;
 
          const effectivePrompt = `${systemPrompt}\n\n${prompt}`;
-         const similarityServers = await this.filterServers(effectivePrompt, this.getAllowedServerNames());
+         const similarityServers = await this.filterServers(prompt, this.getAllowedServerNames());
          // Force-include servers declared by matched skills' allowed-tools so
          // multi-step skills (e.g. forecast needing weather + time + outlook)
          // are always available regardless of similarity score.
