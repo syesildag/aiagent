@@ -122,6 +122,7 @@ export default abstract class AbstractAgent implements Agent {
          if (normalizedScores[i] > prev) maxScoreByServer.set(serverName, normalizedScores[i]);
       }
 
+      Logger.debug(`BM25 raw scores: ${toolEntries.map((e, i) => `"${e.serverName}": ${rawScores[i].toFixed(3)}`).join(', ')}`);
       const matched: string[] = [...alwaysOn, ...noTools];
       for (const server of withTools) {
          const score = maxScoreByServer.get(server.name) ?? 0;
