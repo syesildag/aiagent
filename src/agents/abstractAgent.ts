@@ -9,6 +9,7 @@ import { slashCommandRegistry } from "../utils/slashCommandRegistry";
 import { getEmbeddingService } from "../utils/embeddingService";
 import { BM25Index } from "../utils/bm25Index";
 import { config } from "../utils/config";
+import { Log } from "crawlee";
 
 export default abstract class AbstractAgent implements Agent {
 
@@ -144,11 +145,13 @@ export default abstract class AbstractAgent implements Agent {
       prompt: string,
       allowed: string[] | undefined,
    ): Promise<string[] | undefined> {
+      Logger.debug(`[Servers] Filtering servers for prompt: "${prompt}"`);
       const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
       if (wordCount < config.EMBEDDING_MIN_PROMPT_WORDS) {
          Logger.debug(`[Servers] Prompt too short (${wordCount} words < ${config.EMBEDDING_MIN_PROMPT_WORDS}); skipping filter`);
          return allowed;
       }
+      Logger.debug(`[Servers] Prompt has ${wordCount} words; applying filter strategy "${config.TOOL_ROUTING_STRATEGY}"`);
       if (config.TOOL_ROUTING_STRATEGY === 'none') return allowed;
       if (config.TOOL_ROUTING_STRATEGY === 'bm25') return this.filterServersByBM25(prompt, allowed);
       return this.filterServersByPromptSimilarity(prompt, allowed);
