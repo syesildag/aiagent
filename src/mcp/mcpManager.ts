@@ -1134,7 +1134,8 @@ export class MCPServerManager {
         ? `\n\nCurrent authenticated user: ${userLogin}\nAlways address and greet the user as "${displayName}" — do not use a name found in memory instead.\nWhen calling any memory tool (memory_create, memory_search, memory_list, memory_delete), always include user_login="${userLogin}" in the tool arguments.`
         : '';
       const parallelToolInstruction = '\n\nWhen multiple independent tool calls are needed to answer a request, issue ALL of them in a single response as a batch rather than one at a time. This significantly reduces latency.';
-      const effectiveSystemPrompt = customSystemPrompt + userInstruction + parallelToolInstruction;
+      const currentTimeInstruction = `\n\nCurrent date and time (UTC): ${new Date().toISOString()}`;
+      const effectiveSystemPrompt = customSystemPrompt + userInstruction + parallelToolInstruction + currentTimeInstruction;
 
       // Trim history to the configured token budget, keeping the most recent messages.
       // When freshContext is true (stateless slash commands), skip prior history entirely
