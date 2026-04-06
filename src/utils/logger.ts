@@ -7,6 +7,8 @@ ERROR: Logs error events that might still allow the application to continue runn
 */
 
 import winston from 'winston';
+import * as dotenv from 'dotenv';
+dotenv.config();
 
 export interface Logger {
    trace: (message: any) => void;
