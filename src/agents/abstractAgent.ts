@@ -245,37 +245,37 @@ export default abstract class AbstractAgent implements Agent {
          return;
       }
 
-     return this.mcpManager.addAssistantMessageToHistory(finalContent);
+      return this.mcpManager.addAssistantMessageToHistory(finalContent);
    }
 
    async chat(
-     prompt: string,
-     abortSignal?: AbortSignal,
-     stream?: boolean,
-     attachments?: { base64: string; mimeType: string; name?: string }[],
-     approvalCallback?: ToolApprovalCallback,
-     toolNameFilter?: string[],
-     maxIterations?: number,
-     freshContext?: boolean,
-     onContextUpdate?: (used: number, max: number) => void,
-     onCompact?: (info: { summarized: number; kept: number; tokensBefore: number; tokensAfter: number }) => void,
-     isAdmin?: boolean,
+      prompt: string,
+      abortSignal?: AbortSignal,
+      stream?: boolean,
+      attachments?: { base64: string; mimeType: string; name?: string }[],
+      approvalCallback?: ToolApprovalCallback,
+      toolNameFilter?: string[],
+      maxIterations?: number,
+      freshContext?: boolean,
+      onContextUpdate?: (used: number, max: number) => void,
+      onCompact?: (info: { summarized: number; kept: number; tokensBefore: number; tokensAfter: number }) => void,
+      isAdmin?: boolean,
    ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');
       }
 
+      Logger.info(`[Agent] "${this.getName()}" received chat request: "${prompt}"`);
       try {
          // Initialize registry (no-op after first call) and inject all skills
          // into the system prompt so the LLM is always aware of them.
          slashCommandRegistry.initialize();
          const { block: skillsBlock, maxIterations: skillsMaxIterations, allowedTools: skillAllowedTools } =
-           await slashCommandRegistry.getSkillsSystemPromptBlockForPrompt(prompt);
+            await slashCommandRegistry.getSkillsSystemPromptBlockForPrompt(prompt);
          const baseSystemPrompt = this.getSystemPrompt();
          const systemPrompt = skillsBlock
-           ? `${baseSystemPrompt}\n\n${skillsBlock}`
-           : baseSystemPrompt;
-           Logger.debug(`Constructed system prompt: ${systemPrompt}`);
+            ? `${baseSystemPrompt}\n\n${skillsBlock}`
+            : baseSystemPrompt;
          // Use the caller-supplied maxIterations (slash command) if present;
          // otherwise fall back to the highest value declared by matched skills.
          maxIterations = maxIterations ?? skillsMaxIterations;
@@ -287,11 +287,11 @@ export default abstract class AbstractAgent implements Agent {
          // Constrain to the agent's own allowed set to prevent privilege escalation.
          const agentAllowed = this.getAllowedServerNames();
          const filteredSkillTools = skillAllowedTools
-           ? skillAllowedTools.filter(s => !agentAllowed || agentAllowed.includes(s))
-           : undefined;
+            ? skillAllowedTools.filter(s => !agentAllowed || agentAllowed.includes(s))
+            : undefined;
          const serverNames = filteredSkillTools && filteredSkillTools.length > 0
-           ? [...new Set([...(similarityServers ?? []), ...filteredSkillTools])]
-           : similarityServers;
+            ? [...new Set([...(similarityServers ?? []), ...filteredSkillTools])]
+            : similarityServers;
          const userLogin = this.session?.getUserLogin();
          // If isAdmin was not provided by the caller (e.g. AgentJob), fall back to a DB
          // lookup from the stored session. When provided (web chat route), we trust the
@@ -365,7 +365,7 @@ export default abstract class AbstractAgent implements Agent {
 
       // Use provided serverNames, or fall back to agent's own server names, or use all
       const targetServers = serverNames || this.getAllowedServerNames();
-      
+
       if (targetServers && targetServers.length > 0) {
          const tools = this.mcpManager.getToolsForServers(targetServers);
          return tools.map(tool => tool.function.name);
