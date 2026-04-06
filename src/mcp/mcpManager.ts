@@ -1093,6 +1093,7 @@ export class MCPServerManager {
 
       // Get all tools and filter by server names if specified
       let tools = this.convertMCPToolsToLLMFormat();
+      Logger.debug(`Total tools available before filtering: ${tools.length}`);
       
       if (serverNames != null) {
         // Virtual tools (no serverName) always pass through — they are not MCP-server-specific
@@ -1110,7 +1111,7 @@ export class MCPServerManager {
           );
         });
       }
-      
+      Logger.debug(`Total tools available after filtering: ${tools.length}`);
       // Ensure the conversation is initialised with the authenticated user's login
       // before adding the first message. Without this, DbConversationHistory would
       // call startNewConversation() internally with no userId, causing an anonymous
@@ -1126,7 +1127,7 @@ export class MCPServerManager {
         role: 'user',
         content: message
       });
-      
+      Logger.debug(`Added user message to conversation history: "${message}"`);
       // Get conversation history and add system prompt at the beginning.
       // When a user is authenticated, inject an instruction so the LLM always
       // passes user_login to memory tools, ensuring per-user memory isolation.
