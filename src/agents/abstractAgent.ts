@@ -129,7 +129,7 @@ export default abstract class AbstractAgent implements Agent {
          const score = maxScoreByServer.get(server.name) ?? 0;
          Logger.debug(`[Servers] "${server.name}" max-tool-bm25=${score.toFixed(3)} threshold=${threshold}`);
          if (score >= threshold) {
-            Logger.info(`[Servers] Loaded "${server.name}" (max-tool-bm25=${score.toFixed(3)})`);
+            Logger.debug(`[Servers] Loaded "${server.name}" (max-tool-bm25=${score.toFixed(3)})`);
             matched.push(server.name);
          }
       }
@@ -218,7 +218,7 @@ export default abstract class AbstractAgent implements Agent {
             const similarity = maxSimilarityByServer.get(server.name) ?? 0;
             Logger.debug(`[Servers] "${server.name}" max-tool-similarity=${similarity.toFixed(3)} threshold=${threshold}`);
             if (similarity >= threshold) {
-               Logger.info(`[Servers] Loaded "${server.name}" (max-tool-similarity=${similarity.toFixed(3)})`);
+               Logger.debug(`[Servers] Loaded "${server.name}" (max-tool-similarity=${similarity.toFixed(3)})`);
                matched.push(server.name);
             }
          }
@@ -265,7 +265,7 @@ export default abstract class AbstractAgent implements Agent {
          throw new Error('MCP manager not initialized');
       }
 
-      Logger.info(`[Agent] "${this.getName()}" received chat request: "${prompt}"`);
+      Logger.debug(`[Agent] "${this.getName()}" received chat request: "${prompt}"`);
       try {
          // Initialize registry (no-op after first call) and inject all skills
          // into the system prompt so the LLM is always aware of them.
