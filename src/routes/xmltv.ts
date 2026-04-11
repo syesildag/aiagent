@@ -84,14 +84,9 @@ xmltvRouter.post('/xmltv/push-subscribe', asyncHandler(async (req: Request, res:
     return;
   }
   const existing = await aiAgentPushSubscriptionRepository.findByEndpoint(endpoint);
-  if (existing) {
-    Logger.debug('[xmltv] push-subscribe: subscription already exists, skipping');
-    res.json({ ok: true });
-    return;
-  }
-  const sub = new AiAgentPushSubscription({ endpoint, p256dh, auth });
+  const sub = new AiAgentPushSubscription({ id: existing?.getId(), endpoint, p256dh, auth });
   await sub.save();
-  Logger.debug('[xmltv] push-subscribe: saved new subscription');
+  Logger.debug(`[xmltv] push-subscribe: ${existing ? 'updated' : 'saved new'} subscription`);
   res.json({ ok: true });
 }));
 

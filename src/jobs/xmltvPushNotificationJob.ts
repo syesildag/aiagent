@@ -49,6 +49,12 @@ export default class XmltvPushNotificationJob extends JobFactory {
             const sub = await aiAgentPushSubscriptionRepository.findByEndpoint(n.getEndpoint());
             if (!sub) continue;
 
+            if (!sub.getP256dh() || !sub.getAuth()) {
+               Logger.warn(`[XmltvPushNotificationJob] Removing subscription with missing keys: ${sub.getEndpoint().slice(0, 60)}…`);
+               await aiAgentPushSubscriptionRepository.deleteByEndpoint(sub.getEndpoint());
+               continue;
+            }
+
             const payload = JSON.stringify({
                title: n.getTitle(),
                body: n.getBody(),
