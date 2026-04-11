@@ -68,8 +68,10 @@ xmltvRouter.get('/xmltv/vapid-public-key', (_req: Request, res: Response) => {
 // Store a push subscription (endpoint + keys) so the server can send pushes later
 xmltvRouter.post('/xmltv/push-subscribe', asyncHandler(async (req: Request, res: Response) => {
   const { endpoint, p256dh, auth } = req.body ?? {};
-  if (!endpoint || !p256dh || !auth) {
-    res.status(400).json({ error: 'endpoint, p256dh and auth are required' });
+  if (typeof endpoint !== 'string' || endpoint.length === 0 ||
+      typeof p256dh  !== 'string' || p256dh.length  === 0 ||
+      typeof auth    !== 'string' || auth.length    === 0) {
+    res.status(400).json({ error: 'endpoint, p256dh and auth must be non-empty strings' });
     return;
   }
   const existing = await aiAgentPushSubscriptionRepository.findByEndpoint(endpoint);
