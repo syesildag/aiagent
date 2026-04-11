@@ -1,6 +1,5 @@
 import { AbstractRepository, Entity } from "../repository/abstractRepository";
 import { Column } from "../repository/annotations/Column";
-import { Find } from "../repository/annotations/find";
 import { Id } from "../repository/annotations/Id";
 import { repository } from "../repository/repository";
 import { queryDatabase } from "../utils/pgClient";
@@ -83,11 +82,6 @@ class AiAgentScheduledPushNotificationRepository extends AbstractRepository<AiAg
 
    constructor() {
       super('ai_agent_scheduled_push_notifications', AiAgentScheduledPushNotification);
-   }
-
-   @Find()
-   public async findById(_id: string): Promise<AiAgentScheduledPushNotification | null> {
-      return null;
    }
 
    /** Returns all notifications whose fire_at is at or before the given timestamp. */

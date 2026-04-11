@@ -95,7 +95,7 @@ xmltvRouter.post('/xmltv/push-schedule', asyncHandler(async (req: Request, res: 
     res.status(400).json({ error: 'fireAt must be a valid ISO timestamp' });
     return;
   }
-  const existing = await aiAgentScheduledPushNotificationRepository.findById(id);
+  const existing = await aiAgentScheduledPushNotificationRepository.getById(id);
   if (existing) {
     res.json({ ok: true });
     return;
@@ -108,7 +108,7 @@ xmltvRouter.post('/xmltv/push-schedule', asyncHandler(async (req: Request, res: 
 // Cancel a previously scheduled push notification
 xmltvRouter.delete('/xmltv/push-schedule/:id', asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const n = await aiAgentScheduledPushNotificationRepository.findById(id);
+  const n = await aiAgentScheduledPushNotificationRepository.getById(id);
   if (n) await n.delete();
   res.json({ ok: true });
 }));
