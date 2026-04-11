@@ -8,7 +8,7 @@ export class AiAgentPushSubscription extends Entity<number> {
 
    private id?: number;
    private endpoint: string;
-   private p256dh: string;
+   private p256Dh: string;
    private auth: string;
    private createdAt?: Date;
 
@@ -22,7 +22,7 @@ export class AiAgentPushSubscription extends Entity<number> {
       super();
       this.id = id;
       this.endpoint = endpoint;
-      this.p256dh = p256dh;
+      this.p256Dh = p256dh;
       this.auth = auth;
       this.createdAt = createdAt;
    }
@@ -39,7 +39,7 @@ export class AiAgentPushSubscription extends Entity<number> {
 
    @Column({ columnName: 'p256dh', notNull: true })
    public getP256dh(): string {
-      return this.p256dh;
+      return this.p256Dh;
    }
 
    @Column({ columnName: 'auth', notNull: true })
