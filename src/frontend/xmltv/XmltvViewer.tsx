@@ -731,6 +731,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   // ── Check notifications on every minute tick ──────────────────────────
   useEffect(() => {
     if (!notifiedProgs.size) return;
+    if (loading) return; // programmes not yet loaded — don't wipe saved notifications
     const WINDOW_MS = 61_000; // fire within the past minute
     for (const prog of programmes) {
       const key = getProgrammeKey(prog);
