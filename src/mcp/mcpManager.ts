@@ -42,6 +42,31 @@ const DANGEROUS_TOOL_PATTERNS: RegExp[] = [
 
 const VIRTUAL_TASK_TOOL_NAME = 'task';
 
+/** Maximum characters allowed per text field in a tool result before truncation. */
+const MAX_TOOL_RESULT_TEXT_CHARS = 20_000;
+
+/**
+ * Recursively truncates string values in a tool result object so that no
+ * single text field exceeds MAX_TOOL_RESULT_TEXT_CHARS characters.
+ * Preserves the original JSON structure so the LLM receives a valid object.
+ */
+function truncateToolResultText(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return value.length > MAX_TOOL_RESULT_TEXT_CHARS
+      ? value.slice(0, MAX_TOOL_RESULT_TEXT_CHARS) + '...[truncated]'
+      : value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(truncateToolResultText);
+  }
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, truncateToolResultText(v)])
+    );
+  }
+  return value;
+}
+
 /** Fraction of the model's context window that triggers automatic history compaction. */
 const AUTO_COMPACT_THRESHOLD = 0.90;
 /** Number of most-recent messages to preserve verbatim after compaction. */
@@ -885,7 +910,7 @@ export class MCPServerManager {
         }
         const result = await connection.callTool(toolName, argsToSend);
         Logger.info(`[Tool] ${name} completed in ${Date.now() - toolStart}ms`);
-        return JSON.stringify(result, null, 2);
+        return JSON.stringify(truncateToolResultText(result), null, 2);
       }
     } catch (error) {
       Logger.error(`[Tool] ${name} failed after ${Date.now() - toolStart}ms: ${error instanceof Error ? error.message : String(error)}`);
