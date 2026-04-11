@@ -672,6 +672,21 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     }
   }, []);
 
+  const getActivePushSubscription = useCallback(async (): Promise<PushSubscription | null> => {
+    if (pushSubscriptionRef.current) return pushSubscriptionRef.current;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) pushSubscriptionRef.current = sub;
+      console.debug('[push] getActivePushSubscription:', sub ? sub.endpoint.slice(0, 60) + '…' : 'none');
+      return sub;
+    } catch (err) {
+      console.warn('[push] getActivePushSubscription failed:', err);
+      return null;
+    }
+  }, []);
+
   const toggleNotification = useCallback(async (prog: Programme, minutesBefore: number | null) => {
     const key = getProgrammeKey(prog);
     if (minutesBefore === null) {
@@ -684,7 +699,8 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
         } catch { /* SW unavailable */ }
       }
       // Cancel on server (Android / Web Push path)
-      if (pushSubscriptionRef.current) {
+      const cancelSub = await getActivePushSubscription();
+      if (cancelSub) {
         fetch(`/xmltv/push-schedule/${encodeURIComponent(key)}`, { method: 'DELETE' }).catch(() => {});
       }
       return;
@@ -701,13 +717,15 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
       ? `Starts in ${minutesBefore} min · ${formatTime(prog.start)}`
       : `Starting now · ${formatTime(prog.start)}`;
     // Schedule via server-side Web Push (works on Android when app is backgrounded)
-    if (pushSubscriptionRef.current) {
+    const pushSub = await getActivePushSubscription();
+    console.debug('[push] toggleNotification: pushSub=', pushSub ? 'set' : 'null');
+    if (pushSub) {
       fetch('/xmltv/push-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: key,
-          endpoint: pushSubscriptionRef.current.endpoint,
+          endpoint: pushSub.endpoint,
           title: prog.title,
           body,
           icon: '/static/icons/icon-192.png',
