@@ -77,15 +77,15 @@ After all tool calls are complete, write the briefing in this format.
 [Paste the markdown table from step 4 exactly as returned — do not reformat]
 
 ## 🗞 Local News — [Location]
-1. **[Headline]** — [2–3 sentence summary based on scraped article content] ([source URL])
+1. **[Headline]** — [Tavily snippet, 1–2 sentences] → [source URL]
 ...
 
 ## 🌍 World Headlines
-1. **[Headline]** — [2–3 sentence summary based on scraped article content] ([source URL])
+1. **[Headline]** — [Tavily snippet, 1–2 sentences] → [source URL]
 ...
 
 ## 🎯 Your Topics — [topic]
-1. **[Headline]** — [2–3 sentence summary based on scraped article content] ([source URL])
+1. **[Headline]** — [Tavily snippet, 1–2 sentences] → [source URL]
 ...
 
 ## 💡 Quick Thought
