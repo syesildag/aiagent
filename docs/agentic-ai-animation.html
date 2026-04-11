@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Agentic AI Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ─── CSS Variables ─────────────────────────────── */
+:root {
+  --bg:       #0c0c10;
+  --surface:  #13131a;
+  --card:     #1a1a24;
+  --border:   rgba(255,255,255,0.07);
+  --text:     #e8e8f0;
+  --muted:    #6b6b80;
+
+  --user:     #ff6b6b;
+  --llm:      #7b8cde;
+  --tool:     #f0a500;
+  --result:   #4caf80;
+  --system:   #8b8ba0;
+
+  --user-bg:    rgba(255,107,107,0.12);
+  --llm-bg:     rgba(123,140,222,0.12);
+  --tool-bg:    rgba(240,165,0,0.12);
+  --result-bg:  rgba(76,175,128,0.12);
+  --system-bg:  rgba(139,139,160,0.10);
+
+  --radius: 10px;
+  --speed: 1;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Outfit', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ─── Header ─────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(13,13,20,0.95);
+  backdrop-filter: blur(12px);
+  z-index: 10;
+  flex-shrink: 0;
+}
+.header-title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.header-title span { color: var(--llm); }
+
+.iteration-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.iter-label { font-weight: 500; }
+.iter-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  min-width: 80px;
+  text-align: center;
+  transition: color 0.3s, border-color 0.3s;
+}
+.iter-value.tick {
+  color: var(--tool);
+  border-color: var(--tool);
+}
+.iter-bar {
+  width: 100px;
+  height: 4px;
+  background: var(--card);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.iter-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--llm), var(--tool));
+  border-radius: 2px;
+  transition: width 0.5s ease;
+  width: 10%;
+}
+
+/* ─── Stage ──────────────────────────────────────── */
+.stage {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr 1fr;
+  grid-template-rows: 1fr;  /* single row fills all available height */
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  gap: 0;
+}
+
+.panel {
+  padding: 20px 18px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+}
+.panel:last-child { border-right: none; }
+
+.panel-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* ─── Message Cards ──────────────────────────────── */
+.msg-card {
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid transparent;
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.4s ease, transform 0.4s ease, box-shadow 0.3s;
+  flex-shrink: 0;
+}
+.msg-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.msg-card.highlight {
+  box-shadow: 0 0 0 1px currentColor, 0 0 20px rgba(255,255,255,0.05);
+}
+
+.msg-card.system  { background: var(--system-bg); border-color: rgba(139,139,160,0.2); color: var(--system); }
+.msg-card.user    { background: var(--user-bg);   border-color: rgba(255,107,107,0.2); color: var(--user); }
+.msg-card.asst    { background: var(--llm-bg);    border-color: rgba(123,140,222,0.2); color: var(--llm); }
+.msg-card.tool-use{ background: var(--tool-bg);   border-color: rgba(240,165,0,0.2);   color: var(--tool); }
+.msg-card.tool-res{ background: var(--result-bg); border-color: rgba(76,175,128,0.2);  color: var(--result); }
+
+.msg-role {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.msg-role-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.8;
+}
+.msg-body {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text);
+  opacity: 0.85;
+}
+.msg-json {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 6px;
+  line-height: 1.5;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 5px;
+}
+.json-key   { color: #7b8cde; }
+.json-str   { color: #98d982; }
+.json-type  { color: #f0a500; }
+.json-num   { color: #ff9d5c; }
+
+/* ─── Step Label ─────────────────────────────────── */
+.step-label {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+}
+.step-label.show { opacity: 1; }
+
+/* ─── LLM Center Panel ───────────────────────────── */
+.llm-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  position: relative;
+}
+
+.llm-core {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Animated SVG node network */
+.llm-svg { position: absolute; top: 0; left: 0; }
+
+.node-ring {
+  fill: none;
+  stroke: var(--llm);
+  stroke-width: 1;
+  opacity: 0.15;
+  transition: opacity 0.5s, stroke 0.5s;
+}
+.node-center {
+  fill: var(--llm);
+  opacity: 0.9;
+  transition: fill 0.5s, r 0.3s;
+}
+.node-dot {
+  fill: var(--llm);
+  opacity: 0.5;
+  transition: fill 0.5s;
+}
+.node-line {
+  stroke: var(--llm);
+  stroke-width: 0.8;
+  opacity: 0.2;
+  transition: stroke 0.5s;
+}
+
+.llm-core.thinking .node-ring { opacity: 0.5; animation: pulse-ring 1.4s ease-out infinite; }
+.llm-core.thinking .node-center { fill: var(--llm); }
+.llm-core.calling  .node-ring { stroke: var(--tool); opacity: 0.5; animation: pulse-ring 0.9s ease-out infinite; }
+.llm-core.calling  .node-center { fill: var(--tool); }
+.llm-core.calling  .node-dot   { fill: var(--tool); }
+.llm-core.calling  .node-line  { stroke: var(--tool); }
+.llm-core.receiving .node-ring { stroke: var(--result); opacity: 0.5; animation: pulse-ring 1s ease-out infinite; }
+.llm-core.receiving .node-center { fill: var(--result); }
+.llm-core.done .node-center { fill: var(--result); }
+
+@keyframes pulse-ring {
+  0%   { r: 40; opacity: 0.5; }
+  100% { r: 70; opacity: 0; }
+}
+
+/* Pulse rings overlaid */
+.pulse-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid var(--llm);
+  opacity: 0;
+  pointer-events: none;
+  animation: expand 1.6s ease-out infinite;
+}
+.pulse-ring:nth-child(2) { animation-delay: 0.5s; }
+.pulse-ring:nth-child(3) { animation-delay: 1s; }
+
+@keyframes expand {
+  0%   { width: 50px; height: 50px; top: 45px; left: 45px; opacity: 0.6; }
+  100% { width: 140px; height: 140px; top: 0; left: 0; opacity: 0; }
+}
+
+.llm-core.thinking .pulse-ring { animation-play-state: running; }
+.llm-core.calling  .pulse-ring { border-color: var(--tool); }
+.llm-core.receiving .pulse-ring { border-color: var(--result); }
+.llm-core:not(.thinking):not(.calling):not(.receiving) .pulse-ring { animation-play-state: paused; opacity: 0; }
+
+.llm-status {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  transition: color 0.3s, border-color 0.3s, background 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.llm-status.thinking  { color: var(--llm);    border-color: rgba(123,140,222,0.4); background: var(--llm-bg); }
+.llm-status.calling   { color: var(--tool);   border-color: rgba(240,165,0,0.4);   background: var(--tool-bg); }
+.llm-status.receiving { color: var(--result); border-color: rgba(76,175,128,0.4);  background: var(--result-bg); }
+.llm-status.done      { color: var(--result); border-color: rgba(76,175,128,0.4);  background: var(--result-bg); }
+
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: blink 1s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{ opacity:1 } 50%{ opacity:0.2 } }
+.llm-status:not(.thinking):not(.calling):not(.receiving) .status-dot { animation-play-state: paused; }
+
+/* Thinking dots */
+.thinking-dots {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.thinking-dots.show { opacity: 1; }
+.thinking-dots span {
+  width: 4px; height: 4px;
+  background: var(--llm);
+  border-radius: 50%;
+  animation: dot-bounce 1.2s ease-in-out infinite;
+}
+.thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dot-bounce { 0%,80%,100%{ transform: translateY(0) } 40%{ transform: translateY(-5px) } }
+
+/* Context window meter */
+.ctx-meter {
+  width: 100%;
+  max-width: 160px;
+}
+.ctx-meter-label {
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 5px;
+  display: flex;
+  justify-content: space-between;
+}
+.ctx-bar {
+  height: 4px;
+  background: var(--card);
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.ctx-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--llm), var(--tool));
+  border-radius: 2px;
+  transition: width 0.6s ease;
+  width: 5%;
+}
+
+/* ─── Messages Stack extras ─────────────────────── */
+.msg-index {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--muted);
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-right: 6px;
+  flex-shrink: 0;
+  letter-spacing: 0;
+}
+.msg-card.user    .msg-index { color: var(--user);   background: var(--user-bg); }
+.msg-card.asst    .msg-index { color: var(--llm);    background: var(--llm-bg); }
+.msg-card.tool-use .msg-index { color: var(--tool);  background: var(--tool-bg); }
+.msg-card.tool-res .msg-index { color: var(--result);background: var(--result-bg); }
+.msg-card.system  .msg-index { color: var(--system); background: var(--system-bg); }
+
+/* Bracket wrapper */
+.stack-bracket {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: rgba(255,255,255,0.15);
+  padding: 0 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* Live summary bar at bottom of left panel */
+.stack-summary {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.stack-summary-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.stack-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.stack-chip {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  border-radius: 4px;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.35s, transform 0.35s;
+}
+.stack-chip.visible { opacity: 1; transform: scale(1); }
+.stack-chip.role-system  { color: var(--system); background: var(--system-bg); border-color: rgba(139,139,160,0.2); }
+.stack-chip.role-user    { color: var(--user);   background: var(--user-bg);   border-color: rgba(255,107,107,0.2); }
+.stack-chip.role-asst    { color: var(--llm);    background: var(--llm-bg);    border-color: rgba(123,140,222,0.2); }
+.stack-chip.role-tool-use { color: var(--tool);  background: var(--tool-bg);   border-color: rgba(240,165,0,0.2); }
+.stack-chip.role-tool-res { color: var(--result);background: var(--result-bg); border-color: rgba(76,175,128,0.2); }
+
+/* ─── MCP Server Cards ───────────────────────────── */
+.server-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.server-card {
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
+  cursor: default;
+}
+.server-card.active {
+  border-color: rgba(240,165,0,0.5);
+  background: rgba(240,165,0,0.07);
+  box-shadow: 0 0 16px rgba(240,165,0,0.15);
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+.server-card.done {
+  border-color: rgba(76,175,128,0.3);
+  background: rgba(76,175,128,0.05);
+}
+@keyframes shimmer {
+  0%,100% { box-shadow: 0 0 12px rgba(240,165,0,0.15); }
+  50%      { box-shadow: 0 0 24px rgba(240,165,0,0.30); }
+}
+
+.server-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.server-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: background 0.3s;
+  flex-shrink: 0;
+}
+.server-card.active .server-dot { background: var(--tool); animation: blink 0.8s infinite; }
+.server-card.done   .server-dot { background: var(--result); animation: none; }
+
+.server-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  flex: 1;
+}
+.server-badge {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.server-card.active .server-badge { color: var(--tool); background: rgba(240,165,0,0.12); }
+.server-card.done   .server-badge { color: var(--result); background: rgba(76,175,128,0.12); }
+
+.server-tool-popup {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: none;
+}
+.server-card.active .server-tool-popup,
+.server-card.done   .server-tool-popup { display: block; }
+
+.tool-popup-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.tool-popup-key   { color: var(--muted); flex-shrink: 0; }
+.tool-popup-value { color: var(--text); opacity: 0.8; }
+
+/* Spinning icon when executing */
+.server-icon {
+  font-size: 14px;
+  display: none;
+  animation: spin 1s linear infinite;
+}
+.server-card.active .server-icon { display: inline; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── SVG Arrow Overlay ──────────────────────────── */
+.arrow-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 5;
+  overflow: visible;
+}
+
+.arrow-path {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.arrow-path.show { opacity: 1; }
+.arrow-path.user-arrow    { stroke: var(--user); }
+.arrow-path.tool-arrow    { stroke: var(--tool); }
+.arrow-path.result-arrow  { stroke: var(--result); }
+
+.arrow-head {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.arrow-head.show { opacity: 1; }
+
+/* ─── Bottom Controls ────────────────────────────── */
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+  background: rgba(13,13,20,0.95);
+  backdrop-filter: blur(12px);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.ctrl-btn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ctrl-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); }
+.ctrl-btn.primary { background: var(--llm-bg); border-color: rgba(123,140,222,0.4); color: var(--llm); }
+.ctrl-btn.primary:hover { background: rgba(123,140,222,0.2); }
+
+.step-dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.step-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.25s, transform 0.25s;
+}
+.step-dot:hover { transform: scale(1.3); }
+.step-dot.active { background: var(--llm); border-color: var(--llm); }
+
+.speed-select {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+.speed-select:hover { border-color: rgba(255,255,255,0.15); }
+
+.step-label-text {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+  min-width: 140px;
+  text-align: center;
+}
+
+/* ─── Scrollbar ──────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+/* ─── Responsive ─────────────────────────────────── */
+@media (max-width: 768px) {
+  .stage { grid-template-columns: 1fr; }
+  .panel { max-height: 200px; border-right: none; border-bottom: 1px solid var(--border); }
+  .llm-panel { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+}
+</style>
+</head>
+<body>
+
+<!-- ─── Header ─────────────────────────────────────── -->
+<div class="header">
+  <div class="header-title">How <span>Agentic AI</span> Works</div>
+  <div class="iteration-badge">
+    <span class="iter-label">Iteration</span>
+    <span class="iter-value" id="iterValue">1 / 10</span>
+    <div class="iter-bar"><div class="iter-fill" id="iterFill"></div></div>
+  </div>
+</div>
+
+<!-- ─── Stage ──────────────────────────────────────── -->
+<div class="stage" id="stage">
+
+  <!-- Left: Message History -->
+  <div class="panel" id="msgPanel">
+    <div class="panel-label">Messages Stack <span style="color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px;margin-left:4px;">messages[]</span></div>
+
+    <span class="stack-bracket">[</span>
+
+    <!-- System -->
+    <div class="msg-card system" id="msg-system">
+      <div class="msg-role"><span class="msg-index">[0]</span><span class="msg-role-dot"></span>system</div>
+      <div class="msg-body">You are a helpful AI assistant with access to tools for weather, time, memory, and web search. Use tools when needed to answer accurately.</div>
+      <div class="msg-json">
+        <span class="json-key">"role"</span>: <span class="json-str">"system"</span>,<br>
+        <span class="json-key">"content"</span>: <span class="json-str">"You are a helpful AI..."</span>
+      </div>
+    </div>
+
+    <!-- User -->
+    <div class="msg-card user" id="msg-user">
+      <div class="msg-role"><span class="msg-index">[1]</span><span class="msg-role-dot"></span>user</div>
+      <div class="msg-body">What's the weather like tomorrow?</div>
+      <div class="msg-json">
+        <span class="json-key">"role"</span>: <span class="json-str">"user"</span>,<br>
+        <span class="json-key">"content"</span>: <span class="json-str">"What's the weather like tomorrow?"</span>
+      </div>
+    </div>
+
+    <!-- Parallel Tool Use: memory + time batched in one assistant turn -->
+    <div class="msg-card tool-use" id="msg-tool-use-memory">
+      <div class="msg-role"><span class="msg-index">[2]</span><span class="msg-role-dot"></span>assistant · tool_use <span style="color:var(--tool);font-size:9px;margin-left:4px;letter-spacing:.5px;">⚡ PARALLEL BATCH</span></div>
+      <div class="msg-body">Calling <strong>memory_get</strong> + <strong>get_current_time</strong> simultaneously</div>
+      <div class="msg-json">
+        [<br>
+        &nbsp;{ <span class="json-key">"name"</span>: <span class="json-str">"memory_get"</span>, <span class="json-key">"input"</span>: { <span class="json-key">"key"</span>: <span class="json-str">"user.location"</span> } },<br>
+        &nbsp;{ <span class="json-key">"name"</span>: <span class="json-str">"get_current_time"</span>, <span class="json-key">"input"</span>: { <span class="json-key">"timezone"</span>: <span class="json-str">"UTC"</span> } }<br>
+        ]
+      </div>
+    </div>
+
+    <!-- Memory Tool Result -->
+    <div class="msg-card tool-res" id="msg-tool-res-memory">
+      <div class="msg-role"><span class="msg-index">[3]</span><span class="msg-role-dot"></span>tool_result · memory_get</div>
+      <div class="msg-body">Istanbul, Turkey (Europe/Istanbul, UTC+3)</div>
+      <div class="msg-json">
+        <span class="json-key">"tool_call_id"</span>: <span class="json-str">"tc_memory"</span>,<br>
+        <span class="json-key">"content"</span>: <span class="json-str">"Istanbul, Turkey"</span>
+      </div>
+    </div>
+
+    <!-- Time Tool Result -->
+    <div class="msg-card tool-res" id="msg-tool-res-time">
+      <div class="msg-role"><span class="msg-index">[4]</span><span class="msg-role-dot"></span>tool_result · get_current_time</div>
+      <div class="msg-body">2026-04-11T14:32:00Z — both results arrive together via Promise.all</div>
+      <div class="msg-json">
+        <span class="json-key">"tool_call_id"</span>: <span class="json-str">"tc_time"</span>,<br>
+        <span class="json-key">"content"</span>: <span class="json-str">"2026-04-11T14:32:00Z"</span>
+      </div>
+    </div>
+
+    <!-- Weather Tool Use -->
+    <div class="msg-card tool-use" id="msg-tool-use">
+      <div class="msg-role"><span class="msg-index">[5]</span><span class="msg-role-dot"></span>assistant · tool_use</div>
+      <div class="msg-body">Calling <strong>get_weather</strong> — location from <span style="color:var(--result);font-family:'JetBrains Mono',monospace;font-size:11px;">[3]</span>, tomorrow from <span style="color:var(--result);font-family:'JetBrains Mono',monospace;font-size:11px;">[4]</span></div>
+      <div class="msg-json">
+        <span class="json-key">"name"</span>: <span class="json-str">"get_weather"</span>,<br>
+        <span class="json-key">"input"</span>: {<br>
+        &nbsp;&nbsp;<span class="json-key">"location"</span>: <span class="json-str">"Istanbul"</span> <span style="color:var(--result);font-size:9px;">← [3]</span>,<br>
+        &nbsp;&nbsp;<span class="json-key">"time"</span>: <span class="json-str">"2026-04-12T00:00:00+03:00"</span> <span style="color:var(--result);font-size:9px;">← [4]+1d</span><br>
+        }
+      </div>
+    </div>
+
+    <!-- Weather Tool Result -->
+    <div class="msg-card tool-res" id="msg-tool-res">
+      <div class="msg-role"><span class="msg-index">[6]</span><span class="msg-role-dot"></span>tool_result · get_weather</div>
+      <div class="msg-body">Tomorrow: 21°C, sunny intervals. Low 14°C. Wind SW 8 km/h.</div>
+      <div class="msg-json">
+        <span class="json-key">"tool_call_id"</span>: <span class="json-str">"tc_weather"</span>,<br>
+        <span class="json-key">"content"</span>: <span class="json-str">"Tomorrow: 21°C, sunny..."</span>
+      </div>
+    </div>
+
+    <!-- Assistant Final -->
+    <div class="msg-card asst" id="msg-asst">
+      <div class="msg-role"><span class="msg-index">[7]</span><span class="msg-role-dot"></span>assistant</div>
+      <div class="msg-body">Tomorrow in Istanbul it'll be 21°C with sunny intervals, a low of 14°C and a light southwest wind of 8 km/h. Great day to be outside!</div>
+      <div class="msg-json">
+        <span class="json-key">"role"</span>: <span class="json-str">"assistant"</span>,<br>
+        <span class="json-key">"content"</span>: <span class="json-str">"Tomorrow in Istanbul..."</span>
+      </div>
+    </div>
+
+    <span class="stack-bracket">]</span>
+
+    <!-- Live summary bar -->
+    <div class="stack-summary">
+      <div class="stack-summary-label">Roles in stack</div>
+      <div class="stack-chips">
+        <span class="stack-chip role-system"   id="chip-system">system</span>
+        <span class="stack-chip role-user"      id="chip-user">user</span>
+        <span class="stack-chip role-tool-use"  id="chip-tool-use-memory">tool_use ×2 ⚡</span>
+        <span class="stack-chip role-tool-res"  id="chip-tool-res-memory">tool_result</span>
+        <span class="stack-chip role-tool-res"  id="chip-tool-res-time">tool_result</span>
+        <span class="stack-chip role-tool-use"  id="chip-tool-use">tool_use</span>
+        <span class="stack-chip role-tool-res"  id="chip-tool-res">tool_result</span>
+        <span class="stack-chip role-asst"      id="chip-asst">assistant</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Center: LLM Core -->
+  <div class="panel llm-panel" id="llmPanel">
+    <div class="panel-label" style="position:absolute;top:20px;left:0;right:0;padding:0 18px;">LLM Core</div>
+
+    <div class="llm-core" id="llmCore">
+      <!-- Pulse rings -->
+      <div class="pulse-ring"></div>
+      <div class="pulse-ring"></div>
+      <div class="pulse-ring"></div>
+
+      <!-- SVG node network -->
+      <svg class="llm-svg" width="140" height="140" viewBox="0 0 140 140">
+        <!-- Outer ring (animated pulse) -->
+        <circle class="node-ring" id="pulseRing" cx="70" cy="70" r="50"/>
+        <!-- Connection lines -->
+        <line class="node-line" x1="70" y1="20" x2="70" y2="70"/>
+        <line class="node-line" x1="120" y1="70" x2="70" y2="70"/>
+        <line class="node-line" x1="70" y1="120" x2="70" y2="70"/>
+        <line class="node-line" x1="20" y1="70" x2="70" y2="70"/>
+        <line class="node-line" x1="38" y1="38" x2="70" y2="70"/>
+        <line class="node-line" x1="102" y1="38" x2="70" y2="70"/>
+        <line class="node-line" x1="38" y1="102" x2="70" y2="70"/>
+        <line class="node-line" x1="102" y1="102" x2="70" y2="70"/>
+        <!-- Outer dots -->
+        <circle class="node-dot" cx="70" cy="20" r="4"/>
+        <circle class="node-dot" cx="120" cy="70" r="4"/>
+        <circle class="node-dot" cx="70" cy="120" r="4"/>
+        <circle class="node-dot" cx="20" cy="70" r="4"/>
+        <circle class="node-dot" cx="38" cy="38" r="3"/>
+        <circle class="node-dot" cx="102" cy="38" r="3"/>
+        <circle class="node-dot" cx="38" cy="102" r="3"/>
+        <circle class="node-dot" cx="102" cy="102" r="3"/>
+        <!-- Center node -->
+        <circle class="node-center" cx="70" cy="70" r="12"/>
+        <text x="70" y="74" text-anchor="middle" font-size="10" fill="#0c0c10" font-family="Outfit" font-weight="600">LLM</text>
+      </svg>
+    </div>
+
+    <div class="llm-status" id="llmStatus">
+      <span class="status-dot"></span>
+      <span id="llmStatusText">Idle</span>
+    </div>
+
+    <div class="thinking-dots" id="thinkingDots">
+      <span></span><span></span><span></span>
+    </div>
+
+    <div class="ctx-meter">
+      <div class="ctx-meter-label">
+        <span>Context</span>
+        <span id="ctxPct">5%</span>
+      </div>
+      <div class="ctx-bar"><div class="ctx-fill" id="ctxFill"></div></div>
+    </div>
+
+  </div>
+
+  <!-- Right: MCP Servers -->
+  <div class="panel" id="serverPanel">
+    <div class="panel-label">MCP Servers</div>
+    <div class="server-grid">
+
+      <div class="server-card" id="srv-weather" data-server="weather">
+        <div class="server-header">
+          <span class="server-dot"></span>
+          <span class="server-name">weather</span>
+          <span class="server-icon">⚙</span>
+          <span class="server-badge" id="srv-weather-badge">2 tools</span>
+        </div>
+        <div class="server-tool-popup">
+          <div class="tool-popup-row"><span class="tool-popup-key">tool:</span><span class="tool-popup-value">get_weather</span></div>
+          <div class="tool-popup-row"><span class="tool-popup-key">input:</span><span class="tool-popup-value">{ location: string, time: string }</span></div>
+          <div class="tool-popup-row"><span class="tool-popup-key">location:</span><span class="tool-popup-value" style="color:var(--result)">from tool_result [3]</span></div>
+          <div class="tool-popup-row"><span class="tool-popup-key">time:</span><span class="tool-popup-value" style="color:var(--result)">from tool_result [5] +1d</span></div>
+          <div class="tool-popup-row"><span class="tool-popup-key">status:</span><span class="tool-popup-value" id="srv-weather-status">executing...</span></div>
+        </div>
+      </div>
+
+      <div class="server-card" id="srv-time" data-server="time">
+        <div class="server-header">
+          <span class="server-dot"></span>
+          <span class="server-name">time</span>
+          <span class="server-icon">⚙</span>
+          <span class="server-badge" id="srv-time-badge">1 tool</span>
+        </div>
+        <div class="server-tool-popup">
+          <div class="tool-popup-row"><span class="tool-popup-key">tool:</span><span class="tool-popup-value">get_current_time</span></div>
+          <div class="tool-popup-row"><span class="tool-popup-key">input:</span><span class="tool-popup-value">{ timezone: string }</span></div>
+          <div class="tool-popup-row"><span class="tool-popup-key">status:</span><span class="tool-popup-value" id="srv-time-status">executing...</span></div>
+        </div>
+      </div>
+
+      <div class="server-card" id="srv-memory" data-server="memory">
+        <div class="server-header">
+          <span class="server-dot"></span>
+          <span class="server-name">memory</span>
+          <span class="server-icon">⚙</span>
+          <span class="server-badge" id="srv-memory-badge">4 tools</span>
+        </div>
+        <div class="server-tool-popup">
+          <div class="tool-popup-row"><span class="tool-popup-key">tool:</span><span class="tool-popup-value">memory_get</span></div>
+          <div class="tool-popup-row"><span class="tool-popup-key">input:</span><span class="tool-popup-value">{ key: string }</span></div>
+          <div class="tool-popup-row"><span class="tool-popup-key">status:</span><span class="tool-popup-value" id="srv-memory-status">executing...</span></div>
+        </div>
+      </div>
+
+      <div class="server-card" id="srv-jobs">
+        <div class="server-header">
+          <span class="server-dot"></span>
+          <span class="server-name">jobs</span>
+          <span class="server-badge">3 tools</span>
+        </div>
+      </div>
+
+      <div class="server-card" id="srv-tavily">
+        <div class="server-header">
+          <span class="server-dot"></span>
+          <span class="server-name">tavily-search</span>
+          <span class="server-badge">2 tools</span>
+        </div>
+      </div>
+
+      <div class="server-card" id="srv-messages">
+        <div class="server-header">
+          <span class="server-dot"></span>
+          <span class="server-name">google-messages</span>
+          <span class="server-badge">5 tools</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SVG Arrow Overlay -->
+  <svg class="arrow-overlay" id="arrowOverlay" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arrow-user" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#ff6b6b"/>
+      </marker>
+      <marker id="arrow-tool" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#f0a500"/>
+      </marker>
+      <marker id="arrow-result" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#4caf80"/>
+      </marker>
+    </defs>
+    <!-- User → LLM arrow -->
+    <path id="arrow-user-llm" class="arrow-path user-arrow" marker-end="url(#arrow-user)" d=""/>
+    <!-- LLM → memory arrow -->
+    <path id="arrow-llm-memory" class="arrow-path tool-arrow" marker-end="url(#arrow-tool)" d=""/>
+    <!-- memory → LLM arrow -->
+    <path id="arrow-memory-llm" class="arrow-path result-arrow" marker-end="url(#arrow-result)" d=""/>
+    <!-- LLM → time arrow -->
+    <path id="arrow-llm-time" class="arrow-path tool-arrow" marker-end="url(#arrow-tool)" d=""/>
+    <!-- time → LLM arrow -->
+    <path id="arrow-time-llm" class="arrow-path result-arrow" marker-end="url(#arrow-result)" d=""/>
+    <!-- LLM → weather arrow -->
+    <path id="arrow-llm-mcp" class="arrow-path tool-arrow" marker-end="url(#arrow-tool)" d=""/>
+    <!-- weather → LLM arrow -->
+    <path id="arrow-mcp-llm" class="arrow-path result-arrow" marker-end="url(#arrow-result)" d=""/>
+  </svg>
+
+</div>
+
+<!-- ─── Controls ───────────────────────────────────── -->
+<div class="controls">
+  <button class="ctrl-btn primary" id="playBtn">⏸ Pause</button>
+  <button class="ctrl-btn" id="prevBtn">◀ Prev</button>
+  <button class="ctrl-btn" id="nextBtn">Next ▶</button>
+  <div class="step-dots" id="stepDots"></div>
+  <span class="step-label-text" id="stepLabelText">System Prompt</span>
+  <select class="speed-select" id="speedSelect">
+    <option value="2">0.5×</option>
+    <option value="1" selected>1×</option>
+    <option value="0.5">2×</option>
+  </select>
+</div>
+
+<script>
+// ─── State Machine ────────────────────────────────────────────────────────────
+
+const M = (extra=[]) => ['msg-system','msg-user',...extra];
+const PARALLEL = ['msg-tool-use-memory','msg-tool-res-memory','msg-tool-res-time'];
+const WITH_WEATHER = [...PARALLEL,'msg-tool-use','msg-tool-res'];
+
+const STATES = [
+  {
+    name: 'System Prompt',
+    desc: 'Sets agent identity, available tools & behavior rules',
+    messages: ['msg-system'],
+    llmState: 'idle', llmStatus: 'Receiving context',
+    servers: [], ctx: 8, iter: 1, arrows: [],
+  },
+  {
+    name: 'User Message',
+    desc: 'No location in prompt — agent must resolve it',
+    messages: M(),
+    llmState: 'idle', llmStatus: 'Reading message',
+    servers: [], ctx: 18, iter: 1, arrows: ['user-llm'],
+  },
+  {
+    name: 'LLM Thinking',
+    desc: 'Identifies 2 independent needs: location + current time',
+    messages: M(),
+    llmState: 'thinking', llmStatus: 'Thinking...',
+    servers: [], ctx: 22, iter: 1, arrows: [],
+  },
+  // ── Iter 1: parallel batch ──
+  {
+    name: '⚡ Parallel Batch: memory_get + get_current_time',
+    desc: 'Both are independent — LLM issues them in one response per system prompt instruction',
+    messages: M(['msg-tool-use-memory']),
+    llmState: 'calling', llmStatus: 'Calling 2 Tools',
+    servers: ['memory','time'], ctx: 32, iter: 1, arrows: ['llm-memory','llm-time'],
+  },
+  {
+    name: 'Promise.all — Both MCP servers execute',
+    desc: 'mcpManager.ts runs all tool calls concurrently via Promise.all',
+    messages: M(['msg-tool-use-memory']),
+    llmState: 'calling', llmStatus: 'Awaiting results',
+    servers: ['memory','time'], ctx: 32, iter: 1, arrows: ['llm-memory','llm-time'],
+  },
+  {
+    name: 'Both results arrive together',
+    desc: 'tool_result [3] (location) and tool_result [4] (time) injected in same iteration',
+    messages: M([...PARALLEL]),
+    llmState: 'receiving', llmStatus: 'Receiving results',
+    servers: ['memory-done','time-done'], ctx: 48, iter: 1, arrows: ['memory-llm','time-llm'],
+  },
+  // ── Iter 2: weather ──
+  {
+    name: 'Iteration 2 — All inputs ready',
+    desc: 'location=[3], tomorrow computed from [4]+1d — calls weather',
+    messages: M([...PARALLEL]),
+    llmState: 'thinking', llmStatus: 'Thinking...',
+    servers: ['memory-done','time-done'], ctx: 52, iter: 2, arrows: [],
+  },
+  {
+    name: 'Tool Call: get_weather',
+    desc: 'Both args resolved from the parallel batch results [3] and [4]',
+    messages: M([...PARALLEL,'msg-tool-use']),
+    llmState: 'calling', llmStatus: 'Calling Tool',
+    servers: ['memory-done','time-done','weather'], ctx: 62, iter: 2, arrows: ['llm-mcp'],
+  },
+  {
+    name: 'Weather MCP Invocation',
+    desc: 'weather server executes get_weather via JSON-RPC 2.0',
+    messages: M([...PARALLEL,'msg-tool-use']),
+    llmState: 'calling', llmStatus: 'Awaiting result',
+    servers: ['memory-done','time-done','weather'], ctx: 62, iter: 2, arrows: ['llm-mcp'],
+  },
+  {
+    name: 'Weather Result Returns',
+    desc: 'Forecast injected as [6]',
+    messages: M([...WITH_WEATHER]),
+    llmState: 'receiving', llmStatus: 'Receiving result',
+    servers: ['memory-done','time-done','weather-done'], ctx: 75, iter: 2, arrows: ['mcp-llm'],
+  },
+  // ── Iter 3: answer ──
+  {
+    name: 'Iteration 3 — Final Think',
+    desc: '3 tools, 2 iterations — composing natural language answer',
+    messages: M([...WITH_WEATHER]),
+    llmState: 'thinking', llmStatus: 'Thinking...',
+    servers: ['memory-done','time-done','weather-done'], ctx: 78, iter: 3, arrows: [],
+  },
+  {
+    name: 'Final Response',
+    desc: 'All results used — location, tomorrow\'s date, forecast',
+    messages: M([...WITH_WEATHER,'msg-asst']),
+    llmState: 'done', llmStatus: 'Done ✓',
+    servers: ['memory-done','time-done','weather-done'], ctx: 88, iter: 3, arrows: [],
+  },
+  {
+    name: 'Loop Complete',
+    desc: '⚡ Parallel batch saved 1 full iteration vs sequential',
+    messages: M([...WITH_WEATHER,'msg-asst']),
+    llmState: 'done', llmStatus: 'Loop complete',
+    servers: ['memory-done','time-done','weather-done'], ctx: 88, iter: 3, arrows: [],
+  },
+];
+
+const TOTAL = STATES.length;
+let current = 0;
+let playing = true;
+let timer = null;
+let speedMultiplier = 1;
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+
+const playBtn        = document.getElementById('playBtn');
+const prevBtn        = document.getElementById('prevBtn');
+const nextBtn        = document.getElementById('nextBtn');
+const stepDotsEl     = document.getElementById('stepDots');
+const stepLabelText  = document.getElementById('stepLabelText');
+const speedSelect    = document.getElementById('speedSelect');
+const llmCore        = document.getElementById('llmCore');
+const llmStatusEl    = document.getElementById('llmStatus');
+const llmStatusText  = document.getElementById('llmStatusText');
+const thinkingDots   = document.getElementById('thinkingDots');
+const iterValue      = document.getElementById('iterValue');
+const iterFill       = document.getElementById('iterFill');
+const ctxFill        = document.getElementById('ctxFill');
+const ctxPct         = document.getElementById('ctxPct');
+const arrowUserLLM    = document.getElementById('arrow-user-llm');
+const arrowLLMMemory  = document.getElementById('arrow-llm-memory');
+const arrowMemoryLLM  = document.getElementById('arrow-memory-llm');
+const arrowLLMTime    = document.getElementById('arrow-llm-time');
+const arrowTimeLLM    = document.getElementById('arrow-time-llm');
+const arrowLLMMCP     = document.getElementById('arrow-llm-mcp');
+const arrowMCPLLM     = document.getElementById('arrow-mcp-llm');
+
+// ─── Build step dots ──────────────────────────────────────────────────────────
+
+for (let i = 0; i < TOTAL; i++) {
+  const dot = document.createElement('div');
+  dot.className = 'step-dot';
+  dot.addEventListener('click', () => goTo(i));
+  stepDotsEl.appendChild(dot);
+}
+
+// ─── Arrow drawing ────────────────────────────────────────────────────────────
+
+function getCenter(el) {
+  const stage = document.getElementById('stage');
+  const sr = stage.getBoundingClientRect();
+  const er = el.getBoundingClientRect();
+  return {
+    x: er.left + er.width / 2 - sr.left,
+    y: er.top  + er.height / 2 - sr.top,
+  };
+}
+
+function drawArrow(pathEl, x1, y1, x2, y2) {
+  // Cubic bezier for smooth arc
+  const cx = (x1 + x2) / 2;
+  const cy = Math.min(y1, y2) - 30;
+  const d = `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
+  pathEl.setAttribute('d', d);
+  pathEl.classList.add('show');
+
+  // Animate stroke-dasharray draw effect
+  const len = pathEl.getTotalLength ? pathEl.getTotalLength() : 200;
+  pathEl.style.strokeDasharray = len;
+  pathEl.style.strokeDashoffset = len;
+  pathEl.animate(
+    [{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
+    { duration: 600, fill: 'forwards', easing: 'ease-out' }
+  );
+}
+
+function clearArrows() {
+  [arrowUserLLM, arrowLLMMemory, arrowMemoryLLM, arrowLLMTime, arrowTimeLLM, arrowLLMMCP, arrowMCPLLM].forEach(a => {
+    a.classList.remove('show');
+    a.setAttribute('d', '');
+  });
+}
+
+function updateArrows(state) {
+  clearArrows();
+  if (!state.arrows.length) return;
+
+  setTimeout(() => {
+    const llmEl      = document.querySelector('.llm-core');
+    const msgUser    = document.getElementById('msg-user');
+    const srvMemory  = document.getElementById('srv-memory');
+    const srvTime    = document.getElementById('srv-time');
+    const srvWeather = document.getElementById('srv-weather');
+
+    if (!llmEl) return;
+    const llmC = getCenter(llmEl);
+
+    state.arrows.forEach(arrow => {
+      if (arrow === 'user-llm' && msgUser && msgUser.classList.contains('visible')) {
+        const uC = getCenter(msgUser);
+        drawArrow(arrowUserLLM, uC.x, uC.y, llmC.x, llmC.y);
+      }
+      if (arrow === 'llm-memory' && srvMemory) {
+        const sC = getCenter(srvMemory);
+        drawArrow(arrowLLMMemory, llmC.x, llmC.y, sC.x, sC.y);
+      }
+      if (arrow === 'memory-llm' && srvMemory) {
+        const sC = getCenter(srvMemory);
+        drawArrow(arrowMemoryLLM, sC.x, sC.y, llmC.x, llmC.y);
+      }
+      if (arrow === 'llm-time' && srvTime) {
+        const sC = getCenter(srvTime);
+        drawArrow(arrowLLMTime, llmC.x, llmC.y, sC.x, sC.y);
+      }
+      if (arrow === 'time-llm' && srvTime) {
+        const sC = getCenter(srvTime);
+        drawArrow(arrowTimeLLM, sC.x, sC.y, llmC.x, llmC.y);
+      }
+      if (arrow === 'llm-mcp' && srvWeather) {
+        const sC = getCenter(srvWeather);
+        drawArrow(arrowLLMMCP, llmC.x, llmC.y, sC.x, sC.y);
+      }
+      if (arrow === 'mcp-llm' && srvWeather) {
+        const sC = getCenter(srvWeather);
+        drawArrow(arrowMCPLLM, sC.x, sC.y, llmC.x, llmC.y);
+      }
+    });
+  }, 200);
+}
+
+// ─── Apply state ──────────────────────────────────────────────────────────────
+
+function applyState(idx) {
+  const state = STATES[idx];
+
+  // Messages: show only those in state.messages, keep visible ones visible
+  const allMsgs = ['msg-system','msg-user','msg-tool-use-memory','msg-tool-res-memory','msg-tool-res-time','msg-tool-use','msg-tool-res','msg-asst'];
+  allMsgs.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (state.messages.includes(id)) {
+      if (!el.classList.contains('visible')) {
+        el.classList.add('visible');
+        // Scroll into view
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+      }
+      el.classList.toggle('highlight', state.messages[state.messages.length - 1] === id);
+    } else {
+      // Only hide if not in any previous state's messages (keep accumulation)
+      // Actually accumulate — keep visible once shown
+    }
+  });
+
+  // Sync summary chips with visible messages
+  const chipMap = {
+    'msg-system':          'chip-system',
+    'msg-user':            'chip-user',
+    'msg-tool-use-memory': 'chip-tool-use-memory',
+    'msg-tool-res-memory': 'chip-tool-res-memory',
+    'msg-tool-res-time':   'chip-tool-res-time',
+    'msg-tool-use':        'chip-tool-use',
+    'msg-tool-res':        'chip-tool-res',
+    'msg-asst':            'chip-asst',
+  };
+  Object.entries(chipMap).forEach(([msgId, chipId]) => {
+    const msgEl  = document.getElementById(msgId);
+    const chipEl = document.getElementById(chipId);
+    if (msgEl && chipEl) {
+      chipEl.classList.toggle('visible', msgEl.classList.contains('visible'));
+    }
+  });
+
+  // LLM state
+  llmCore.className = 'llm-core ' + (state.llmState !== 'idle' ? state.llmState : '');
+  llmStatusEl.className = 'llm-status ' + (state.llmState !== 'idle' ? state.llmState : '');
+  llmStatusText.textContent = state.llmStatus;
+  thinkingDots.classList.toggle('show', state.llmState === 'thinking');
+
+  // Servers
+  // Memory server
+  const memoryCard   = document.getElementById('srv-memory');
+  const memoryBadge  = document.getElementById('srv-memory-badge');
+  const memoryStatus = document.getElementById('srv-memory-status');
+
+  if (state.servers.includes('memory')) {
+    memoryCard.classList.add('active');
+    memoryCard.classList.remove('done');
+    if (memoryStatus) memoryStatus.textContent = 'executing...';
+    if (memoryBadge)  memoryBadge.textContent = 'active';
+  } else if (state.servers.includes('memory-done')) {
+    memoryCard.classList.remove('active');
+    memoryCard.classList.add('done');
+    if (memoryStatus) memoryStatus.textContent = 'Istanbul, Turkey';
+    if (memoryBadge)  memoryBadge.textContent = 'done ✓';
+  } else {
+    memoryCard.classList.remove('active', 'done');
+    if (memoryBadge) memoryBadge.textContent = '4 tools';
+  }
+
+  // Time server
+  const timeCard   = document.getElementById('srv-time');
+  const timeBadge  = document.getElementById('srv-time-badge');
+  const timeStatus = document.getElementById('srv-time-status');
+
+  if (state.servers.includes('time')) {
+    timeCard.classList.add('active');
+    timeCard.classList.remove('done');
+    if (timeStatus) timeStatus.textContent = 'executing...';
+    if (timeBadge)  timeBadge.textContent = 'active';
+  } else if (state.servers.includes('time-done')) {
+    timeCard.classList.remove('active');
+    timeCard.classList.add('done');
+    if (timeStatus) timeStatus.textContent = '14:32 TRT (UTC+3)';
+    if (timeBadge)  timeBadge.textContent = 'done ✓';
+  } else {
+    timeCard.classList.remove('active', 'done');
+    if (timeBadge) timeBadge.textContent = '1 tool';
+  }
+
+  // Weather server
+  const weatherCard = document.getElementById('srv-weather');
+  const weatherStatus = document.getElementById('srv-weather-status');
+  const weatherBadge  = document.getElementById('srv-weather-badge');
+
+  if (state.servers.includes('weather')) {
+    weatherCard.classList.add('active');
+    weatherCard.classList.remove('done');
+    if (weatherStatus) weatherStatus.textContent = 'executing...';
+    if (weatherBadge)  weatherBadge.textContent = 'active';
+  } else if (state.servers.includes('weather-done')) {
+    weatherCard.classList.remove('active');
+    weatherCard.classList.add('done');
+    if (weatherStatus) weatherStatus.textContent = '18°C, partly cloudy';
+    if (weatherBadge)  weatherBadge.textContent = 'done ✓';
+  } else {
+    weatherCard.classList.remove('active', 'done');
+    if (weatherBadge) weatherBadge.textContent = '2 tools';
+  }
+
+  // Iteration counter
+  const iterText = `${state.iter} / 10`;
+  if (iterValue.textContent !== iterText) {
+    iterValue.textContent = iterText;
+    iterValue.classList.add('tick');
+    setTimeout(() => iterValue.classList.remove('tick'), 600);
+  }
+  iterFill.style.width = (state.iter / 10 * 100) + '%';
+
+  // Context meter
+  ctxFill.style.width = state.ctx + '%';
+  ctxPct.textContent  = state.ctx + '%';
+
+  // Arrows
+  updateArrows(state);
+
+  // Step dots
+  document.querySelectorAll('.step-dot').forEach((d, i) => {
+    d.classList.toggle('active', i === idx);
+  });
+
+  // Step label
+  stepLabelText.textContent = `${idx + 1}/${TOTAL} · ${state.name}`;
+}
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
+
+function goTo(idx) {
+  current = ((idx % TOTAL) + TOTAL) % TOTAL;
+  // If going backwards, reset all message visibility
+  if (idx < current) resetMessages();
+  applyState(current);
+  scheduleNext();
+}
+
+function resetMessages() {
+  document.querySelectorAll('.msg-card').forEach(el => {
+    el.classList.remove('visible', 'highlight');
+  });
+  document.querySelectorAll('.stack-chip').forEach(el => {
+    el.classList.remove('visible');
+  });
+}
+
+function advance() {
+  current = (current + 1) % TOTAL;
+  if (current === 0) resetMessages();
+  applyState(current);
+  scheduleNext();
+}
+
+function scheduleNext() {
+  clearTimeout(timer);
+  if (playing) {
+    const delay = 2500 * speedMultiplier;
+    timer = setTimeout(advance, delay);
+  }
+}
+
+// ─── Controls ─────────────────────────────────────────────────────────────────
+
+playBtn.addEventListener('click', () => {
+  playing = !playing;
+  playBtn.textContent = playing ? '⏸ Pause' : '▶ Play';
+  playBtn.className = 'ctrl-btn ' + (playing ? 'primary' : '');
+  if (playing) scheduleNext();
+  else clearTimeout(timer);
+});
+
+prevBtn.addEventListener('click', () => {
+  clearTimeout(timer);
+  const prev = ((current - 1) + TOTAL) % TOTAL;
+  if (prev > current) resetMessages();
+  current = prev;
+  applyState(current);
+  scheduleNext();
+});
+
+nextBtn.addEventListener('click', () => {
+  clearTimeout(timer);
+  current = (current + 1) % TOTAL;
+  if (current === 0) resetMessages();
+  applyState(current);
+  scheduleNext();
+});
+
+speedSelect.addEventListener('change', () => {
+  speedMultiplier = parseFloat(speedSelect.value);
+  scheduleNext();
+});
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') nextBtn.click();
+  if (e.key === 'ArrowLeft')  prevBtn.click();
+  if (e.key === ' ') { e.preventDefault(); playBtn.click(); }
+});
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+
+applyState(0);
+scheduleNext();
+</script>
+</body>
+</html>
