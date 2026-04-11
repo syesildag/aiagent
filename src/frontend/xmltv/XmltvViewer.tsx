@@ -595,17 +595,25 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
 
     (async () => {
       try {
+        console.debug('[push] fetching VAPID public key');
         const res = await fetch('/xmltv/vapid-public-key');
         const { publicKey } = await res.json() as { publicKey: string | null };
+        console.debug('[push] VAPID public key:', publicKey ? publicKey.slice(0, 20) + '…' : 'null');
         if (!publicKey || cancelled) return;
 
+        console.debug('[push] waiting for SW registration');
         const reg = await navigator.serviceWorker.ready;
+        console.debug('[push] SW ready, checking existing subscription');
         let sub = await reg.pushManager.getSubscription();
         if (!sub) {
+          console.debug('[push] no existing subscription, subscribing…');
           sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: urlBase64ToUint8Array(publicKey).buffer as ArrayBuffer,
           });
+          console.debug('[push] subscribed:', sub.endpoint.slice(0, 60) + '…');
+        } else {
+          console.debug('[push] reusing existing subscription:', sub.endpoint.slice(0, 60) + '…');
         }
         if (cancelled) return;
         pushSubscriptionRef.current = sub;
@@ -613,10 +621,14 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
         // sub.getKey() returns ArrayBuffer — convert to base64 for JSON transport.
         const p256dhBuf = sub.getKey('p256dh');
         const authBuf   = sub.getKey('auth');
-        if (!p256dhBuf || !authBuf) return; // browser didn't provide keys — skip
+        if (!p256dhBuf || !authBuf) {
+          console.debug('[push] missing p256dh or auth keys, skipping server registration');
+          return;
+        }
         const toBase64 = (buf: ArrayBuffer) =>
           btoa(Array.from(new Uint8Array(buf), b => String.fromCharCode(b)).join(''));
-        await fetch('/xmltv/push-subscribe', {
+        console.debug('[push] sending subscription to server');
+        const saveRes = await fetch('/xmltv/push-subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -625,9 +637,9 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
             auth:   toBase64(authBuf),
           }),
         });
-      } catch {
-        // PushManager subscription can fail if the user denies notifications or
-        // if VAPID is not configured — fall back to SW setTimeout approach silently
+        console.debug('[push] server responded:', saveRes.status);
+      } catch (err) {
+        console.warn('[push] subscription setup failed:', err);
       }
     })();
 
