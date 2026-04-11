@@ -1,1 +1,1 @@
-export type Table = 'ai_agent_session' | 'ai_agent_user' | 'ai_agent_memories' | 'ai_agent_document_type' | 'ai_agent_document' | 'ai_agent_conversation_messages' | 'ai_agent_conversations' | 'ai_agent_schema_migrations' | 'ai_agent_jobs';
+export type Table = 'ai_agent_session' | 'ai_agent_user' | 'ai_agent_memories' | 'ai_agent_document_type' | 'ai_agent_document' | 'ai_agent_conversation_messages' | 'ai_agent_conversations' | 'ai_agent_schema_migrations' | 'ai_agent_jobs' | 'ai_agent_push_subscriptions' | 'ai_agent_scheduled_push_notifications';

@@ -171,6 +171,26 @@ self.addEventListener('message', (event) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Web Push – server-initiated notifications (required for Android background)
+// ---------------------------------------------------------------------------
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data?.json() ?? {};
+  } catch {
+    data = { title: 'Reminder', body: '' };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Reminder', {
+      body: data.body || '',
+      icon: data.icon || '/static/icons/icon-192.png',
+      badge: '/static/icons/icon-96.png',
+      data: { url: data.url || '/xmltv' },
+    })
+  );
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = event.notification.data?.url || '/';

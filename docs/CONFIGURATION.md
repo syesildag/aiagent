@@ -753,6 +753,40 @@ npm start 2>&1 | grep -A 10 "validation failed"
 node dist/utils/config.js
 ```
 
+### Web Push (VAPID)
+
+Required for server-side push notifications (Android PWA support). When absent, the system silently falls back to the client-side `setTimeout` approach, which only works while the browser is in the foreground.
+
+Generate a key pair once and store both values in `.env`:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+#### VAPID_PUBLIC_KEY
+
+URL-safe base64 public key sent to the browser for `PushManager.subscribe()`.
+
+```bash
+VAPID_PUBLIC_KEY=BExamplePublicKey...
+```
+
+#### VAPID_PRIVATE_KEY
+
+Corresponding private key used by the server to sign push requests.
+
+```bash
+VAPID_PRIVATE_KEY=ExamplePrivateKey...
+```
+
+#### VAPID_SUBJECT
+
+A `mailto:` or `https:` URI identifying the push sender. Required by push services to contact the operator if a subscription causes problems.
+
+```bash
+VAPID_SUBJECT=mailto:admin@example.com
+```
+
 ---
 
 ## Related Documentation
@@ -761,3 +795,4 @@ node dist/utils/config.js
 - [LLM Providers](LLM_PROVIDERS.md)
 - [Deployment](DEPLOYMENT.md)
 - [Testing Guide](TESTING_GUIDE.md)
+- [PWA Notifications](PWA_NOTIFICATIONS.md)

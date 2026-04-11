@@ -5,6 +5,8 @@ import path from 'path';
 import { promisify } from 'util';
 import { config } from '../utils/config';
 import { asyncHandler } from '../utils/asyncHandler';
+import aiAgentPushSubscriptionRepository, { AiAgentPushSubscription } from '../entities/ai-agent-push-subscription';
+import aiAgentScheduledPushNotificationRepository, { AiAgentScheduledPushNotification } from '../entities/ai-agent-scheduled-push-notification';
 
 const execFileAsync = promisify(execFile);
 
@@ -44,12 +46,9 @@ xmltvRouter.get('/xmltv/manifest.json', (_req: Request, res: Response) => {
     start_url: '/xmltv',
     scope: '/',
     icons: [
-      {
-        src: '/static/icons/xmltv-icon.svg',
-        sizes: 'any',
-        type: 'image/svg+xml',
-        purpose: 'any',
-      },
+      { src: '/static/icons/xmltv-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+      { src: '/static/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+      { src: '/static/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
     ],
   });
 });
@@ -60,6 +59,59 @@ xmltvRouter.get('/xmltv', (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.sendFile(htmlPath);
 });
+
+// VAPID public key — lets the frontend subscribe to web push notifications
+xmltvRouter.get('/xmltv/vapid-public-key', (_req: Request, res: Response) => {
+  res.json({ publicKey: config.VAPID_PUBLIC_KEY ?? null });
+});
+
+// Store a push subscription (endpoint + keys) so the server can send pushes later
+xmltvRouter.post('/xmltv/push-subscribe', asyncHandler(async (req: Request, res: Response) => {
+  const { endpoint, p256dh, auth } = req.body ?? {};
+  if (!endpoint || !p256dh || !auth) {
+    res.status(400).json({ error: 'endpoint, p256dh and auth are required' });
+    return;
+  }
+  const existing = await aiAgentPushSubscriptionRepository.findByEndpoint(endpoint);
+  if (existing) {
+    // Already stored — nothing to do
+    res.json({ ok: true });
+    return;
+  }
+  const sub = new AiAgentPushSubscription({ endpoint, p256dh, auth });
+  await sub.save();
+  res.json({ ok: true });
+}));
+
+// Schedule a push notification to fire at a specific future timestamp
+xmltvRouter.post('/xmltv/push-schedule', asyncHandler(async (req: Request, res: Response) => {
+  const { id, endpoint, title, body, icon, url, fireAt } = req.body ?? {};
+  if (!id || !endpoint || !title || !body || !fireAt) {
+    res.status(400).json({ error: 'id, endpoint, title, body and fireAt are required' });
+    return;
+  }
+  const fireAtDate = new Date(fireAt);
+  if (isNaN(fireAtDate.getTime())) {
+    res.status(400).json({ error: 'fireAt must be a valid ISO timestamp' });
+    return;
+  }
+  const existing = await aiAgentScheduledPushNotificationRepository.findById(id);
+  if (existing) {
+    res.json({ ok: true });
+    return;
+  }
+  const n = new AiAgentScheduledPushNotification({ id, endpoint, title, body, icon, url, fireAt: fireAtDate });
+  await n.save();
+  res.json({ ok: true });
+}));
+
+// Cancel a previously scheduled push notification
+xmltvRouter.delete('/xmltv/push-schedule/:id', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const n = await aiAgentScheduledPushNotificationRepository.findById(id);
+  if (n) await n.delete();
+  res.json({ ok: true });
+}));
 
 // Return the raw XMLTV data — requires a valid session
 xmltvRouter.post('/xmltv/data', asyncHandler(async (_req: Request, res: Response) => {

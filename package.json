@@ -35,7 +35,8 @@
       "dev:watch": "ts-node-dev --respawn --transpile-only src/index.ts",
       "lint": "eslint . --ext .ts",
       "lint:fix": "eslint . --ext .ts --fix",
-      "xmltv:download": "bash src/scripts/download-xmltv.sh"
+      "xmltv:download": "bash src/scripts/download-xmltv.sh",
+      "vapid:generate": "node src/scripts/generateVapidKeys.js"
    },
    "author": "Serkan YESILDAG",
    "license": "MIT",
@@ -62,6 +63,7 @@
       "@types/pg": "^8.11.11",
       "@types/react": "^19.2.14",
       "@types/react-dom": "^19.2.3",
+      "@types/web-push": "^3.6.4",
       "@typescript-eslint/eslint-plugin": "^8.40.0",
       "@typescript-eslint/parser": "^8.40.0",
       "@upstash/context7-mcp": "^2.1.2",
@@ -116,6 +118,7 @@
       "rehype-raw": "^7.0.0",
       "rehype-sanitize": "^6.0.0",
       "remark-gfm": "^4.0.1",
+      "web-push": "^3.6.7",
       "winston": "^3.19.0",
       "zod": "^3.25.76",
       "zod-to-json-schema": "^3.25.1"

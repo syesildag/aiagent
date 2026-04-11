@@ -111,6 +111,13 @@ const envSchema = z.object({
   EMBEDDING_CACHE_ENABLED: z.string().transform((val) => val === 'true').default('true'),
   EMBEDDING_CACHE_TTL: z.string().transform(Number).pipe(z.number().positive()).default('3600000'), // 1 hour
 
+  // --- Web Push (VAPID) ---
+  // Generate keys with: npx web-push generate-vapid-keys
+  VAPID_PUBLIC_KEY: z.string().min(1).optional(),
+  VAPID_PRIVATE_KEY: z.string().min(1).optional(),
+  // Must be a mailto: or https: URL identifying the sender
+  VAPID_SUBJECT: z.string().min(1).optional(),
+
   // --- Logging (production + MCP servers) ---
   // Winston log level: error < warn < info < debug < silly (silly maps to trace)
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug', 'silly']).default('info'),

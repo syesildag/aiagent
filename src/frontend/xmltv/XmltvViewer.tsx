@@ -242,6 +242,14 @@ function getProgrammeKey(prog: Programme): string {
   return `${prog.channelId}_${prog.start.getTime()}`;
 }
 
+/** Converts a URL-safe base64 VAPID public key to the Uint8Array expected by PushManager.subscribe */
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
+}
+
 const NOTIFY_OPTIONS = [0, 5, 10, 15, 30] as const;
 
 // ─── ProgrammeBlock ──────────────────────────────────────────────────────────
@@ -578,6 +586,49 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
 
   const [notifAnchorEl, setNotifAnchorEl] = useState<HTMLButtonElement | null>(null);
 
+  // ── Web Push subscription ─────────────────────────────────────────────────
+  const pushSubscriptionRef = useRef<PushSubscription | null>(null);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch('/xmltv/vapid-public-key');
+        const { publicKey } = await res.json() as { publicKey: string | null };
+        if (!publicKey || cancelled) return;
+
+        const reg = await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey).buffer as ArrayBuffer,
+          });
+        }
+        if (cancelled) return;
+        pushSubscriptionRef.current = sub;
+        // Persist subscription on server (idempotent)
+        const json = sub.toJSON();
+        await fetch('/xmltv/push-subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            endpoint: sub.endpoint,
+            p256dh: json.keys?.p256dh ?? '',
+            auth: json.keys?.auth ?? '',
+          }),
+        });
+      } catch {
+        // PushManager subscription can fail if the user denies notifications or
+        // if VAPID is not configured — fall back to SW setTimeout approach silently
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
+
   // Listen for NOTIFICATION_FIRED from the service worker to keep UI in sync
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
@@ -608,11 +659,16 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     const key = getProgrammeKey(prog);
     if (minutesBefore === null) {
       setNotifiedProgs(prev => { const next = new Map(prev); next.delete(key); return next; });
+      // Cancel in SW (desktop fallback)
       if ('serviceWorker' in navigator) {
         try {
           const reg = await navigator.serviceWorker.ready;
           reg.active?.postMessage({ type: 'CANCEL_NOTIFICATION', id: key });
         } catch { /* SW unavailable */ }
+      }
+      // Cancel on server (Android / Web Push path)
+      if (pushSubscriptionRef.current) {
+        fetch(`/xmltv/push-schedule/${encodeURIComponent(key)}`, { method: 'DELETE' }).catch(() => {});
       }
       return;
     }
@@ -623,14 +679,30 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     }
     if (Notification.permission !== 'granted') return;
     setNotifiedProgs(prev => new Map(prev).set(key, minutesBefore));
-    // Schedule in service worker so notification fires even when page is backgrounded
+    const fireAt = prog.start.getTime() - minutesBefore * 60_000;
+    const body = minutesBefore > 0
+      ? `Starts in ${minutesBefore} min · ${formatTime(prog.start)}`
+      : `Starting now · ${formatTime(prog.start)}`;
+    // Schedule via server-side Web Push (works on Android when app is backgrounded)
+    if (pushSubscriptionRef.current) {
+      fetch('/xmltv/push-schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: key,
+          endpoint: pushSubscriptionRef.current.endpoint,
+          title: prog.title,
+          body,
+          icon: '/static/icons/icon-192.png',
+          url: '/xmltv',
+          fireAt: new Date(fireAt).toISOString(),
+        }),
+      }).catch(() => {});
+    }
+    // Also schedule in SW as a local fallback (desktop / page-open scenarios)
     if ('serviceWorker' in navigator) {
       try {
         const reg = await navigator.serviceWorker.ready;
-        const fireAt = prog.start.getTime() - minutesBefore * 60_000;
-        const body = minutesBefore > 0
-          ? `Starts in ${minutesBefore} min · ${formatTime(prog.start)}`
-          : `Starting now · ${formatTime(prog.start)}`;
         reg.active?.postMessage({
           type: 'SCHEDULE_NOTIFICATION',
           notification: { id: key, title: prog.title, body, icon: '/static/icons/icon-192.png', fireAt, url: '/xmltv' },
