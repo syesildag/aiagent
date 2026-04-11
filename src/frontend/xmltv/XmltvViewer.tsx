@@ -609,15 +609,20 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
         }
         if (cancelled) return;
         pushSubscriptionRef.current = sub;
-        // Persist subscription on server (idempotent)
-        const json = sub.toJSON();
+        // Persist subscription on server (idempotent).
+        // sub.getKey() returns ArrayBuffer — convert to base64 for JSON transport.
+        const p256dhBuf = sub.getKey('p256dh');
+        const authBuf   = sub.getKey('auth');
+        if (!p256dhBuf || !authBuf) return; // browser didn't provide keys — skip
+        const toBase64 = (buf: ArrayBuffer) =>
+          btoa(Array.from(new Uint8Array(buf), b => String.fromCharCode(b)).join(''));
         await fetch('/xmltv/push-subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             endpoint: sub.endpoint,
-            p256dh: json.keys?.p256dh ?? '',
-            auth: json.keys?.auth ?? '',
+            p256dh: toBase64(p256dhBuf),
+            auth:   toBase64(authBuf),
           }),
         });
       } catch {
