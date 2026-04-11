@@ -37,7 +37,7 @@ const envSchema = z.object({
   LLM_PROVIDER: z.enum(['ollama', 'openai', 'github', 'anthropic']).default('ollama'),
   LLM_MODEL: z.string().min(1).default('qwen3:4b'),
   // Maximum number of tool-call iterations the agent may perform per chat turn
-  MAX_LLM_ITERATIONS: z.string().transform(Number).pipe(z.number().min(1).max(10)).default('2'),
+  MAX_LLM_ITERATIONS: z.string().transform(Number).pipe(z.number().min(1).max(20)).default('2'),
 
   // --- Ollama ---
   OLLAMA_HOST: z.string().url().default('http://localhost:11434'),

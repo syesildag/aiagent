@@ -7,7 +7,7 @@ import { config } from '../utils/config';
 import { ContentPart, LLMMessage, LLMProvider, OllamaProvider, Tool, getModelMaxTokens, estimateTokens, estimateFullMessageTokens, trimConversationToTokenBudget, isImageGenerationModel, isResponsesAPIImageModel, isImageGenerationProvider, isResponsesAPICapable } from './llmProviders';
 import { IConversationHistory } from '../descriptions/conversationTypes';
 import { ConversationHistoryFactory } from '../utils/conversationHistoryFactory';
-import { ToolApprovalCallback } from './approvalManager';
+import { ToolApprovalCallback, CONTINUE_ITERATIONS_TOOL } from './approvalManager';
 import { capitalize } from '../utils/stringCase';
 
 /**
@@ -995,55 +995,76 @@ export class MCPServerManager {
     const collectedImageUrls: string[] = [];
     let previousResponseId: string | undefined;
     let inputForThisCall: any[] = inputMessages;
-    const MAX_ITERATIONS = 10;
+    const ORIGINAL_MAX_ITERATIONS = 10;
+    let maxIterations = ORIGINAL_MAX_ITERATIONS;
+    let totalIterations = 0;
 
-    for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
-      if (abortSignal?.aborted) throw new Error('Operation cancelled by user');
+    continuationLoop: while (true) {
+      let hitMaxIterations = true;
+      for (let iteration = 0; iteration < maxIterations; iteration++, totalIterations++) {
+        if (abortSignal?.aborted) throw new Error('Operation cancelled by user');
 
-      const { id, output } = await provider.callResponsesAPI({
-        model,
-        instructions: previousResponseId ? undefined : systemPrompt,
-        input: inputForThisCall,
-        tools: responsesTools,
-        previousResponseId,
-        abortSignal,
-      });
+        const { id, output } = await provider.callResponsesAPI({
+          model,
+          instructions: previousResponseId ? undefined : systemPrompt,
+          input: inputForThisCall,
+          tools: responsesTools,
+          previousResponseId,
+          abortSignal,
+        });
 
-      previousResponseId = id;
+        previousResponseId = id;
 
-      const functionCallOutputs: any[] = [];
-      let hasFunctionCalls = false;
+        const functionCallOutputs: any[] = [];
+        let hasFunctionCalls = false;
 
-      for (const item of output) {
-        if (item.type === 'message') {
-          for (const contentItem of (item.content ?? [])) {
-            if (contentItem.type === 'output_text') {
-              collectedText += contentItem.text;
+        for (const item of output) {
+          if (item.type === 'message') {
+            for (const contentItem of (item.content ?? [])) {
+              if (contentItem.type === 'output_text') {
+                collectedText += contentItem.text;
+              }
             }
+          } else if (item.type === 'image_generation_call' && item.status === 'completed' && item.result) {
+            collectedImageUrls.push(`data:image/png;base64,${item.result}`);
+          } else if (item.type === 'function_call') {
+            hasFunctionCalls = true;
+            const toolCallAdapter = {
+              id: item.id,
+              type: 'function' as const,
+              function: { name: item.name, arguments: item.arguments },
+            };
+            const result = await this.handleToolCall(toolCallAdapter, approvalCallback, { userLogin, isAdmin });
+            functionCallOutputs.push({
+              type: 'function_call_output',
+              call_id: item.call_id,
+              output: result,
+            });
           }
-        } else if (item.type === 'image_generation_call' && item.status === 'completed' && item.result) {
-          collectedImageUrls.push(`data:image/png;base64,${item.result}`);
-        } else if (item.type === 'function_call') {
-          hasFunctionCalls = true;
-          const toolCallAdapter = {
-            id: item.id,
-            type: 'function' as const,
-            function: { name: item.name, arguments: item.arguments },
-          };
-          const result = await this.handleToolCall(toolCallAdapter, approvalCallback, { userLogin, isAdmin });
-          functionCallOutputs.push({
-            type: 'function_call_output',
-            call_id: item.call_id,
-            output: result,
-          });
         }
+
+        if (!hasFunctionCalls) {
+          hitMaxIterations = false;
+          break;
+        }
+
+        // Next iteration: send function_call_outputs using previous_response_id chaining
+        inputForThisCall = functionCallOutputs;
       }
 
-      if (!hasFunctionCalls) break;
-
-      // Next iteration: send function_call_outputs using previous_response_id chaining
-      inputForThisCall = functionCallOutputs;
-    }
+      if (hitMaxIterations && approvalCallback && !abortSignal?.aborted) {
+        const approved = await approvalCallback(
+          CONTINUE_ITERATIONS_TOOL,
+          { iterations_completed: totalIterations },
+          `The agent has completed ${totalIterations} iteration${totalIterations === 1 ? '' : 's'}. Allow it to continue with ${ORIGINAL_MAX_ITERATIONS} more?`,
+        );
+        if (approved) {
+          maxIterations = ORIGINAL_MAX_ITERATIONS;
+          continue continuationLoop;
+        }
+      }
+      break;
+    } // end continuationLoop
 
     return { text: collectedText, imageUrls: collectedImageUrls };
   }
@@ -1249,107 +1270,124 @@ export class MCPServerManager {
         onContextUpdate?.(estimatedTokens, modelMaxTokens);
       }
 
-      const maxIterations = args.maxIterations ?? config.MAX_LLM_ITERATIONS;
+      const originalMaxIterations = args.maxIterations ?? config.MAX_LLM_ITERATIONS;
+      let maxIterations = originalMaxIterations;
       let currentIteration = 0;
       // Nudge flags: recover from models that narrate their plan instead of calling tools
       let hasCalledTools = false;
       let nudgeInjected = false;
 
-      while (currentIteration < maxIterations) {
-        // Check for cancellation before each iteration
-        if (abortSignal?.aborted) {
-          throw new Error('Operation cancelled by user');
-        }
-
-        Logger.debug(`MCPServerManager chatWithLLM request: model=${this.model}, messages=${messages.length}, tools=${tools.length}, provider=${this.getProviderName()}`);
-
-        // NEVER stream during tool iteration loops - we need to examine the response for tool calls
-        // The LLM might decide to call tools even when we don't expect it
-        const chatRequest = {
-          model: this.model,
-          messages: messages,
-          tools: tools,
-          stream: false  // Always false during iterations
-        };
-
-        let response = await this.llmProvider.chat(chatRequest, abortSignal);
-        
-        // If no tool calls, check whether the model narrated instead of acting (e.g. Claude Sonnet)
-        if (!response?.message?.tool_calls || response.message.tool_calls.length === 0) {
-          // One-time nudge: if no tools have been called yet and the model returned narrative text,
-          // append the narration as an assistant turn and ask the model to act.
-          const modelNarrated = !hasCalledTools && !nudgeInjected && tools.length > 0 && !!response?.message?.content;
-          if (modelNarrated) {
-            Logger.debug('Model returned narrative text without tool calls — injecting nudge to force tool execution');
-            messages.push({ role: 'assistant', content: response.message.content as string });
-            messages.push({
-              role: 'user',
-              content: 'You have not called any tools yet. Execute the tool calls now as instructed. Do not explain or describe — call the tools immediately.'
-            });
-            nudgeInjected = true;
-            currentIteration++;
-            continue;
+      continuationLoop: while (true) {
+        while (currentIteration < maxIterations) {
+          // Check for cancellation before each iteration
+          if (abortSignal?.aborted) {
+            throw new Error('Operation cancelled by user');
           }
-          return response?.message?.content || 'No response content received';
-        }
-        
-        // Handle tool calls — run them in parallel to reduce latency
-        Logger.debug(`Executing ${response.message.tool_calls.length} tool calls...`);
 
-        if (abortSignal?.aborted) {
-          throw new Error('Operation cancelled by user');
-        }
+          Logger.debug(`MCPServerManager chatWithLLM request: model=${this.model}, messages=${messages.length}, tools=${tools.length}, provider=${this.getProviderName()}`);
 
-        hasCalledTools = true;
-        const toolResults: string[] = await Promise.all(
-          response.message.tool_calls.map(async (toolCall) => {
-            // Defensive check for tool call structure
-            if (!toolCall?.function?.name) {
-              Logger.error(`Invalid tool call structure: ${JSON.stringify(toolCall)}`);
-              return 'Error: Invalid tool call structure';
+          // NEVER stream during tool iteration loops - we need to examine the response for tool calls
+          // The LLM might decide to call tools even when we don't expect it
+          const chatRequest = {
+            model: this.model,
+            messages: messages,
+            tools: tools,
+            stream: false  // Always false during iterations
+          };
+
+          let response = await this.llmProvider.chat(chatRequest, abortSignal);
+
+          // If no tool calls, check whether the model narrated instead of acting (e.g. Claude Sonnet)
+          if (!response?.message?.tool_calls || response.message.tool_calls.length === 0) {
+            // One-time nudge: if no tools have been called yet and the model returned narrative text,
+            // append the narration as an assistant turn and ask the model to act.
+            const modelNarrated = !hasCalledTools && !nudgeInjected && tools.length > 0 && !!response?.message?.content;
+            if (modelNarrated) {
+              Logger.debug('Model returned narrative text without tool calls — injecting nudge to force tool execution');
+              messages.push({ role: 'assistant', content: response.message.content as string });
+              messages.push({
+                role: 'user',
+                content: 'You have not called any tools yet. Execute the tool calls now as instructed. Do not explain or describe — call the tools immediately.'
+              });
+              nudgeInjected = true;
+              currentIteration++;
+              continue;
             }
+            return response?.message?.content || 'No response content received';
+          }
 
-            Logger.debug(`Calling tool: ${JSON.stringify(toolCall)}`);
-            const result = await this.handleToolCall(toolCall, approvalCallback, { userLogin, isAdmin });
-            Logger.debug(`Tool call result for ${toolCall.function.name}: ${result}`);
-            return result;
-          })
-        );
+          // Handle tool calls — run them in parallel to reduce latency
+          Logger.debug(`Executing ${response.message.tool_calls.length} tool calls...`);
 
-        if (abortSignal?.aborted) {
-          throw new Error('Operation cancelled by user');
-        }
+          if (abortSignal?.aborted) {
+            throw new Error('Operation cancelled by user');
+          }
 
-        // Add the assistant's response with tool calls to the conversation
-        messages.push({
-          role: 'assistant',
-          content: response.message.content as string|| '',
-          tool_calls: response.message.tool_calls
-        });
-        await this.conversationHistory.addMessage({
-          role: 'assistant',
-          content: response.message.content as string || '',
-          toolCalls: response.message.tool_calls
-        });
+          hasCalledTools = true;
+          const toolResults: string[] = await Promise.all(
+            response.message.tool_calls.map(async (toolCall) => {
+              // Defensive check for tool call structure
+              if (!toolCall?.function?.name) {
+                Logger.error(`Invalid tool call structure: ${JSON.stringify(toolCall)}`);
+                return 'Error: Invalid tool call structure';
+              }
 
-        // Add individual tool result messages
-        for (let i = 0; i < response.message.tool_calls.length; i++) {
-          const toolCall = response.message.tool_calls[i];
+              Logger.debug(`Calling tool: ${JSON.stringify(toolCall)}`);
+              const result = await this.handleToolCall(toolCall, approvalCallback, { userLogin, isAdmin });
+              Logger.debug(`Tool call result for ${toolCall.function.name}: ${result}`);
+              return result;
+            })
+          );
+
+          if (abortSignal?.aborted) {
+            throw new Error('Operation cancelled by user');
+          }
+
+          // Add the assistant's response with tool calls to the conversation
           messages.push({
-            role: 'tool',
-            content: toolResults[i],
-            tool_call_id: toolCall.id
+            role: 'assistant',
+            content: response.message.content as string|| '',
+            tool_calls: response.message.tool_calls
           });
           await this.conversationHistory.addMessage({
-            role: 'tool',
-            content: toolResults[i],
-            toolCallId: toolCall.id
+            role: 'assistant',
+            content: response.message.content as string || '',
+            toolCalls: response.message.tool_calls
           });
+
+          // Add individual tool result messages
+          for (let i = 0; i < response.message.tool_calls.length; i++) {
+            const toolCall = response.message.tool_calls[i];
+            messages.push({
+              role: 'tool',
+              content: toolResults[i],
+              tool_call_id: toolCall.id
+            });
+            await this.conversationHistory.addMessage({
+              role: 'tool',
+              content: toolResults[i],
+              toolCallId: toolCall.id
+            });
+          }
+
+          currentIteration++;
+          Logger.debug(`Completed iteration ${currentIteration}/${maxIterations}`);
         }
 
-        currentIteration++;
-        Logger.debug(`Completed iteration ${currentIteration}/${maxIterations}`);
-      }
+        // Max iterations reached — ask whether the user wants to continue
+        if (approvalCallback && !abortSignal?.aborted) {
+          const approved = await approvalCallback(
+            CONTINUE_ITERATIONS_TOOL,
+            { iterations_completed: currentIteration },
+            `The agent has completed ${currentIteration} iteration${currentIteration === 1 ? '' : 's'}. Allow it to continue with ${originalMaxIterations} more?`,
+          );
+          if (approved) {
+            maxIterations += originalMaxIterations;
+            continue continuationLoop;
+          }
+        }
+        break;
+      } // end continuationLoop
 
       // If we've reached max iterations, make one final call without tools to get a response
       Logger.debug(`Reached max iterations (${maxIterations}), making final response call`);

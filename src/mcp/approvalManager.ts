@@ -2,6 +2,12 @@ import { randomUUID } from 'crypto';
 import { config } from '../utils/config';
 
 /**
+ * Sentinel tool name used when asking the user whether to continue past max iterations.
+ * Reuses the same approval mechanism as dangerous-tool approvals.
+ */
+export const CONTINUE_ITERATIONS_TOOL = '__continue_iterations__';
+
+/**
  * Represents a request for the user to approve a dangerous MCP tool call.
  * Follows the MCP 2025-11-25 human-in-the-loop specification.
  */
