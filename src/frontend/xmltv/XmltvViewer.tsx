@@ -243,11 +243,37 @@ function getProgrammeKey(prog: Programme): string {
 }
 
 /** Converts a URL-safe base64 VAPID public key to the Uint8Array expected by PushManager.subscribe */
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
   const raw = atob(base64);
-  return Uint8Array.from(raw, c => c.charCodeAt(0));
+  const buf = new ArrayBuffer(raw.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
+  return view;
+}
+
+/** Upserts a push subscription on the server (idempotent). */
+async function saveSubscriptionToServer(sub: PushSubscription): Promise<boolean> {
+  const p256dhBuf = sub.getKey('p256dh');
+  const authBuf   = sub.getKey('auth');
+  if (!p256dhBuf || !authBuf) {
+    console.debug('[push] missing p256dh or auth keys, skipping server registration');
+    return false;
+  }
+  const toBase64 = (buf: ArrayBuffer) =>
+    btoa(Array.from(new Uint8Array(buf), b => String.fromCharCode(b)).join(''));
+  const res = await fetch('/xmltv/push-subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      endpoint: sub.endpoint,
+      p256dh: toBase64(p256dhBuf),
+      auth:   toBase64(authBuf),
+    }),
+  });
+  console.debug('[push] push-subscribe server responded:', res.status);
+  return res.ok;
 }
 
 const NOTIFY_OPTIONS = [0, 5, 10, 15, 30] as const;
@@ -585,10 +611,17 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   }, [notifiedProgs]);
 
   const [notifAnchorEl, setNotifAnchorEl] = useState<HTMLButtonElement | null>(null);
+  const [pushStatus, setPushStatus] = useState<'unknown' | 'ok' | 'failed'>('unknown');
 
   // ── Web Push subscription ─────────────────────────────────────────────────
   const pushSubscriptionRef = useRef<PushSubscription | null>(null);
+  const vapidKeyRef = useRef<string | null>(null);
 
+  // On mount: fetch the VAPID key and hydrate any existing subscription.
+  // We deliberately do NOT call pushManager.subscribe() here because Chrome on
+  // Android blocks subscribe() calls that are not triggered by a user gesture.
+  // The actual subscribe() is deferred to getActivePushSubscription(), which is
+  // called from inside toggleNotification (a real user interaction).
   useEffect(() => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
     let cancelled = false;
@@ -600,46 +633,20 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
         const { publicKey } = await res.json() as { publicKey: string | null };
         console.debug('[push] VAPID public key:', publicKey ? publicKey.slice(0, 20) + '…' : 'null');
         if (!publicKey || cancelled) return;
+        vapidKeyRef.current = publicKey;
 
         console.debug('[push] waiting for SW registration');
         const reg = await navigator.serviceWorker.ready;
         console.debug('[push] SW ready, checking existing subscription');
-        let sub = await reg.pushManager.getSubscription();
-        if (!sub) {
-          console.debug('[push] no existing subscription, subscribing…');
-          sub = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(publicKey).buffer as ArrayBuffer,
-          });
-          console.debug('[push] subscribed:', sub.endpoint.slice(0, 60) + '…');
-        } else {
-          console.debug('[push] reusing existing subscription:', sub.endpoint.slice(0, 60) + '…');
-        }
-        if (cancelled) return;
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub || cancelled) return;
+
+        console.debug('[push] reusing existing subscription:', sub.endpoint.slice(0, 60) + '…');
         pushSubscriptionRef.current = sub;
-        // Persist subscription on server (idempotent).
-        // sub.getKey() returns ArrayBuffer — convert to base64 for JSON transport.
-        const p256dhBuf = sub.getKey('p256dh');
-        const authBuf   = sub.getKey('auth');
-        if (!p256dhBuf || !authBuf) {
-          console.debug('[push] missing p256dh or auth keys, skipping server registration');
-          return;
-        }
-        const toBase64 = (buf: ArrayBuffer) =>
-          btoa(Array.from(new Uint8Array(buf), b => String.fromCharCode(b)).join(''));
-        console.debug('[push] sending subscription to server');
-        const saveRes = await fetch('/xmltv/push-subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            endpoint: sub.endpoint,
-            p256dh: toBase64(p256dhBuf),
-            auth:   toBase64(authBuf),
-          }),
-        });
-        console.debug('[push] server responded:', saveRes.status);
+        await saveSubscriptionToServer(sub);
+        if (!cancelled) setPushStatus('ok');
       } catch (err) {
-        console.warn('[push] subscription setup failed:', err);
+        console.warn('[push] push setup failed on mount:', err);
       }
     })();
 
@@ -672,17 +679,35 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     }
   }, []);
 
+  // Called from user-gesture context (toggleNotification), so subscribe() is allowed by Chrome.
   const getActivePushSubscription = useCallback(async (): Promise<PushSubscription | null> => {
     if (pushSubscriptionRef.current) return pushSubscriptionRef.current;
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
     try {
       const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) pushSubscriptionRef.current = sub;
-      console.debug('[push] getActivePushSubscription:', sub ? sub.endpoint.slice(0, 60) + '…' : 'none');
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        // No existing subscription — subscribe now (safe because we're inside a user gesture).
+        const vapidKey = vapidKeyRef.current;
+        if (!vapidKey) {
+          console.debug('[push] VAPID key not ready, cannot subscribe');
+          return null;
+        }
+        console.debug('[push] subscribing lazily from user gesture…');
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        });
+        console.debug('[push] subscribed:', sub.endpoint.slice(0, 60) + '…');
+        const ok = await saveSubscriptionToServer(sub);
+        if (ok) setPushStatus('ok');
+      }
+      pushSubscriptionRef.current = sub;
+      console.debug('[push] getActivePushSubscription resolved:', sub.endpoint.slice(0, 60) + '…');
       return sub;
     } catch (err) {
       console.warn('[push] getActivePushSubscription failed:', err);
+      setPushStatus('failed');
       return null;
     }
   }, []);
@@ -1150,6 +1175,13 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
             borderRadius: '8px',
             px: 0.25,
           }}>
+            <Tooltip title={pushStatus === 'ok' ? 'Push notifications active' : pushStatus === 'failed' ? 'Push notifications unavailable' : 'Push notifications…'}>
+              <Box sx={{
+                width: 8, height: 8, borderRadius: '50%', mx: 0.75,
+                bgcolor: pushStatus === 'ok' ? '#4caf50' : pushStatus === 'failed' ? '#f44336' : 'grey.500',
+              }} />
+            </Tooltip>
+            <Box sx={{ width: 1, height: 16, bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }} />
             <Tooltip title="Go to now">
               <IconButton size="small" onClick={scrollToNow}
                 sx={{ color: 'primary.main', '&:hover': { bgcolor: 'rgba(255,107,107,0.1)' } }}>
