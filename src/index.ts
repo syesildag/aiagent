@@ -43,7 +43,7 @@ app.use(helmet(isDevelopment() ? {
       directives: {
          ...helmet.contentSecurityPolicy.getDefaultDirectives(),
          'img-src': ["'self'", 'data:', 'https:'],
-         'script-src': ["'self'", 'blob:'],
+         'script-src': ["'self'", 'blob:', "'unsafe-inline'"],
       },
    },
 }));
