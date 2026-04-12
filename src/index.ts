@@ -27,8 +27,9 @@ import { xmltvRouter } from './routes/xmltv';
 // This array will hold references to the job factories, preventing them from being garbage collected.
 const activeJobs: JobFactory[] = [];
 
-// Load SSL certificate and private key (production only)
-const options: https.ServerOptions | null = isDevelopment() ? null : {
+// Load SSL certificate and private key (production only, not needed behind a proxy)
+const useHttp = isDevelopment() || config.BEHIND_HTTPS_PROXY;
+const options: https.ServerOptions | null = useHttp ? null : {
    key: fs.readFileSync('server.key'),
    cert: fs.readFileSync('server.cert')
 };
@@ -52,7 +53,7 @@ app.use(helmet(isDevelopment() ? {
 const buildCorsOptions = (): cors.CorsOptions => {
    const raw = config.ALLOWED_ORIGINS?.trim() ?? '';
    if (!raw) {
-      const proto = isDevelopment() ? 'http' : 'https';
+      const proto = isDevelopment() && !config.BEHIND_HTTPS_PROXY ? 'http' : 'https';
       return { origin: `${proto}://${config.HOST}:${config.PORT}`, credentials: false };
    }
    const whitelist = raw.split(',').map(o => o.trim()).filter(Boolean);
@@ -128,11 +129,11 @@ app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
 
 const PORT: number = config.PORT;
 const HOST: string = config.HOST;
-const server = (isDevelopment()
+const server = (useHttp
    ? http.createServer(app)
    : https.createServer(options!, app)
 ).listen(PORT, HOST, async () => {
-   const protocol = isDevelopment() ? 'http' : 'https';
+   const protocol = useHttp ? 'http' : 'https';
    Logger.info(`[server]: Server is running at ${protocol}://${HOST}:${PORT}`);
 
    try {

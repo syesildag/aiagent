@@ -32,6 +32,10 @@ const envSchema = z.object({
   APPROVAL_TIMEOUT_MS: z.string().transform(Number).pipe(z.number().positive()).default('300000'),
   // Comma-separated list of allowed CORS origins. Empty = same-origin only.
   ALLOWED_ORIGINS: z.string().default(''),
+  // Set to "true" when the server sits behind an HTTPS-terminating reverse proxy
+  // (e.g. Freebox built-in HTTPS). Node.js will listen on plain HTTP while all
+  // production security headers (CSP, HSTS, etc.) remain active.
+  BEHIND_HTTPS_PROXY: z.string().transform(v => v === 'true').default('false'),
 
   // --- LLM ---
   LLM_PROVIDER: z.enum(['ollama', 'openai', 'github', 'anthropic']).default('ollama'),
