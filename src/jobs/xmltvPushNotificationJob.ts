@@ -28,7 +28,8 @@ export default class XmltvPushNotificationJob extends JobFactory {
    protected override getJobCallback(): JobCallback {
       return async (_fireDate: Date) => {
          if (!config.VAPID_PUBLIC_KEY || !config.VAPID_PRIVATE_KEY || !config.VAPID_SUBJECT) {
-            return; // VAPID not configured — skip silently
+            Logger.warn('[XmltvPushNotificationJob] VAPID not fully configured (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT required) — Android Web Push will not be delivered');
+            return;
          }
 
          webPush.setVapidDetails(

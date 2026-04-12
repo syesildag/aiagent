@@ -261,15 +261,17 @@ async function saveSubscriptionToServer(sub: PushSubscription): Promise<boolean>
     console.debug('[push] missing p256dh or auth keys, skipping server registration');
     return false;
   }
-  const toBase64 = (buf: ArrayBuffer) =>
-    btoa(Array.from(new Uint8Array(buf), b => String.fromCharCode(b)).join(''));
+  // Web Push spec requires base64url (no +, /, or = padding)
+  const toBase64url = (buf: ArrayBuffer) =>
+    btoa(Array.from(new Uint8Array(buf), b => String.fromCharCode(b)).join(''))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   const res = await fetch('/xmltv/push-subscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       endpoint: sub.endpoint,
-      p256dh: toBase64(p256dhBuf),
-      auth:   toBase64(authBuf),
+      p256dh: toBase64url(p256dhBuf),
+      auth:   toBase64url(authBuf),
     }),
   });
   console.debug('[push] push-subscribe server responded:', res.status);
@@ -745,6 +747,9 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     const pushSub = await getActivePushSubscription();
     console.debug('[push] toggleNotification: pushSub=', pushSub ? 'set' : 'null');
     if (pushSub) {
+      // Re-save subscription on every schedule to handle key rotation and
+      // cases where the initial save failed (e.g. network error on subscribe).
+      await saveSubscriptionToServer(pushSub);
       fetch('/xmltv/push-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
