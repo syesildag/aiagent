@@ -142,3 +142,4 @@ memory.json
 .npm-cache/
 .npm-logs/
 logs/
+.session-notes
