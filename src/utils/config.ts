@@ -188,6 +188,7 @@ function validateEnvironment(): Environment {
       AUTH_OUTLOOK: undefined,
       GITHUB_COPILOT_CLIENT_ID: 'Ov23liwtwZwa1bIdrSWG',
       XMLTV_PATH: 'logs',
+      BEHIND_HTTPS_PROXY: false,
     } as Environment;
   }
 
