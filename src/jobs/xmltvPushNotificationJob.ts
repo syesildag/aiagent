@@ -1,5 +1,5 @@
 import webPush from 'web-push';
-import { JobCallback, RecurrenceRule } from 'node-schedule';
+import { JobCallback, Range, RecurrenceRule } from 'node-schedule';
 import JobFactory from '../utils/jobFactory';
 import Logger from '../utils/logger';
 import { config } from '../utils/config';
@@ -21,7 +21,7 @@ export default class XmltvPushNotificationJob extends JobFactory {
 
    protected override getSpec(): RecurrenceRule {
       const rule = new RecurrenceRule();
-      rule.second = 0; // fire at the top of every minute
+      rule.minute = new Range(0, 59, 5);
       return rule;
    }
 
