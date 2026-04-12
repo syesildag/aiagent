@@ -972,7 +972,7 @@ export class GitHubCopilotProvider implements LLMProvider {
       const modelIds = models?.map((model: any) => model.id || model.name) || ['gpt-4o', 'gpt-4o-mini'];
       
       // Log available models for debugging
-      Logger.info(`Available GitHub Copilot models: ${JSON.stringify(modelIds)}`);
+      Logger.debug(`Available GitHub Copilot models: ${JSON.stringify(modelIds)}`);
       
       return modelIds;
     } catch (error) {
