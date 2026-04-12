@@ -286,8 +286,10 @@ function buildNotificationBody(prog: Programme, minutesBefore: number): string {
 }
 
 /**
- * Posts a message to the active service worker.
- * No-op (with debug log) when the SW is unavailable.
+ * Posts a message to the controlling service worker.
+ * Uses navigator.serviceWorker.controller (the SW that controls this page) first,
+ * then falls back to reg.active (needed on first load before the SW takes control).
+ * No-op with a console.warn when no SW target is reachable.
  */
 async function postSwMessage(message: { type: string; [key: string]: unknown }): Promise<void> {
   if (!('serviceWorker' in navigator)) {
@@ -295,11 +297,17 @@ async function postSwMessage(message: { type: string; [key: string]: unknown }):
     return;
   }
   try {
-    const reg = await navigator.serviceWorker.ready;
-    console.debug('[sw] postMessage:', message.type);
-    reg.active?.postMessage(message);
+    // controller is the SW controlling this page — preferred, available immediately
+    const target = navigator.serviceWorker.controller
+      ?? (await navigator.serviceWorker.ready).active;
+    if (!target) {
+      console.warn('[sw] no active SW target for postMessage:', message.type);
+      return;
+    }
+    console.debug('[sw] postMessage via', navigator.serviceWorker.controller ? 'controller' : 'reg.active', '→', message.type);
+    target.postMessage(message);
   } catch (err) {
-    console.debug('[sw] postMessage failed:', err);
+    console.warn('[sw] postMessage failed:', err);
   }
 }
 
