@@ -278,6 +278,31 @@ async function saveSubscriptionToServer(sub: PushSubscription): Promise<boolean>
   return res.ok;
 }
 
+/** Builds the human-readable notification body for a programme reminder. */
+function buildNotificationBody(prog: Programme, minutesBefore: number): string {
+  return minutesBefore > 0
+    ? `Starts in ${minutesBefore} min · ${formatTime(prog.start)}`
+    : `Starting now · ${formatTime(prog.start)}`;
+}
+
+/**
+ * Posts a message to the active service worker.
+ * No-op (with debug log) when the SW is unavailable.
+ */
+async function postSwMessage(message: { type: string; [key: string]: unknown }): Promise<void> {
+  if (!('serviceWorker' in navigator)) {
+    console.debug('[sw] not available, skipping postMessage:', message.type);
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    console.debug('[sw] postMessage:', message.type);
+    reg.active?.postMessage(message);
+  } catch (err) {
+    console.debug('[sw] postMessage failed:', err);
+  }
+}
+
 const NOTIFY_OPTIONS = [0, 5, 10, 15, 30] as const;
 
 // ─── ProgrammeBlock ──────────────────────────────────────────────────────────
@@ -669,16 +694,9 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
   }, []);
 
   const sendProgrammeNotification = useCallback(async (prog: Programme, minutesBefore: number) => {
-    if (!('serviceWorker' in navigator)) return;
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      const body = minutesBefore > 0
-        ? `Starts in ${minutesBefore} min · ${formatTime(prog.start)}`
-        : `Starting now · ${formatTime(prog.start)}`;
-      reg.active?.postMessage({ type: 'SHOW_NOTIFICATION', title: prog.title, body, icon: '/static/icons/icon-192.png' });
-    } catch {
-      // service worker unavailable
-    }
+    const body = buildNotificationBody(prog, minutesBefore);
+    console.debug('[push] sendProgrammeNotification:', prog.title, '|', body);
+    await postSwMessage({ type: 'SHOW_NOTIFICATION', title: prog.title, body, icon: '/static/icons/icon-192.png' });
   }, []);
 
   // Called from user-gesture context (toggleNotification), so subscribe() is allowed by Chrome.
@@ -719,15 +737,11 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     if (minutesBefore === null) {
       setNotifiedProgs(prev => { const next = new Map(prev); next.delete(key); return next; });
       // Cancel in SW (desktop fallback)
-      if ('serviceWorker' in navigator) {
-        try {
-          const reg = await navigator.serviceWorker.ready;
-          reg.active?.postMessage({ type: 'CANCEL_NOTIFICATION', id: key });
-        } catch { /* SW unavailable */ }
-      }
+      await postSwMessage({ type: 'CANCEL_NOTIFICATION', id: key });
       // Cancel on server (Android / Web Push path)
       const cancelSub = await getActivePushSubscription();
       if (cancelSub) {
+        console.debug('[push] cancelling server-side schedule:', key);
         fetch(`/xmltv/push-schedule/${encodeURIComponent(key)}`, { method: 'DELETE' }).catch(() => {});
       }
       return;
@@ -740,15 +754,13 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     if (Notification.permission !== 'granted') return;
     setNotifiedProgs(prev => new Map(prev).set(key, minutesBefore));
     const fireAt = prog.start.getTime() - minutesBefore * 60_000;
-    const body = minutesBefore > 0
-      ? `Starts in ${minutesBefore} min · ${formatTime(prog.start)}`
-      : `Starting now · ${formatTime(prog.start)}`;
-    // Schedule via server-side Web Push (works on Android when app is backgrounded)
+    const body = buildNotificationBody(prog, minutesBefore);
+
+    // Schedule via server-side Web Push (works on Android when app is backgrounded).
+    // Re-save subscription every time to handle key rotation and failed initial saves.
     const pushSub = await getActivePushSubscription();
-    console.debug('[push] toggleNotification: pushSub=', pushSub ? 'set' : 'null');
+    console.debug('[push] scheduling', key, '| pushSub:', pushSub ? pushSub.endpoint.slice(0, 40) + '…' : 'null');
     if (pushSub) {
-      // Re-save subscription on every schedule to handle key rotation and
-      // cases where the initial save failed (e.g. network error on subscribe).
       await saveSubscriptionToServer(pushSub);
       fetch('/xmltv/push-schedule', {
         method: 'POST',
@@ -764,16 +776,12 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
         }),
       }).catch(() => {});
     }
-    // Also schedule in SW as a local fallback (desktop / page-open scenarios)
-    if ('serviceWorker' in navigator) {
-      try {
-        const reg = await navigator.serviceWorker.ready;
-        reg.active?.postMessage({
-          type: 'SCHEDULE_NOTIFICATION',
-          notification: { id: key, title: prog.title, body, icon: '/static/icons/icon-192.png', fireAt, url: '/xmltv' },
-        });
-      } catch { /* SW unavailable – minute-tick fallback will handle it */ }
-    }
+
+    // Also schedule in SW as a local fallback (desktop / page-open scenarios).
+    await postSwMessage({
+      type: 'SCHEDULE_NOTIFICATION',
+      notification: { id: key, title: prog.title, body, icon: '/static/icons/icon-192.png', fireAt, url: '/xmltv' },
+    });
   }, []);
 
   const [hoveredChannelId, setHoveredChannelId] = useState<string | null>(null);
