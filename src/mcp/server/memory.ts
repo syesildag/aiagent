@@ -348,55 +348,116 @@ server.registerTool(
   async (args) => {
     const { query, type, tags, limit = 10, min_similarity = 0.75, user_login } = args as unknown as SearchMemoryArgs;
     try {
-      // Generate embedding for search query — capture which model was used
-      // so the WHERE clause only compares same-dimension rows.
-      const { embedding: queryEmbedding, embeddingModel } = await getEmbeddingService().generateEmbeddingWithMeta(query);
-      if (!queryEmbedding || queryEmbedding.length === 0) {
-        throw new Error("Failed to generate embedding for search query");
-      }
-
-      const dim = queryEmbedding.length;
-      let sqlQuery = `
-        SELECT *, 1 - ((embedding::vector(${dim})) <=> $1::vector) as similarity
-          FROM ai_agent_memories
-         WHERE embedding_model = $2
-      `;
-
-      const queryParams: any[] = [`[${queryEmbedding.join(',')}]`, embeddingModel];
-      let paramCount = 2;
-
-      if (type) {
-        paramCount++;
-        sqlQuery += ` AND type = $${paramCount}`;
-        queryParams.push(type);
-      }
+      // Discover all distinct embedding models stored for matching memories so
+      // that memories stored with a different embedding provider are not silently
+      // excluded by a model-mismatch filter.
+      let distinctModelsSql = `SELECT DISTINCT embedding_model FROM ai_agent_memories WHERE 1=1`;
+      const distinctParams: any[] = [];
+      let dpCount = 0;
 
       if (user_login) {
-        paramCount++;
-        sqlQuery += ` AND (user_login = $${paramCount} OR user_login IS NULL)`;
-        queryParams.push(user_login);
+        dpCount++;
+        distinctModelsSql += ` AND (user_login = $${dpCount} OR user_login IS NULL)`;
+        distinctParams.push(user_login);
       }
-
+      if (type) {
+        dpCount++;
+        distinctModelsSql += ` AND type = $${dpCount}`;
+        distinctParams.push(type);
+      }
       if (tags && tags.length > 0) {
-        paramCount++;
-        sqlQuery += ` AND tags && $${paramCount}::text[]`;
-        queryParams.push(tags);
+        dpCount++;
+        distinctModelsSql += ` AND tags && $${dpCount}::text[]`;
+        distinctParams.push(tags);
       }
 
-      sqlQuery += `
-        ORDER BY similarity DESC
-        LIMIT $${paramCount + 1}
-      `;
-      queryParams.push(limit);
+      const distinctRows = await queryDatabase(distinctModelsSql, distinctParams);
+      const storedModels: string[] = distinctRows.map((r: any) => r.embedding_model as string);
 
-      // Apply minimum similarity filter after fetching (pgvector orders by distance, not similarity)
-      // Re-query with HAVING-equivalent using a subquery
-      const wrappedSql = `SELECT * FROM (${sqlQuery.trim()}) AS ranked WHERE similarity >= $${paramCount + 2}`;
-      queryParams.push(min_similarity);
-      const finalSql = wrappedSql;
+      // If no memories exist for the given filters, bail out early.
+      if (storedModels.length === 0) {
+        Logger.info(`Found 0 memories for query: "${query}"`);
+        return {
+          content: [{
+            type: "text",
+            text: `No memories found for query: "${query}"`
+          }]
+        };
+      }
 
-      Logger.debug(`[Memory] SQL: ${finalSql.replace(/\s+/g, ' ').trim()} | params: ${JSON.stringify(queryParams.map((p, i) => i === 0 ? '<embedding>' : p))}`);
-      const result = await queryDatabase(finalSql, queryParams);
+      // For each stored model, generate a query embedding using the matching
+      // provider so the vector comparison is dimension-safe.
+      const searchResults = await Promise.allSettled(
+        storedModels.map(async (storedModel: string) => {
+          const providerName = storedModel.split(':')[0] as any;
+          const { embedding: queryEmbedding, embeddingModel } = await getEmbeddingService().generateEmbeddingWithMeta(
+            query,
+            { provider: providerName }
+          );
+          if (!queryEmbedding || queryEmbedding.length === 0) {
+            throw new Error(`Failed to generate embedding with provider "${providerName}"`);
+          }
+
+          const dim = queryEmbedding.length;
+          let sqlQuery = `
+            SELECT *, 1 - ((embedding::vector(${dim})) <=> $1::vector) as similarity
+              FROM ai_agent_memories
+             WHERE embedding_model = $2
+          `;
+
+          const queryParams: any[] = [`[${queryEmbedding.join(',')}]`, embeddingModel];
+          let paramCount = 2;
+
+          if (type) {
+            paramCount++;
+            sqlQuery += ` AND type = $${paramCount}`;
+            queryParams.push(type);
+          }
+
+          if (user_login) {
+            paramCount++;
+            sqlQuery += ` AND (user_login = $${paramCount} OR user_login IS NULL)`;
+            queryParams.push(user_login);
+          }
+
+          if (tags && tags.length > 0) {
+            paramCount++;
+            sqlQuery += ` AND tags && $${paramCount}::text[]`;
+            queryParams.push(tags);
+          }
+
+          sqlQuery += `
+            ORDER BY similarity DESC
+            LIMIT $${paramCount + 1}
+          `;
+          queryParams.push(limit);
+
+          const wrappedSql = `SELECT * FROM (${sqlQuery.trim()}) AS ranked WHERE similarity >= $${paramCount + 2}`;
+          queryParams.push(min_similarity);
+
+          Logger.debug(`[Memory] SQL (model=${embeddingModel}): ${wrappedSql.replace(/\s+/g, ' ').trim()} | params: ${JSON.stringify(queryParams.map((p, i) => i === 0 ? '<embedding>' : p))}`);
+          return queryDatabase(wrappedSql, queryParams);
+        })
+      );
+
+      // Merge results across all models, dedup by id keeping highest similarity.
+      const seen = new Map<number, any>();
+      for (const outcome of searchResults) {
+        if (outcome.status === 'rejected') {
+          Logger.warn(`[Memory] Search failed for one embedding model: ${outcome.reason}`);
+          continue;
+        }
+        for (const row of outcome.value) {
+          const existing = seen.get(row.id);
+          if (!existing || row.similarity > existing.similarity) {
+            seen.set(row.id, row);
+          }
+        }
+      }
+
+      const result = Array.from(seen.values())
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, limit);
 
       Logger.info(`Found ${result.length} memories for query: "${query}"`);
       result.forEach((row: any) => {
