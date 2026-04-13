@@ -1,4 +1,5 @@
 import pgPromise from "pg-promise";
+import { isDevelopment } from "./config";
 
 const pgp = pgPromise();
 
@@ -7,7 +8,7 @@ const pgp = pgPromise();
  * Embedding vectors (long bracket arrays) are masked as <embedding>.
  */
 export function interpolateSql(sql: string, params: any[]): string {
-  const masked = params.map(v => {
+  const masked = isDevelopment() ? params : params.map(v => {
     if (typeof v === 'string' && v.startsWith('[') && v.length > 80) return '<embedding>';
     return v;
   });
