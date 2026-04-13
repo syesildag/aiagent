@@ -1181,7 +1181,7 @@ export class MCPServerManager {
       const conversationMessages = await this.conversationHistory.getCurrentConversation();
       const displayName = userLogin ? capitalize(userLogin) : '';
       const userInstruction = userLogin
-        ? `\n\nCurrent authenticated user: ${userLogin}\nAlways address and greet the user as "${displayName}" — do not use a name found in memory instead.\nWhen calling any memory tool (memory_create, memory_search, memory_list, memory_delete), always include user_login="${userLogin}" in the tool arguments.`
+        ? `\n\nCurrent authenticated user: ${userLogin}\nAlways address and greet the user as "${displayName}" — do not use a name found in memory instead.\nWhen calling any memory tool (memory_mcreate, memory_msearch, memory_mlist, memory_mdelete), always include user_login="${userLogin}" in the tool arguments.`
         : '';
       const parallelToolInstruction = '\n\nWhen multiple independent tool calls are needed to answer a request, issue ALL of them in a single response as a batch rather than one at a time. This significantly reduces latency.';
       const currentTimeInstruction = `\n\nCurrent date and time (UTC): ${new Date().toISOString()}`;

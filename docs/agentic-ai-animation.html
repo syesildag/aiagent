@@ -691,18 +691,18 @@ body {
     <!-- Parallel Tool Use: memory + time batched in one assistant turn -->
     <div class="msg-card tool-use" id="msg-tool-use-memory">
       <div class="msg-role"><span class="msg-index">[2]</span><span class="msg-role-dot"></span>assistant · tool_use <span style="color:var(--tool);font-size:9px;margin-left:4px;letter-spacing:.5px;">⚡ PARALLEL BATCH</span></div>
-      <div class="msg-body">Calling <strong>memory_get</strong> + <strong>get_current_time</strong> simultaneously</div>
+      <div class="msg-body">Calling <strong>memory_mget</strong> + <strong>get_current_time</strong> simultaneously</div>
       <div class="msg-json">
         [<br>
-        &nbsp;{ <span class="json-key">"name"</span>: <span class="json-str">"memory_get"</span>, <span class="json-key">"input"</span>: { <span class="json-key">"key"</span>: <span class="json-str">"user.location"</span> } },<br>
+        &nbsp;{ <span class="json-key">"name"</span>: <span class="json-str">"memory_mget"</span>, <span class="json-key">"input"</span>: { <span class="json-key">"key"</span>: <span class="json-str">"user.location"</span> } },<br>
         &nbsp;{ <span class="json-key">"name"</span>: <span class="json-str">"get_current_time"</span>, <span class="json-key">"input"</span>: { <span class="json-key">"timezone"</span>: <span class="json-str">"UTC"</span> } }<br>
-        ]
+        ]memory_mget
       </div>
     </div>
 
     <!-- Memory Tool Result -->
     <div class="msg-card tool-res" id="msg-tool-res-memory">
-      <div class="msg-role"><span class="msg-index">[3]</span><span class="msg-role-dot"></span>tool_result · memory_get</div>
+      <div class="msg-role"><span class="msg-index">[3]</span><span class="msg-role-dot"></span>tool_result · memory_mget</div>
       <div class="msg-body">Istanbul, Turkey (Europe/Istanbul, UTC+3)</div>
       <div class="msg-json">
         <span class="json-key">"tool_call_id"</span>: <span class="json-str">"tc_memory"</span>,<br>
@@ -872,7 +872,7 @@ body {
           <span class="server-badge" id="srv-memory-badge">4 tools</span>
         </div>
         <div class="server-tool-popup">
-          <div class="tool-popup-row"><span class="tool-popup-key">tool:</span><span class="tool-popup-value">memory_get</span></div>
+          <div class="tool-popup-row"><span class="tool-popup-key">tool:</span><span class="tool-popup-value">memory_mget</span></div>
           <div class="tool-popup-row"><span class="tool-popup-key">input:</span><span class="tool-popup-value">{ key: string }</span></div>
           <div class="tool-popup-row"><span class="tool-popup-key">status:</span><span class="tool-popup-value" id="srv-memory-status">executing...</span></div>
         </div>
@@ -981,7 +981,7 @@ const STATES = [
   },
   // ── Iter 1: parallel batch ──
   {
-    name: '⚡ Parallel Batch: memory_get + get_current_time',
+    name: '⚡ Parallel Batch: memory_mget + get_current_time',
     desc: 'Both are independent — LLM issues them in one response per system prompt instruction',
     messages: M(['msg-tool-use-memory']),
     llmState: 'calling', llmStatus: 'Calling 2 Tools',

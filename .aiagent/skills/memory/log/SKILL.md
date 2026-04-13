@@ -11,7 +11,7 @@ metadata:
 
 Store the following note into long-term memory: **$ARGUMENTS**
 
-Call `memory_create` with:
+Call `memory_mcreate` with:
 - `type`: one of `user`, `feedback`, `project`, or `reference` — choose based on the content
 - `content`: the note text
 - `source`: `"mlog"`

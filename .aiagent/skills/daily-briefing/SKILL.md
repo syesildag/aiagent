@@ -21,7 +21,7 @@ You must now produce a personalised daily briefing by calling tools in the exact
 
 ---
 
-### 1. Personal context — call memory_search NOW
+### 1. Personal context — call memory_msearch NOW
 Query: `user context location interests projects preferences`
 Store the results; use them to personalise every subsequent step.
 
@@ -54,7 +54,7 @@ Based on the user's interests from step 1, search for a relevant topic, e.g.:
 `"[interest] news today"`
 Collect 2–3 results. Use the Tavily title and snippet only. Save the URLs.
 
-### 8. Recall active tasks — call memory_search NOW
+### 8. Recall active tasks — call memory_msearch NOW
 Query: `tasks goals reminders todos action items`
 Use these to inform the suggestions section.
 

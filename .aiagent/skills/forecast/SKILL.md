@@ -21,7 +21,7 @@ You must give weather foreast by calling tools in the exact sequence below.
 
 ---
 
-### 1. Personal context — call memory_search NOW
+### 1. Personal context — call memory_msearch NOW
 Query: `user context location`
 Store the results; use them to personalise every subsequent step.
 
@@ -41,7 +41,7 @@ Use `days: 3`. Save the exact markdown table returned — you will paste it verb
 Read the original user prompt now.
 Does it contain words like "send", "email", "mail", "forward"? If YES:
 - This is a confirmed delivery request. DO NOT ask for confirmation. DO NOT say "let me know if you want me to send it". Act immediately.
-- If the email address is in the prompt, use it. Otherwise call `memory_search` with query `user email address` to retrieve it.
+- If the email address is in the prompt, use it. Otherwise call `memory_msearch` with query `user email address` to retrieve it.
 - Call `outlook_sendEmail` NOW with:
   - `to`: the email address found above
   - `subject`: `Weather Forecast — [Location], [Date]`

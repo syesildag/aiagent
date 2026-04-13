@@ -170,16 +170,17 @@ describe('processCommand — skill injection', () => {
 
 describe('toolMatchesPattern', () => {
   it('matches wildcard *', () => {
-    expect(toolMatchesPattern('memory_create', '*')).toBe(true);
+    expect(toolMatchesPattern('memory_mcreate', '*')).toBe(true);
   });
 
   it('matches exact tool name', () => {
-    expect(toolMatchesPattern('memory_create', 'memory_create')).toBe(true);
+    expect(toolMatchesPattern('memory_mcreate', 'memory_mcreate')).toBe(true);
+    expect(toolMatchesPattern('memory_msearch', 'memory_msearch')).toBe(true);
   });
 
   it('matches server-name prefix', () => {
-    expect(toolMatchesPattern('memory_create', 'memory')).toBe(true);
-    expect(toolMatchesPattern('memory_search', 'memory')).toBe(true);
+    expect(toolMatchesPattern('memory_mcreate', 'memory')).toBe(true);
+    expect(toolMatchesPattern('memory_msearch', 'memory')).toBe(true);
   });
 
   it('does not match unrelated tool', () => {
@@ -187,7 +188,7 @@ describe('toolMatchesPattern', () => {
   });
 
   it('does not confuse partial prefix', () => {
-    // "mem" should NOT match "memory_create"
+    // "mem" should NOT match "memory_mcreate"
     expect(toolMatchesPattern('memory_create', 'mem')).toBe(false);
   });
 });
@@ -195,7 +196,7 @@ describe('toolMatchesPattern', () => {
 // ── filterToolsByPatterns ──────────────────────────────────────────────────────
 
 describe('filterToolsByPatterns', () => {
-  const tools = ['memory_create', 'memory_search', 'weather_get_current', 'time_get'];
+  const tools = ['memory_mcreate', 'memory_msearch', 'weather_get_current', 'time_get'];
 
   it('returns all tools when patterns undefined', () => {
     expect(filterToolsByPatterns(tools, undefined)).toEqual(tools);
@@ -206,7 +207,7 @@ describe('filterToolsByPatterns', () => {
   });
 
   it('filters to server prefix', () => {
-    expect(filterToolsByPatterns(tools, ['memory'])).toEqual(['memory_create', 'memory_search']);
+    expect(filterToolsByPatterns(tools, ['memory'])).toEqual(['memory_mcreate', 'memory_msearch']);
   });
 
   it('wildcard returns all tools', () => {
@@ -215,8 +216,8 @@ describe('filterToolsByPatterns', () => {
 
   it('multiple patterns union', () => {
     expect(filterToolsByPatterns(tools, ['memory', 'time'])).toEqual([
-      'memory_create',
-      'memory_search',
+      'memory_mcreate',
+      'memory_msearch',
       'time_get',
     ]);
   });
