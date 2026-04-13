@@ -249,7 +249,7 @@ server.registerResource(
  * Tool to create a new memory with semantic embeddings
  */
 server.registerTool(
-  "create",
+  "mcreate",
   {
     title: "Create Memory",
     description: "Create a new memory entry with semantic embedding",
@@ -337,7 +337,7 @@ server.registerTool(
  * Tool to search memories using semantic similarity
  */
 server.registerTool(
-  "search",
+  "msearch",
   {
     title: "Search Memories",
     description: "Search stored memories using semantic similarity. Use this whenever the user asks about personal context, preferences, location, past events, or anything that may have been remembered before (e.g. 'where am I', 'what do I like', 'remind me about X', 'what did we discuss').",
@@ -440,7 +440,7 @@ server.registerTool(
  * Tool to list all memories with optional filters
  */
 server.registerTool(
-  "list",
+  "mlist",
   {
     title: "List Memories",
     description: "List all memories with optional type and tag filters",
@@ -594,7 +594,7 @@ server.registerTool(
  * dedup threshold was lowered.
  */
 server.registerTool(
-  "deduplicate",
+  "mdeduplicate",
   {
     title: "Deduplicate Memories",
     description: "Remove near-duplicate memories based on semantic similarity. Keeps the newest entry (highest id) in each duplicate pair. Scoped per user so cross-user memories are never affected.",
@@ -663,7 +663,7 @@ server.registerTool(
 );
 
 server.registerTool(
-  "delete",
+  "mdelete",
   {
     title: "Delete Memory",
     description: "Delete a memory by its ID",
