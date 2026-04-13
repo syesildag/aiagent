@@ -346,6 +346,7 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
          }
          finalContent = `[Generated image: ${effectivePrompt.slice(0, 60)}]`;
          await agent.addAssistantMessageToHistory(finalContent);
+         res.write(JSON.stringify({ t: 'done' }) + '\n');
          res.end();
       } else if (answer && typeof answer === 'object' && (answer as MixedContentResult).kind === 'mixed') {
          const mixedResult = answer as MixedContentResult;
@@ -355,11 +356,13 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
          }
          finalContent = mixedResult.text || `[Generated image: ${effectivePrompt.slice(0, 60)}]`;
          await agent.addAssistantMessageToHistory(finalContent);
+         res.write(JSON.stringify({ t: 'done' }) + '\n');
          res.end();
       } else {
          finalContent = answer as string;
          await agent.addAssistantMessageToHistory(finalContent);
          res.write(JSON.stringify({ t: 'text', v: finalContent }) + '\n');
+         res.write(JSON.stringify({ t: 'done' }) + '\n');
          res.end();
       }
 
