@@ -30,6 +30,9 @@ export async function handleStreamingResponse(
       },
       flush(callback: Function) {
          Logger.debug(`Streaming response completed. Total length: ${capturedContent.length} chars`);
+         // Emit an explicit done marker so the browser can exit the NDJSON read loop
+         // without relying on the TCP FIN (which can be lost on mobile/unreliable networks).
+         this.push(Buffer.from(JSON.stringify({ t: 'done' }) + '\n', 'utf8'));
          if (consumer) {
             Promise.resolve(consumer(capturedContent))
                .catch(consumerError => Logger.error(`Error in consumer callback: ${consumerError}`))
