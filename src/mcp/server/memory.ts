@@ -296,7 +296,7 @@ server.registerTool(
       const createdMemory = { id: savedMemory?.getId(), type: savedMemory?.getType() };
       Logger.info(`Memory created successfully with ID: ${createdMemory.id}`);
 
-      // Optional: Clean up near-duplicate embeddings (threshold 0.95 catches
+      // Optional: Clean up near-duplicate embeddings (threshold 0.99 catches
       // semantically identical memories that differ only in JSON key names).
       // Scoped by user_login and type so only truly identical memories of the
       // same category are merged. The older row (lower id) is removed in each
@@ -310,7 +310,7 @@ server.registerTool(
            AND m1.id < m2.id
          WHERE m1.embedding_model = m2.embedding_model
            AND m1.type = m2.type
-           AND (1 - (m1.embedding <=> m2.embedding)) > 0.95
+           AND (1 - (m1.embedding <=> m2.embedding)) > 0.99
            AND (
              (m1.user_login IS NULL AND m2.user_login IS NULL)
              OR m1.user_login = m2.user_login
