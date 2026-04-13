@@ -11,6 +11,7 @@ import { AiAgentSession } from './entities/ai-agent-session';
 import { config } from './utils/config';
 import Logger from './utils/logger';
 import { loadAgentDefinitions } from './utils/agentLoader';
+import { MemoryAgent } from './agents/memoryAgent';
 
 export type AgentName = string;
 
@@ -80,6 +81,7 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
    [
       new GeneralAgent(),
       new WeatherAgent(),
+      new MemoryAgent(),
    ]
    .forEach(agent => {
       Agents[agent.getName()] = agent;
