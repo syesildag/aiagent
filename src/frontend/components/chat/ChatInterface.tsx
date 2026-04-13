@@ -390,6 +390,7 @@ export const ChatInterface: React.FC = () => {
 
       if (reader) {
         let ndJsonBuffer = '';
+        let streamDone = false;
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -403,7 +404,11 @@ export const ChatInterface: React.FC = () => {
             if (!trimmed) continue;
             try {
               const event = JSON.parse(trimmed) as { t: string; v?: string; id?: string; tool?: string; args?: Record<string, unknown>; desc?: string; schema?: ToolApproval['schema']; used?: number; max?: number; summarized?: number; kept?: number; tokensBefore?: number; tokensAfter?: number };
-              if (event.t === 'error') {
+              if (event.t === 'done') {
+                // Explicit end-of-stream marker — exit immediately without waiting for TCP FIN
+                streamDone = true;
+                break;
+              } else if (event.t === 'error') {
                 // Server-side error surfaced over the NDJSON stream
                 setError(event.v ?? 'Server error');
                 setLastFailedPrompt(userMessage.content);
@@ -470,6 +475,7 @@ export const ChatInterface: React.FC = () => {
               );
             }
           }
+          if (streamDone) break;
         }
         // Auto-read the completed assistant response aloud
         if (autoSpeak && assistantMsgId && assistantContent) {
