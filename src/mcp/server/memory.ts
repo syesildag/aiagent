@@ -376,6 +376,7 @@ server.registerTool(
 
       // If no memories exist for the given filters, bail out early.
       if (storedModels.length === 0) {
+        Logger.debug(distinctModelsSql.replace(/\s+/g, ' ').trim() + " | params: " + JSON.stringify(distinctParams));
         Logger.info(`Found 0 memories for query: "${query}"`);
         return {
           content: [{
