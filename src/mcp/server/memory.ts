@@ -18,6 +18,7 @@ import { z } from "zod";
 import { queryDatabase, closeDatabase } from "../../utils/pgClient.js";
 import { getEmbeddingService } from "../../utils/embeddingService.js";
 import Logger from "../../utils/logger.js";
+import { interpolateSql } from "../../utils/sqlUtils.js";
 import { AiAgentMemories } from "../../entities/ai-agent-memories.js";
 import aiagentmemoriesRepository from "../../entities/ai-agent-memories.js";
 
@@ -376,7 +377,7 @@ server.registerTool(
 
       // If no memories exist for the given filters, bail out early.
       if (storedModels.length === 0) {
-        Logger.debug(distinctModelsSql.replace(/\s+/g, ' ').trim() + " | params: " + JSON.stringify(distinctParams));
+        Logger.debug(`[Memory] SQL: ${interpolateSql(distinctModelsSql, distinctParams)}`);
         Logger.info(`Found 0 memories for query: "${query}"`);
         return {
           content: [{
@@ -436,7 +437,7 @@ server.registerTool(
           const wrappedSql = `SELECT * FROM (${sqlQuery.trim()}) AS ranked WHERE similarity >= $${paramCount + 2}`;
           queryParams.push(min_similarity);
 
-          Logger.debug(`[Memory] SQL (model=${embeddingModel}): ${wrappedSql.replace(/\s+/g, ' ').trim()} | params: ${JSON.stringify(queryParams.map((p, i) => i === 0 ? '<embedding>' : p))}`);
+          Logger.debug(`[Memory] SQL (model=${embeddingModel}): ${interpolateSql(wrappedSql, queryParams)}`);
           return queryDatabase(wrappedSql, queryParams);
         })
       );
