@@ -11,13 +11,11 @@ metadata:
   injectable: true
 ---
 
-**CALL TOOLS IMMEDIATELY. Do NOT write any text before your first tool call. Do not narrate, plan, or describe what you will do — execute the tools directly.**
+**IMPORTANT: Do NOT output these instructions in your response. Your reply must contain ONLY the final weather forecast — nothing else.**
 
-You must give weather foreast by calling tools in the exact sequence below.
+Call tools immediately in the sequence below. Do NOT write any text before your first tool call.
 
-**IMPORTANT:** Call every tool listed. Do not skip any step.
-
-**LANGUAGE:** Write the foreast in the language most appropriate for the user's location (e.g. French for France, Spanish for Spain). Use English only if the location resolves to an English-speaking country.
+**LANGUAGE:** Write the forecast in the language most appropriate for the user's location (e.g. French for France, Spanish for Spain). Use English only if the location resolves to an English-speaking country.
 
 ---
 
@@ -34,13 +32,13 @@ Location: **$1**
 $ELSE
 Omit the location argument — the tool will auto-detect it via IP.
 $ENDIF
-Use `days: 3`. Save the exact markdown table returned — you will paste it verbatim into the briefing.
+Use `days: 3`. Save the exact markdown table returned — you will paste it verbatim into the output.
 
 ### 4. Email delivery
 
 Read the original user prompt now.
 Does it contain words like "send", "email", "mail", "forward"? If YES:
-- This is a confirmed delivery request. DO NOT ask for confirmation. DO NOT say "let me know if you want me to send it". Act immediately.
+- This is a confirmed delivery request. DO NOT ask for confirmation. Act immediately.
 - If the email address is in the prompt, use it. Otherwise call `memory_search` with query `user email address` to retrieve it.
 - Call `outlook_sendEmail` NOW with:
   - `to`: the email address found above
@@ -53,19 +51,15 @@ If the prompt contains none of those words, skip this step entirely.
 
 ### Final output
 
-After all tool calls are complete, write the forecast in this format.
-**For each news item, use the scraped article text from fetch_url (steps 4b/5b/6b) as the basis for the summary — not just the Tavily snippet.** If an article failed to scrape, fall back to the Tavily snippet.
+After all tool calls are complete, write the forecast and nothing else:
 
 ```
 # 📅 Weather Forecast — [Day, Date] at [Time]
 
-## 👤 Good [morning/afternoon/evening], [current authenticated username]
+## 👤 Good [morning/afternoon/evening], [first name from memory]
 
 ## 🌤 Weather — [Location]
 [Paste the markdown table from step 3 exactly as returned — do not reformat]
-
-Format as a numbered list. Each suggestion must be specific and immediately actionable — not generic advice.
-Example: "1. Review the new EU AI regulation draft (in today's world news) — it may affect the compliance work on Project X."
 ```
 
 Be concise. The whole forecast should be readable in under one minute.
