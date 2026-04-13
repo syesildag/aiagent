@@ -1,6 +1,6 @@
 ---
 name: daily-briefing
-description: Daily briefing — weather, time, news and personal context from memory
+description: Personalised daily briefing
 argument-hint: "[city or location]"
 user-invocable: true
 metadata:

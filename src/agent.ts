@@ -92,7 +92,7 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
    // Sub-agents always run without streaming and with freshContext so they
    // don't share or pollute the parent conversation history.
    // Only file-based agents are exposed as sub-agents (populated below after
-   // scanning .claude/agents/ directories).
+   // scanning .aiagent/agents/ directories).
    const subAgentDescriptions: Record<string, string> = {};
 
    const subAgentRunner: SubAgentRunner = async (agentName, prompt, abortSignal) => {
@@ -113,10 +113,10 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
       return typeof result === 'string' ? result : '';
    };
 
-   // Load file-based agents from ~/.claude/agents/ (user-level) and
-   // .claude/agents/ (project-level). Project-level wins on name collision.
-   const userAgentsDir    = path.resolve(os.homedir(),  '.claude', 'agents');
-   const projectAgentsDir = path.resolve(process.cwd(), '.claude', 'agents');
+   // Load file-based agents from ~/.aiagent/agents/ (user-level) and
+   // .aiagent/agents/ (project-level). Project-level wins on name collision.
+   const userAgentsDir    = path.resolve(os.homedir(),  '.aiagent', 'agents');
+   const projectAgentsDir = path.resolve(process.cwd(), '.aiagent', 'agents');
 
    for (const agentsDir of [userAgentsDir, projectAgentsDir]) {
       for (const def of loadAgentDefinitions(agentsDir).values()) {

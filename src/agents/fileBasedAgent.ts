@@ -5,7 +5,7 @@ import AbstractAgent from './abstractAgent';
 /**
  * An agent whose identity, system prompt, tool restrictions, and optional model
  * override are defined by a Markdown file with YAML frontmatter in
- * .claude/agents/ or ~/.claude/agents/.
+ * .aiagent/agents/ or ~/.aiagent/agents/.
  *
  * File format:
  * ---

@@ -7,7 +7,7 @@ import { BM25Index } from './bm25Index';
 import Logger from './logger';
 import { config } from './config';
 
-const DEFAULT_SKILLS_DIR = path.resolve(process.cwd(), '.claude', 'skills');
+const DEFAULT_SKILLS_DIR = path.resolve(process.cwd(), '.aiagent', 'skills');
 
 /** Hardcoded CLI built-in command names that must NOT be shadowed by .md files */
 const BUILTIN_COMMANDS = new Set([

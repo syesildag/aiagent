@@ -6,7 +6,7 @@ This document describes how the unified skills system works — how skills are d
 
 ## Overview
 
-All reusable agent behaviours live in `.claude/skills/`. Each skill is a directory containing a `SKILL.md` file. Skills serve two purposes:
+All reusable agent behaviours live in `.aiagent/skills/`. Each skill is a directory containing a `SKILL.md` file. Skills serve two purposes:
 
 | Mode | Trigger | Mechanism |
 |------|---------|-----------|
@@ -18,11 +18,7 @@ All reusable agent behaviours live in `.claude/skills/`. Each skill is a directo
 ## Directory Layout
 
 ```
-.claude/skills/
-├── code-standards/
-│   └── SKILL.md          # knowledge skill — injectable, no slash command
-├── git-workflow/
-│   └── SKILL.md          # knowledge skill — injectable, no slash command
+.aiagent/skills/
 ├── daily-briefing/
 │   └── SKILL.md          # user-invocable + injectable
 ├── forecast/
@@ -162,7 +158,7 @@ When set, the skill body is returned verbatim to the client without any LLM call
 
 `src/utils/skillLoader.ts` — `loadSkills(skillsDir)`:
 
-1. Recursively walks `.claude/skills/` for directories containing `SKILL.md`
+1. Recursively walks `.aiagent/skills/` for directories containing `SKILL.md`
 2. Parses YAML frontmatter with `gray-matter`
 3. Detects `user-invocable: true` → builds `commandMeta` from `metadata` block
 4. Computes `injectable` (default: `!isUserInvocable`, overridable via `metadata.injectable`)
@@ -181,7 +177,7 @@ When set, the skill body is returned verbatim to the client without any LLM call
 
 ### Knowledge skill (semantic injection only)
 
-Create `.claude/skills/my-topic/SKILL.md`:
+Create `.aiagent/skills/my-topic/SKILL.md`:
 
 ```markdown
 ---
@@ -197,7 +193,7 @@ No `user-invocable` → not a slash command. No `metadata.injectable` → defaul
 
 ### Slash command (user-invocable)
 
-Create `.claude/skills/my-command/SKILL.md`:
+Create `.aiagent/skills/my-command/SKILL.md`:
 
 ```markdown
 ---

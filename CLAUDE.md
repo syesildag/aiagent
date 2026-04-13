@@ -96,7 +96,7 @@ Client (Browser SPA or CLI)
 
 **Embedding service** (`src/utils/embeddingService.ts`): Multi-provider (OpenAI, Ollama, GitHub Copilot, local transformers.js). Supports batch generation, LRU caching (1 h TTL), and pgvector similarity search (`cosineSimilarity`, `dotProduct`, `euclideanDistance`, `findMostSimilar`).
 
-**Slash commands & skills** (`.claude/commands/`, `.claude/skills/`): Reusable prompts with frontmatter (`description`, `allowed-tools`, `model`, etc.), argument substitution (`$1`, `$ARGUMENTS`), file inclusion (`@path`), and bash capture (`` !`cmd` ``). Skills are auto-injected into every agent's system prompt inside a `<skills>...</skills>` block.
+**Slash commands & skills** (`.aiagent/commands/`, `.aiagent/skills/`): Reusable prompts with frontmatter (`description`, `allowed-tools`, `model`, etc.), argument substitution (`$1`, `$ARGUMENTS`), file inclusion (`@path`), and bash capture (`` !`cmd` ``). Skills are auto-injected into every agent's system prompt inside a `<skills>...</skills>` block.
 
 ### Entity Pattern
 

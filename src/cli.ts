@@ -426,7 +426,7 @@ async function main() {
     console.log('\nMCP servers will be initialized on first use.');
     console.log('');
 
-    // Load slash commands and skills from .claude/ directory
+    // Load slash commands and skills from .aiagent/ directory
     slashCommandRegistry.initialize();
     const loadedCommands = slashCommandRegistry.listCommands();
     if (loadedCommands.length > 0) {
@@ -495,7 +495,7 @@ async function main() {
           // Show loaded slash commands
           const cmds = slashCommandRegistry.listCommands();
           if (cmds.length > 0) {
-            console.log('\nSlash commands (from .claude/skills/):');
+            console.log('\nSlash commands (from .aiagent/skills/):');
             for (const cmd of cmds) {
               const hint = cmd.argumentHint ? ` ${cmd.argumentHint}` : '';
               const desc = cmd.description ? ` — ${cmd.description}` : '';

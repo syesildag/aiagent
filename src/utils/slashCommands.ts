@@ -1,6 +1,6 @@
 /**
  * SlashCommand interface — used by commandProcessor.ts and slashCommandRegistry.ts.
- * Commands are now loaded from .claude/skills/ via skillLoader.ts.
+ * Commands are now loaded from .aiagent/skills/ via skillLoader.ts.
  */
 export interface SlashCommand {
   /** Derived name, e.g. "commit" or "git:commit" */

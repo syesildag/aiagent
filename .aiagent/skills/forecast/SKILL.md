@@ -1,6 +1,6 @@
 ---
 name: forecast
-description: Weather forecast — weather, time and personal context from memory
+description: Personalised weather forecast
 argument-hint: "[city or location]"
 user-invocable: true
 metadata:
