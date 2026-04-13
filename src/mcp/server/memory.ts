@@ -85,7 +85,7 @@ const SearchMemoryInputSchema = z.object({
   type: z.string().optional().describe("Filter by memory type"),
   tags: z.array(z.string()).optional().describe("Filter by tags"),
   limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return"),
-  min_similarity: z.number().min(0).max(1).optional().describe("Minimum similarity threshold (0-1). Results below this score are excluded. Default is 0.75."),
+  min_similarity: z.number().min(0).max(1).optional().describe("Minimum similarity threshold (0-1). Results below this score are excluded. Default is 0.5."),
   user_login: z.string().optional().describe("Restrict search to memories of this user")
 });
 
@@ -347,7 +347,7 @@ server.registerTool(
     inputSchema: SearchMemoryInputSchema.shape
   } as any,
   async (args) => {
-    const { query, type, tags, limit = 10, min_similarity = 0.75, user_login } = args as unknown as SearchMemoryArgs;
+    const { query, type, tags, limit = 10, min_similarity = 0.5, user_login } = args as unknown as SearchMemoryArgs;
     try {
       // Discover all distinct embedding models stored for matching memories so
       // that memories stored with a different embedding provider are not silently
