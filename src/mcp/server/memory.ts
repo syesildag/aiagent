@@ -41,6 +41,7 @@ type SearchMemoryArgs = {
   type?: string;
   tags?: string[];
   limit?: number;
+  min_similarity?: number;
   user_login?: string;
 };
 
@@ -83,6 +84,7 @@ const SearchMemoryInputSchema = z.object({
   type: z.string().optional().describe("Filter by memory type"),
   tags: z.array(z.string()).optional().describe("Filter by tags"),
   limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return"),
+  min_similarity: z.number().min(0).max(1).optional().describe("Minimum similarity threshold (0-1). Results below this score are excluded. Default is 0.75."),
   user_login: z.string().optional().describe("Restrict search to memories of this user")
 });
 
@@ -344,7 +346,7 @@ server.registerTool(
     inputSchema: SearchMemoryInputSchema.shape
   } as any,
   async (args) => {
-    const { query, type, tags, limit = 10, user_login } = args as unknown as SearchMemoryArgs;
+    const { query, type, tags, limit = 10, min_similarity = 0.75, user_login } = args as unknown as SearchMemoryArgs;
     try {
       // Generate embedding for search query — capture which model was used
       // so the WHERE clause only compares same-dimension rows.
@@ -362,6 +364,12 @@ server.registerTool(
 
       const queryParams: any[] = [`[${queryEmbedding.join(',')}]`, embeddingModel];
       let paramCount = 2;
+
+      if (type) {
+        paramCount++;
+        sqlQuery += ` AND type = $${paramCount}`;
+        queryParams.push(type);
+      }
 
       if (user_login) {
         paramCount++;
@@ -381,8 +389,14 @@ server.registerTool(
       `;
       queryParams.push(limit);
 
-      Logger.debug(`[Memory] SQL: ${sqlQuery.replace(/\s+/g, ' ').trim()} | params: ${JSON.stringify(queryParams.map((p, i) => i === 0 ? '<embedding>' : p))}`);
-      const result = await queryDatabase(sqlQuery, queryParams);
+      // Apply minimum similarity filter after fetching (pgvector orders by distance, not similarity)
+      // Re-query with HAVING-equivalent using a subquery
+      const wrappedSql = `SELECT * FROM (${sqlQuery.trim()}) AS ranked WHERE similarity >= $${paramCount + 2}`;
+      queryParams.push(min_similarity);
+      const finalSql = wrappedSql;
+
+      Logger.debug(`[Memory] SQL: ${finalSql.replace(/\s+/g, ' ').trim()} | params: ${JSON.stringify(queryParams.map((p, i) => i === 0 ? '<embedding>' : p))}`);
+      const result = await queryDatabase(finalSql, queryParams);
 
       Logger.info(`Found ${result.length} memories for query: "${query}"`);
       result.forEach((row: any) => {
