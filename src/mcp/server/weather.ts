@@ -400,18 +400,19 @@ server.registerTool(
       const data = await makeWeatherRequest(url);
       const weatherData = formatWeatherData(data, units);
 
-      const summary = `📍 **${weatherData.location}, ${weatherData.country}**
-
-🌡️ **Temperature:** ${formatTemperature(weatherData.temperature, units)} (feels like ${formatTemperature(weatherData.feels_like, units)})
-🌤️ **Conditions:** ${weatherData.weather.description}
-💨 **Wind:** ${formatWindSpeed(weatherData.wind.speed, units)} at ${weatherData.wind.deg}°
-💧 **Humidity:** ${weatherData.humidity}%
-📊 **Pressure:** ${weatherData.pressure} hPa
-☁️ **Cloud Cover:** ${weatherData.clouds}%
-👁️ **Visibility:** ${(weatherData.visibility / 1000).toFixed(1)} km
-
-🌅 **Sunrise:** ${new Date(weatherData.sunrise * 1000).toLocaleTimeString()}
-🌇 **Sunset:** ${new Date(weatherData.sunset * 1000).toLocaleTimeString()}`;
+      const nl = '  \n'; // two trailing spaces = markdown hard line break
+      const summary = [
+        `📍 **${weatherData.location}, ${weatherData.country}**`,
+        `🌡️ **Temperature:** ${formatTemperature(weatherData.temperature, units)} (feels like ${formatTemperature(weatherData.feels_like, units)})`,
+        `🌤️ **Conditions:** ${weatherData.weather.description}`,
+        `💨 **Wind:** ${formatWindSpeed(weatherData.wind.speed, units)} at ${weatherData.wind.deg}°`,
+        `💧 **Humidity:** ${weatherData.humidity}%`,
+        `📊 **Pressure:** ${weatherData.pressure} hPa`,
+        `☁️ **Cloud Cover:** ${weatherData.clouds}%`,
+        `👁️ **Visibility:** ${(weatherData.visibility / 1000).toFixed(1)} km`,
+        `🌅 **Sunrise:** ${new Date(weatherData.sunrise * 1000).toLocaleTimeString()}`,
+        `🌇 **Sunset:** ${new Date(weatherData.sunset * 1000).toLocaleTimeString()}`,
+      ].join(nl);
 
       Logger.info(`Retrieved current weather for ${resolvedLocation}`);
 
