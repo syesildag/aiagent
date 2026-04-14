@@ -92,7 +92,7 @@ export class PlaywrightBrowserBackend implements IBrowserBackend {
 
     async screenshot(path?: string, options?: { fullPage?: boolean }): Promise<Buffer | void> {
         await this.ensurePage();
-        const buffer = await this.page!.screenshot({ path, fullPage: options?.fullPage });
+        const buffer = await this.page!.screenshot({ path, fullPage: options?.fullPage, timeout: 30_000 });
         return path ? undefined : (buffer as Buffer);
     }
 
