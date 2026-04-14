@@ -41,7 +41,7 @@ mkdir -p ~/.claude/skills/frontend-slides/scripts
 
 # Copy all files (or clone this repo directly)
 cp SKILL.md STYLE_PRESETS.md viewport-base.css html-template.md animation-patterns.md ~/.claude/skills/frontend-slides/
-cp scripts/extract-pptx.py ~/.claude/skills/frontend-slides/scripts/
+cp scripts/extract-pptx.ts ~/.claude/skills/frontend-slides/scripts/
 ```
 
 Or clone directly:
@@ -119,8 +119,7 @@ This skill uses **progressive disclosure** — the main `SKILL.md` is a concise 
 | `viewport-base.css`       | Mandatory responsive CSS       | Phase 3 (generation)      |
 | `html-template.md`        | HTML structure and JS features | Phase 3 (generation)      |
 | `animation-patterns.md`   | CSS/JS animation reference     | Phase 3 (generation)      |
-| `scripts/extract-pptx.py` | PPT content extraction         | Phase 4 (conversion)      |
-| `scripts/deploy.sh`       | Deploy to Vercel               | Phase 6 (sharing)         |
+| `scripts/extract-pptx.ts` | PPT content extraction         | Phase 4 (conversion)      |
 | `scripts/export-pdf.sh`   | Export slides to PDF           | Phase 6 (sharing)         |
 
 This design follows [OpenAI's harness engineering](https://openai.com/index/harness-engineering/) principle: "give the agent a map, not a 1,000-page instruction manual."
@@ -139,19 +138,7 @@ This skill was born from the belief that:
 
 ## Sharing Your Presentations
 
-After creating a presentation, the skill offers two ways to share it:
-
-### Deploy to a Live URL
-
-One command deploys your slides to a permanent, shareable URL that works on any device — phones, tablets, laptops:
-
-```bash
-bash scripts/deploy.sh ./my-deck/
-# or
-bash scripts/deploy.sh ./presentation.html
-```
-
-Uses [Vercel](https://vercel.com) (free tier). The skill walks you through signup and login if it's your first time.
+After creating a presentation, the skill offers a way to share it:
 
 ### Export to PDF
 
@@ -167,15 +154,8 @@ Uses [Playwright](https://playwright.dev) to screenshot each slide at 1920×1080
 ## Requirements
 
 - [Claude Code](https://claude.ai/claude-code) CLI
-- For PPT conversion: Python with `python-pptx` library
-- For URL deployment: Node.js + Vercel account (free)
+- For PPT conversion: Node.js + `npx tsx` (install deps once: `cd scripts && npm install`)
 - For PDF export: Node.js (Playwright installs automatically)
-
-## Credits
-
-Created by [@zarazhangrui](https://github.com/zarazhangrui) with Claude Code.
-
-Inspired by the "Vibe Coding" philosophy — building beautiful things without being a traditional software engineer.
 
 ## License
 

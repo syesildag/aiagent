@@ -13,7 +13,7 @@ export default class DynamicJobLoaderJob extends JobFactory {
 
    protected getJobCallback() {
       return (fireDate: Date) => {
-         Logger.debug("watchDog: " + fireDate);
+         Logger.debug("dynamicJobLoaderJob: " + fireDate);
          loadDynamicJobs().catch(err =>
             Logger.error(`[DynamicJobLoaderJob] loadDynamicJobs error: ${err}`)
          );
