@@ -27,8 +27,10 @@ agentsRouter.get("/commands", asyncHandler(async (req: Request, res: Response) =
       try {
          const agent = await getAgentFromName(agentName);
          agentAllowedServers = agent.getAllowedServerNames();
+         Logger.debug(`[commands] agent="${agentName}" allowedServers=${JSON.stringify(agentAllowedServers)}`);
       } catch {
          // Unknown agent — return all commands unfiltered
+         Logger.warn(`[commands] unknown agent="${agentName}", returning all commands unfiltered`);
       }
    }
 
@@ -51,6 +53,7 @@ agentsRouter.get("/commands", asyncHandler(async (req: Request, res: Response) =
          allowedTools: cmd.allowedTools,
       }));
    const skills = Array.from(slashCommandRegistry.getSkills().keys());
+   Logger.debug(`[commands] returning ${commands.length}/${allCommands.length} commands, ${skills.length} skills${agentName ? ` for agent="${agentName}"` : ''}`);
    res.json({ commands, skills });
 }));
 
