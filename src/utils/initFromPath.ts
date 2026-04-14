@@ -12,6 +12,7 @@ import { Constructor } from "./annotations";
 export async function initFromPath<T>(
    basePath: string,
    jobsPath: string,
+   baseClass: abstract new (...args: any[]) => T,
    consumer?: (instance: T) => void
 ) {
    const JOBS = await getAbsoluteFileNamesFromDir(path.join(basePath, jobsPath));
@@ -40,6 +41,10 @@ export async function initFromPath<T>(
             }
 
             const instance: T = new ModuleClass();
+            if (!(instance instanceof baseClass)) {
+               Logger.error(`Module ${file} does not extend expected base class ${baseClass.name}`);
+               return;
+            }
             if (consumer) {
                consumer(instance);
             }
@@ -59,8 +64,8 @@ export async function initFromPath<T>(
  * @param relativePath - Path relative to basePath
  * @param consumer - Optional callback function to handle each initialized object
  */
-export function createInitializer<T>(basePath: string) {
+export function createInitializer<T>(basePath: string, baseClass: abstract new (...args: any[]) => T) {
    return (relativePath: string, consumer?: (instance: T) => void) => {
-      return initFromPath<T>(basePath, relativePath, consumer);
+      return initFromPath<T>(basePath, relativePath, baseClass, consumer);
    };
 }

@@ -233,7 +233,7 @@ async function gracefulShutdown(event: NodeJS.Signals) {
  * Convenience function to schedule jobs using the default configuration
  */
 async function scheduleJobs() {
-   return await initFromPath<JobFactory>(__dirname, 'jobs', async (jobFactory: JobFactory) => {
+   return await initFromPath<JobFactory>(__dirname, 'jobs', JobFactory, async (jobFactory: JobFactory) => {
       // Allow DB-backed jobs (DbJobFactory) to upsert their DB record and read
       // initial state before the timer is created. No-op for plain JobFactory subclasses.
       await jobFactory.initialize();
