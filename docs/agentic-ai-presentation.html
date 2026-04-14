@@ -4,1920 +4,970 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>How Agentic AI Works</title>
+
+<!-- Fonts: Archivo Black (display), DM Sans (body), JetBrains Mono (code) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,300;1,9..144,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
 <style>
-/* ═══════════════════════════════════════════════════════════
-   CSS VARIABLES & RESET
-═══════════════════════════════════════════════════════════ */
+/* === CSS CUSTOM PROPERTIES — Signal Override Theme ============= */
 :root {
-  --ink:      #07070d;
-  --surface:  #0d0d18;
-  --card:     #131322;
-  --border:   rgba(255,255,255,0.07);
-  --text:     #e2e2f0;
-  --muted:    #5a5a78;
-  --dim:      #2a2a40;
-
-  /* Signal colors — borrowed from the animation */
-  --cyan:     #00f5ff;
-  --user:     #ff6b6b;
-  --llm:      #7b8cde;
-  --tool:     #f0a500;
-  --result:   #4caf80;
-  --system:   #8b8ba0;
-
-  --cyan-glow:   rgba(0,245,255,0.15);
-  --user-bg:     rgba(255,107,107,0.10);
-  --llm-bg:      rgba(123,140,222,0.10);
-  --tool-bg:     rgba(240,165,0,0.10);
-  --result-bg:   rgba(76,175,128,0.10);
-
-  --slide-gap: clamp(0.8rem, 2vw, 1.6rem);
+  --bg:         #0d0d11;
+  --surface:    #13131a;
+  --card:       #1a1a24;
+  --border:     rgba(255,255,255,0.06);
+  --amber:         #f59e0b;
+  --amber-bg:      rgba(245,158,11,0.1);
+  --amber-border:  rgba(245,158,11,0.25);
+  --user:   #ff6b6b;
+  --llm:    #7b8cde;
+  --tool:   #f59e0b;
+  --result: #4ade80;
+  --system: #8b8ba0;
+  --user-bg:   rgba(255,107,107,0.1);
+  --llm-bg:    rgba(123,140,222,0.1);
+  --tool-bg:   rgba(245,158,11,0.1);
+  --result-bg: rgba(74,222,128,0.1);
+  --system-bg: rgba(139,139,160,0.08);
+  --text:  #f0ece3;
+  --muted: rgba(240,236,227,0.42);
+  --font-display: 'Archivo Black', sans-serif;
+  --font-body:    'DM Sans', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+  --title-size:  clamp(1.75rem, 4.5vw, 3.6rem);
+  --h2-size:     clamp(1.3rem, 3vw, 2.6rem);
+  --body-size:   clamp(0.72rem, 1.25vw, 0.95rem);
+  --small-size:  clamp(0.58rem, 0.85vw, 0.75rem);
+  --pad:         clamp(1.25rem, 4vw, 4rem);
+  --gap:         clamp(0.5rem, 1.5vw, 1.25rem);
+  --gap-sm:      clamp(0.25rem, 0.75vw, 0.625rem);
+  --card-w: clamp(200px, 27vw, 310px);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur:  0.5s;
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+/* === VIEWPORT BASE CSS ========================================= */
+html, body { height: 100%; overflow-x: hidden; }
 html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
-
-body {
-  font-family: 'DM Sans', sans-serif;
-  background: var(--ink);
-  color: var(--text);
-  overflow-x: hidden;
-  cursor: default;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   SLIDE BASE — every slide fits exactly in 100vh
-═══════════════════════════════════════════════════════════ */
 .slide {
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
-  position: relative;
-  scroll-snap-align: start;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: clamp(1.5rem, 4vw, 3.5rem) clamp(1.5rem, 6vw, 5rem);
+  width: 100vw; height: 100vh; height: 100dvh;
+  overflow: hidden; scroll-snap-align: start;
+  display: flex; flex-direction: column; position: relative;
+}
+.slide-content {
+  flex: 1; display: flex; flex-direction: column;
+  justify-content: center; max-height: 100%; overflow: hidden; padding: var(--pad);
+}
+@media (max-height: 700px) {
+  :root { --pad: clamp(0.75rem,3vw,2rem); --gap: clamp(0.3rem,1.2vw,0.75rem);
+          --title-size: clamp(1.4rem,4vw,2.5rem); --h2-size: clamp(1.1rem,2.8vw,1.8rem); }
+}
+@media (max-height: 600px) {
+  :root { --pad: clamp(0.5rem,2.5vw,1.25rem); --gap: clamp(0.2rem,0.8vw,0.5rem);
+          --title-size: clamp(1.2rem,3.5vw,2rem); --body-size: clamp(0.6rem,1.1vw,0.85rem); }
+  .nav-dots { display: none; }
+}
+@media (max-height: 500px) {
+  :root { --pad: clamp(0.4rem,2vw,1rem); --title-size: clamp(1rem,3vw,1.5rem);
+          --h2-size: clamp(0.85rem,2.5vw,1.2rem); --body-size: clamp(0.6rem,1vw,0.8rem); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; }
+  html { scroll-behavior: auto; }
 }
 
-/* ── Circuit-board background pattern ── */
-.slide::before {
-  content: '';
-  position: absolute;
-  inset: 0;
+/* === BASE ====================================================== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-body); background: var(--bg); color: var(--text); overflow-y: scroll; }
+
+/* === ANIMATIONS ================================================ */
+.reveal {
+  opacity: 0; transform: translateY(20px);
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.slide.visible .reveal { opacity: 1; transform: translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay: 0.07s; }
+.slide.visible .reveal:nth-child(2) { transition-delay: 0.16s; }
+.slide.visible .reveal:nth-child(3) { transition-delay: 0.25s; }
+.slide.visible .reveal:nth-child(4) { transition-delay: 0.34s; }
+.slide.visible .reveal:nth-child(5) { transition-delay: 0.43s; }
+.slide.visible .reveal:nth-child(6) { transition-delay: 0.52s; }
+.slide.visible .reveal:nth-child(7) { transition-delay: 0.60s; }
+.slide.visible .reveal:nth-child(8) { transition-delay: 0.68s; }
+.reveal-right {
+  opacity: 0; transform: translateX(clamp(16px, 3vw, 32px));
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+  transition-delay: 0.12s;
+}
+.slide.visible .reveal-right { opacity: 1; transform: translateX(0); }
+
+/* === GRID BACKGROUND =========================================== */
+.grid-bg::before {
+  content: ''; position: absolute; inset: 0;
   background-image:
-    linear-gradient(rgba(0,245,255,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,245,255,0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events: none;
-  z-index: 0;
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: clamp(30px,4.5vw,52px) clamp(30px,4.5vw,52px);
+  pointer-events: none; z-index: 0;
 }
 
-.slide > * { position: relative; z-index: 1; }
-
-/* ═══════════════════════════════════════════════════════════
-   NAVIGATION DOTS
-═══════════════════════════════════════════════════════════ */
-.nav-dots {
-  position: fixed;
-  right: clamp(0.8rem, 2vw, 1.5rem);
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 100;
+/* === LAYOUT: TWO-COLUMN ======================================== */
+.layout-split {
+  flex: 1; display: grid;
+  grid-template-columns: 1fr var(--card-w); overflow: hidden;
+}
+.split-left {
+  padding: var(--pad); display: flex; flex-direction: column;
+  justify-content: center; gap: var(--gap-sm); position: relative; z-index: 2; overflow: hidden;
+}
+.ghost-num {
+  font-family: var(--font-display);
+  font-size: clamp(60px,13vw,148px); line-height: 0.85;
+  color: rgba(255,255,255,0.026); position: absolute;
+  top: clamp(8px,1.5vw,16px); left: clamp(14px,2.5vw,28px);
+  letter-spacing: -4px; user-select: none; pointer-events: none; z-index: 1;
 }
 
-.nav-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--dim);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: background 0.3s, transform 0.3s, border-color 0.3s;
+/* === TYPOGRAPHY COMPONENTS ===================================== */
+.tag {
+  font-family: var(--font-mono); font-size: var(--small-size);
+  letter-spacing: 0.14em; color: var(--amber); text-transform: uppercase;
+  display: flex; align-items: center; gap: 6px;
 }
-
-.nav-dot:hover { transform: scale(1.4); border-color: var(--cyan); }
-.nav-dot.active { background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
-
-/* ═══════════════════════════════════════════════════════════
-   COMMON COMPONENTS
-═══════════════════════════════════════════════════════════ */
-.eyebrow {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.55rem, 1vw, 0.7rem);
-  font-weight: 500;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--cyan);
-  margin-bottom: clamp(0.5rem, 1.5vh, 1rem);
-  opacity: 0;
-  animation: fadeUp 0.7s 0.1s forwards;
-}
+.tag::before { content: '//'; opacity: 0.5; }
 
 .slide-title {
-  font-family: 'IBM Plex Mono', monospace;
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  color: var(--text);
+  font-family: var(--font-display); font-size: var(--title-size);
+  line-height: 1.0; letter-spacing: -0.03em; color: var(--text);
+}
+.slide-title em, .slide-h2 em { font-style: normal; color: var(--amber); }
+
+.slide-h2 {
+  font-family: var(--font-display); font-size: var(--h2-size);
+  line-height: 1.05; letter-spacing: -0.025em; color: var(--text);
+}
+.slide-body { font-size: var(--body-size); color: var(--muted); line-height: 1.65; max-width: 52ch; }
+.mono {
+  font-family: var(--font-mono); font-size: calc(var(--body-size) * 0.9);
+  color: var(--llm); background: rgba(123,140,222,0.1);
+  border: 1px solid rgba(123,140,222,0.2); border-radius: 3px; padding: 1px 5px;
 }
 
+/* Role badges */
+.role-badges { display: flex; flex-wrap: wrap; gap: var(--gap-sm); }
 .badge {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.6rem, 1vw, 0.7rem);
-  font-weight: 500;
-  border-radius: 4px;
-  padding: 3px 10px;
-  letter-spacing: 0.05em;
+  font-family: var(--font-mono); font-size: var(--small-size);
+  padding: 3px 9px; border-radius: 4px; border: 1px solid; letter-spacing: 0.05em;
+  transition: transform 0.18s;
 }
+.badge:hover { transform: translateY(-1px); }
+.b-sys  { color: var(--system); border-color: rgba(139,139,160,0.3); background: var(--system-bg); }
+.b-usr  { color: var(--user);   border-color: rgba(255,107,107,0.3); background: var(--user-bg); }
+.b-llm  { color: var(--llm);    border-color: rgba(123,140,222,0.3); background: var(--llm-bg); }
+.b-tool { color: var(--tool);   border-color: rgba(245,158,11,0.3);  background: var(--tool-bg); }
+.b-res  { color: var(--result); border-color: rgba(74,222,128,0.3);  background: var(--result-bg); }
 
-/* ═══════════════════════════════════════════════════════════
-   ANIMATIONS
-═══════════════════════════════════════════════════════════ */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
+/* Bullet lists */
+.bullets { list-style: none; display: flex; flex-direction: column; gap: var(--gap-sm); max-width: 52ch; }
+.bullets li {
+  font-size: var(--body-size); color: var(--muted); line-height: 1.55;
+  display: flex; align-items: flex-start; gap: clamp(5px,0.9vw,9px);
 }
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+.b-icon {
+  flex-shrink: 0; width: clamp(13px,1.6vw,17px); height: clamp(13px,1.6vw,17px);
+  border-radius: 3px; border: 1px solid; display: flex; align-items: center;
+  justify-content: center; font-family: var(--font-mono);
+  font-size: clamp(6px,0.7vw,8px); margin-top: 2px;
 }
+.bi-amb  { border-color: rgba(245,158,11,0.5);  color: var(--tool); }
+.bi-blue { border-color: rgba(123,140,222,0.5); color: var(--llm); }
+.bi-grn  { border-color: rgba(74,222,128,0.5);  color: var(--result); }
 
-@keyframes glowPulse {
-  0%, 100% { text-shadow: 0 0 20px rgba(0,245,255,0.4); }
-  50%       { text-shadow: 0 0 40px rgba(0,245,255,0.8), 0 0 80px rgba(0,245,255,0.3); }
+/* === AMBER CARD ================================================ */
+.amber-card {
+  background: var(--amber); display: flex; flex-direction: column;
+  justify-content: center; padding: var(--pad);
+  position: relative; overflow: hidden; z-index: 2;
 }
-
-@keyframes scanLine {
-  0%   { transform: translateY(-100%); }
-  100% { transform: translateY(200vh); }
+.amber-card::before {
+  content: ''; position: absolute;
+  top: calc(-1 * clamp(28px,5.5vw,56px)); right: calc(-1 * clamp(28px,5.5vw,56px));
+  width: clamp(130px,20vw,210px); height: clamp(130px,20vw,210px);
+  border-radius: 50%; background: rgba(255,255,255,0.1); pointer-events: none;
 }
-
-@keyframes orbitDot {
-  from { transform: rotate(0deg) translateX(58px) rotate(0deg); }
-  to   { transform: rotate(360deg) translateX(58px) rotate(-360deg); }
+.amber-card::after {
+  content: ''; position: absolute;
+  bottom: calc(-1 * clamp(18px,3.5vw,36px)); left: calc(-1 * clamp(18px,3.5vw,36px));
+  width: clamp(90px,14vw,150px); height: clamp(90px,14vw,150px);
+  border-radius: 50%; background: rgba(0,0,0,0.06); pointer-events: none;
 }
-
-@keyframes orbitDot2 {
-  from { transform: rotate(120deg) translateX(58px) rotate(-120deg); }
-  to   { transform: rotate(480deg) translateX(58px) rotate(-480deg); }
+.ac-label {
+  font-family: var(--font-mono); font-size: var(--small-size); letter-spacing: 0.2em;
+  text-transform: uppercase; color: rgba(13,13,17,0.5); position: relative; z-index: 2;
+  margin-bottom: clamp(4px,0.8vw,9px);
 }
-
-@keyframes orbitDot3 {
-  from { transform: rotate(240deg) translateX(58px) rotate(-240deg); }
-  to   { transform: rotate(600deg) translateX(58px) rotate(-600deg); }
+.ac-stat {
+  font-family: var(--font-display); font-size: clamp(38px,7.5vw,84px);
+  color: #0d0d11; line-height: 0.9; letter-spacing: -0.04em; position: relative; z-index: 2;
 }
-
-@keyframes ripple {
-  0%   { transform: scale(1); opacity: 0.6; }
-  100% { transform: scale(2.5); opacity: 0; }
+.ac-sub {
+  font-size: var(--body-size); color: rgba(13,13,17,0.58);
+  margin-top: clamp(3px,0.6vw,7px); font-weight: 500; line-height: 1.4; position: relative; z-index: 2;
 }
-
-@keyframes blinkCursor {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
+.ac-div {
+  width: clamp(22px,3.5vw,34px); height: 2px; background: rgba(13,13,17,0.22);
+  margin: clamp(7px,1.3vw,13px) 0; position: relative; z-index: 2;
 }
-
-@keyframes typewriter {
-  from { width: 0; }
-  to   { width: 100%; }
+.ac-code {
+  font-family: var(--font-mono); font-size: clamp(7px,0.82vw,10px);
+  color: rgba(13,13,17,0.46); line-height: 1.9; position: relative; z-index: 2;
 }
+.ac-code .cfn  { color: rgba(13,13,17,0.72); font-weight: 700; }
+.ac-code .ckey { color: rgba(13,13,17,0.58); }
+.ac-code .cnum { color: rgba(13,13,17,0.72); font-weight: 700; }
+.ac-code .ccmt { color: rgba(13,13,17,0.32); font-style: italic; }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-8px); }
+/* === SLIDE HEADER BAR ========================================== */
+.s-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: clamp(8px,1.3vw,14px) var(--pad);
+  border-bottom: 1px solid var(--border);
+  background: rgba(13,13,17,0.82); backdrop-filter: blur(8px);
+  flex-shrink: 0; z-index: 10;
 }
+.sh-label { font-family: var(--font-mono); font-size: var(--small-size); color: var(--muted); letter-spacing: 0.08em; }
+.sh-num   { font-family: var(--font-mono); font-size: var(--small-size); color: rgba(245,158,11,0.45); }
 
-@keyframes flashIn {
-  0%   { opacity: 0; background: rgba(0,245,255,0.2); }
-  30%  { opacity: 1; background: rgba(0,245,255,0.08); }
-  100% { opacity: 1; background: var(--card); }
+/* === MESSAGES STACK VISUAL ==================================== */
+.msg-stack { display: flex; flex-direction: column; gap: clamp(3px,0.5vw,5px); max-width: 54ch; }
+.msg-row {
+  display: flex; align-items: center; gap: clamp(5px,0.9vw,9px);
+  padding: clamp(4px,0.7vw,7px) clamp(7px,1.1vw,11px);
+  border-radius: 5px; border: 1px solid transparent;
+  font-family: var(--font-mono); font-size: clamp(8px,0.82vw,10px);
 }
+.mi { color: rgba(255,255,255,0.22); flex-shrink: 0; min-width: clamp(20px,2.5vw,26px); }
+.mr { font-weight: 700; letter-spacing: 0.04em; flex-shrink: 0; min-width: clamp(56px,8.5vw,96px); }
+.mc { color: rgba(240,236,227,0.42); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.m-sys  { background: var(--system-bg); border-color: rgba(139,139,160,0.16); color: var(--system); }
+.m-usr  { background: var(--user-bg);   border-color: rgba(255,107,107,0.16); color: var(--user); }
+.m-asst { background: var(--llm-bg);    border-color: rgba(123,140,222,0.16); color: var(--llm); }
+.m-tu   { background: var(--tool-bg);   border-color: rgba(245,158,11,0.16);  color: var(--tool); }
+.m-tr   { background: var(--result-bg); border-color: rgba(74,222,128,0.16);  color: var(--result); }
 
-@keyframes slideRight {
-  from { opacity: 0; transform: translateX(-30px); }
-  to   { opacity: 1; transform: translateX(0); }
+/* === PARALLEL DIAGRAM ========================================= */
+.par-diag { display: flex; flex-direction: column; gap: clamp(4px,0.7vw,8px); max-width: 54ch; }
+.pd-row  { display: flex; align-items: center; gap: clamp(5px,0.9vw,9px); }
+.pd-node {
+  font-family: var(--font-mono); font-size: clamp(8px,0.82vw,10px);
+  padding: clamp(3px,0.6vw,6px) clamp(9px,1.4vw,13px);
+  border-radius: 5px; border: 1px solid transparent; white-space: nowrap;
 }
+.pd-arr  { color: var(--muted); font-size: var(--body-size); flex-shrink: 0; }
+.pd-hint { font-family: var(--font-mono); font-size: clamp(6px,0.7vw,8px); color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+.pd-parallel { display: flex; flex-direction: column; gap: clamp(3px,0.5vw,5px); padding-left: clamp(10px,1.8vw,18px); border-left: 2px solid rgba(245,158,11,0.3); }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   SLIDE 1 — TITLE
-═══════════════════════════════════════════════════════════ */
-#slide-1 {
-  background: var(--ink);
-  justify-content: center;
-}
-
-/* Scan-line flicker effect */
-#slide-1::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
-  opacity: 0.4;
-  animation: scanLine 4s linear infinite;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.title-orb {
-  position: absolute;
-  width: min(60vmin, 600px);
-  height: min(60vmin, 600px);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(0,245,255,0.06) 0%, transparent 65%);
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.title-ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 1px solid rgba(0,245,255,0.08);
-  animation: ripple 4s ease-out infinite;
-}
-.title-ring:nth-child(2) { width: 300px; height: 300px; top: 50%; left: 50%; transform: translate(-50%, -50%); animation-delay: 0s; }
-.title-ring:nth-child(3) { width: 300px; height: 300px; top: 50%; left: 50%; transform: translate(-50%, -50%); animation-delay: 1.3s; }
-.title-ring:nth-child(4) { width: 300px; height: 300px; top: 50%; left: 50%; transform: translate(-50%, -50%); animation-delay: 2.6s; }
-
-.title-content {
-  text-align: center;
-  max-width: 900px;
-}
-
-.title-kicker {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.65rem, 1.2vw, 0.85rem);
-  font-weight: 400;
-  letter-spacing: 0.25em;
-  text-transform: uppercase;
-  color: var(--cyan);
-  margin-bottom: clamp(1rem, 2.5vh, 1.8rem);
-  opacity: 0;
-  animation: fadeUp 0.8s 0.3s forwards;
-}
-
-.title-kicker::before {
-  content: '// ';
-  opacity: 0.5;
-}
-
-.main-title {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(2.2rem, 6vw, 5.5rem);
-  font-weight: 700;
-  line-height: 1.0;
-  letter-spacing: -0.04em;
-  color: var(--text);
-  opacity: 0;
-  animation: fadeUp 0.9s 0.5s forwards;
-}
-
-.main-title .accent {
-  color: var(--cyan);
-  animation: glowPulse 3s 1.4s ease-in-out infinite;
-  display: inline-block;
-}
-
-.title-sub {
-  font-family: 'Fraunces', serif;
-  font-style: italic;
-  font-size: clamp(1rem, 2vw, 1.5rem);
-  font-weight: 300;
-  color: var(--muted);
-  margin-top: clamp(0.8rem, 2vh, 1.4rem);
-  opacity: 0;
-  animation: fadeUp 0.8s 0.8s forwards;
-}
-
-.title-meta {
-  margin-top: clamp(1.5rem, 4vh, 2.5rem);
-  display: flex;
-  gap: 1.5rem;
-  justify-content: center;
-  flex-wrap: wrap;
-  opacity: 0;
-  animation: fadeUp 0.8s 1.1s forwards;
-}
-
-.meta-chip {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.6rem, 1vw, 0.72rem);
-  color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 4px 10px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.meta-chip .dot {
-  width: 5px; height: 5px;
-  border-radius: 50%;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   SLIDE 2 — AGENTIC LOOP OVERVIEW
-═══════════════════════════════════════════════════════════ */
-#slide-2 {
-  background: linear-gradient(160deg, #07070d 0%, #0a0a16 100%);
-}
-
-.loop-layout {
-  width: 100%;
-  max-width: 1000px;
-  display: grid;
-  grid-template-columns: 1fr 1.1fr;
-  gap: clamp(1.5rem, 3vw, 3rem);
-  align-items: center;
-}
-
-.loop-text { }
-
-.loop-diagram {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: clamp(240px, 40vh, 380px);
-}
-
-/* Central LLM node */
-.llm-node {
-  position: relative;
-  width: clamp(80px, 12vw, 120px);
-  height: clamp(80px, 12vw, 120px);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(123,140,222,0.3) 0%, rgba(123,140,222,0.05) 70%);
-  border: 1.5px solid rgba(123,140,222,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  flex-shrink: 0;
-  box-shadow: 0 0 30px rgba(123,140,222,0.2);
-  animation: float 3s ease-in-out infinite;
-  z-index: 2;
-}
-
-.llm-node-label {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.7rem, 1.2vw, 0.9rem);
-  font-weight: 600;
-  color: var(--llm);
-  line-height: 1;
-}
-
-.llm-node-sub {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.48rem, 0.7vw, 0.6rem);
-  color: rgba(123,140,222,0.6);
-  margin-top: 3px;
-}
-
-/* Orbiting dots */
-.orbit-container {
-  position: absolute;
-  width: clamp(120px, 20vw, 180px);
-  height: clamp(120px, 20vw, 180px);
-}
-
-.orbit-dot {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  margin-top: -6px;
-  margin-left: -6px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.orbit-dot-1 {
-  background: var(--user);
-  box-shadow: 0 0 10px var(--user);
-  animation: orbitDot 4s linear infinite;
-}
-
-.orbit-dot-2 {
-  background: var(--tool);
-  box-shadow: 0 0 10px var(--tool);
-  animation: orbitDot2 4s linear infinite;
-}
-
-.orbit-dot-3 {
-  background: var(--result);
-  box-shadow: 0 0 10px var(--result);
-  animation: orbitDot3 4s linear infinite;
-}
-
-/* Surrounding concept nodes */
-.concept-nodes {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.c-node {
-  position: absolute;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.55rem, 0.85vw, 0.72rem);
-  font-weight: 500;
-  padding: 5px 10px;
-  border-radius: 5px;
-  white-space: nowrap;
-  border: 1px solid;
-  opacity: 0;
-  animation: fadeIn 0.6s forwards;
-}
-
-.c-node.user-node  { top: 5%;  left: 0; color: var(--user);   background: var(--user-bg);   border-color: rgba(255,107,107,0.25); animation-delay: 0.4s; }
-.c-node.tool-node  { bottom: 15%; left: 2%; color: var(--tool);   background: var(--tool-bg);   border-color: rgba(240,165,0,0.25); animation-delay: 0.6s; }
-.c-node.res-node   { bottom: 15%; right: 2%; color: var(--result); background: var(--result-bg); border-color: rgba(76,175,128,0.25); animation-delay: 0.8s; }
-.c-node.sys-node   { top: 5%;  right: 0; color: var(--system); background: rgba(139,139,160,0.08); border-color: rgba(139,139,160,0.2); animation-delay: 0.2s; }
-
-.loop-title {
-  font-size: clamp(1.6rem, 3.5vw, 2.8rem);
-  font-weight: 600;
-  margin-bottom: clamp(0.6rem, 1.5vh, 1rem);
-  opacity: 0;
-  animation: fadeUp 0.8s 0.2s forwards;
-}
-
-.loop-desc {
-  font-size: clamp(0.8rem, 1.3vw, 1rem);
-  line-height: 1.65;
-  color: var(--muted);
-  opacity: 0;
-  animation: fadeUp 0.8s 0.4s forwards;
-  margin-bottom: clamp(0.8rem, 2vh, 1.4rem);
-}
-
-.loop-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.loop-step {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.65rem, 1vw, 0.8rem);
-  opacity: 0;
-}
-
-.loop-step:nth-child(1) { animation: slideRight 0.6s 0.5s forwards; }
-.loop-step:nth-child(2) { animation: slideRight 0.6s 0.65s forwards; }
-.loop-step:nth-child(3) { animation: slideRight 0.6s 0.8s forwards; }
-.loop-step:nth-child(4) { animation: slideRight 0.6s 0.95s forwards; }
-.loop-step:nth-child(5) { animation: slideRight 0.6s 1.1s forwards; }
-
-.step-num {
-  width: 22px; height: 22px;
-  border-radius: 4px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 0.65rem;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   SLIDE 3 — THE MESSAGE STACK
-═══════════════════════════════════════════════════════════ */
-#slide-3 {
-  background: var(--ink);
-  align-items: flex-start;
-}
-
-.message-layout {
-  width: 100%;
-  max-width: 1050px;
-}
-
-.section-header {
-  margin-bottom: clamp(0.8rem, 2vh, 1.4rem);
-  opacity: 0;
-  animation: fadeUp 0.7s 0.1s forwards;
-}
-
-.section-title {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(1.4rem, 3vw, 2.4rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-}
-
-.section-subtitle {
-  font-family: 'Fraunces', serif;
-  font-style: italic;
-  font-size: clamp(0.8rem, 1.3vw, 1rem);
-  color: var(--muted);
-  margin-top: 4px;
-}
-
-.msg-stack {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: clamp(0.5rem, 1vw, 0.8rem);
-  align-items: start;
-}
-
-.msg-block {
-  border-radius: 8px;
-  padding: clamp(0.7rem, 1.5vw, 1rem);
-  border: 1px solid;
-  opacity: 0;
-  transform: translateY(20px);
-}
-
-.msg-block:nth-child(1) { animation: fadeUp 0.5s 0.3s forwards; }
-.msg-block:nth-child(2) { animation: fadeUp 0.5s 0.45s forwards; }
-.msg-block:nth-child(3) { animation: fadeUp 0.5s 0.6s forwards; }
-.msg-block:nth-child(4) { animation: fadeUp 0.5s 0.75s forwards; }
-.msg-block:nth-child(5) { animation: fadeUp 0.5s 0.9s forwards; }
-
-.msg-block.sys  { background: rgba(139,139,160,0.07); border-color: rgba(139,139,160,0.2); }
-.msg-block.usr  { background: var(--user-bg);   border-color: rgba(255,107,107,0.25); }
-.msg-block.ast  { background: var(--llm-bg);    border-color: rgba(123,140,222,0.25); }
-.msg-block.tu   { background: var(--tool-bg);   border-color: rgba(240,165,0,0.25); }
-.msg-block.tr   { background: var(--result-bg); border-color: rgba(76,175,128,0.25); }
-
-.msg-block-role {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.52rem, 0.8vw, 0.65rem);
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.role-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-
-.msg-block.sys .msg-block-role { color: var(--system); }
-.msg-block.usr .msg-block-role { color: var(--user); }
-.msg-block.ast .msg-block-role { color: var(--llm); }
-.msg-block.tu  .msg-block-role { color: var(--tool); }
-.msg-block.tr  .msg-block-role { color: var(--result); }
-
-.msg-block-body {
-  font-size: clamp(0.65rem, 1vw, 0.8rem);
-  line-height: 1.55;
-  color: var(--text);
-  opacity: 0.8;
-}
-
-.msg-block-meta {
-  margin-top: 8px;
-  padding-top: 7px;
-  border-top: 1px solid rgba(255,255,255,0.05);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.52rem, 0.75vw, 0.62rem);
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.msg-key { color: var(--llm); }
-.msg-str { color: #98d982; }
-
-.stack-note {
-  margin-top: clamp(0.8rem, 1.5vh, 1.2rem);
-  padding: 10px 14px;
-  background: rgba(0,245,255,0.04);
-  border: 1px solid rgba(0,245,255,0.12);
-  border-radius: 6px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.6rem, 0.9vw, 0.72rem);
-  color: rgba(0,245,255,0.7);
-  opacity: 0;
-  animation: fadeUp 0.7s 1.1s forwards;
-}
-
-.stack-note::before { content: '/* '; opacity: 0.5; }
-.stack-note::after  { content: ' */'; opacity: 0.5; }
-
-/* ═══════════════════════════════════════════════════════════
-   SLIDE 4 — MCP SERVERS
-═══════════════════════════════════════════════════════════ */
-#slide-4 {
-  background: linear-gradient(170deg, #07070d 0%, #0a0d15 100%);
-}
-
-.mcp-layout {
-  width: 100%;
-  max-width: 1000px;
-  display: grid;
-  grid-template-columns: 1fr 1.3fr;
-  gap: clamp(1.5rem, 3vw, 3rem);
-  align-items: center;
-}
-
-.mcp-text { }
-
-.mcp-title {
-  font-size: clamp(1.6rem, 3.5vw, 2.8rem);
-  font-weight: 600;
-  margin-bottom: clamp(0.5rem, 1.5vh, 0.9rem);
-  opacity: 0;
-  animation: fadeUp 0.8s 0.1s forwards;
-}
-
-.mcp-desc {
-  font-size: clamp(0.78rem, 1.2vw, 0.95rem);
-  line-height: 1.7;
-  color: var(--muted);
-  opacity: 0;
-  animation: fadeUp 0.7s 0.3s forwards;
-  margin-bottom: clamp(0.8rem, 2vh, 1.2rem);
-}
-
-.mcp-fact {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.6rem, 0.9vw, 0.72rem);
-  color: var(--cyan);
-  border-left: 2px solid var(--cyan);
-  padding-left: 10px;
-  opacity: 0;
-  animation: fadeIn 0.7s 0.55s forwards;
-  line-height: 1.6;
-}
-
-.server-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
+/* === MCP SERVER GRID ========================================== */
+.srv-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: clamp(5px,1vw,10px); width: 100%; }
 .srv-card {
-  border-radius: 8px;
-  padding: clamp(0.6rem, 1.2vw, 0.9rem);
-  background: var(--card);
-  border: 1px solid var(--border);
-  opacity: 0;
-  transition: border-color 0.3s, box-shadow 0.3s;
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: clamp(9px,1.4vw,15px); display: flex; flex-direction: column;
+  gap: clamp(3px,0.5vw,5px); transition: border-color 0.22s, transform 0.22s;
 }
-
-.srv-card:nth-child(1) { animation: flashIn 0.6s 0.4s forwards; }
-.srv-card:nth-child(2) { animation: flashIn 0.6s 0.55s forwards; }
-.srv-card:nth-child(3) { animation: flashIn 0.6s 0.7s forwards; }
-.srv-card:nth-child(4) { animation: flashIn 0.6s 0.85s forwards; }
-.srv-card:nth-child(5) { animation: flashIn 0.6s 1.0s forwards; }
-.srv-card:nth-child(6) { animation: flashIn 0.6s 1.15s forwards; }
-
-.srv-card:hover {
-  border-color: rgba(0,245,255,0.25);
-  box-shadow: 0 0 16px rgba(0,245,255,0.06);
-}
-
-.srv-header {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 6px;
-}
-
-.srv-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--result);
-  flex-shrink: 0;
-}
-
-.srv-name {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.65rem, 1vw, 0.8rem);
-  font-weight: 500;
-  color: var(--text);
-  flex: 1;
-}
-
-.srv-badge {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.5rem, 0.7vw, 0.6rem);
-  font-weight: 600;
-  color: var(--muted);
-  background: rgba(255,255,255,0.04);
-  border-radius: 3px;
-  padding: 2px 6px;
-}
-
+.srv-card:hover { border-color: rgba(245,158,11,0.28); transform: translateY(-2px); }
+.srv-dot  { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.srv-name { font-family: var(--font-mono); font-size: var(--small-size); font-weight: 700; color: var(--text); }
 .srv-tools {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.5rem, 0.75vw, 0.62rem);
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.srv-tool-name { color: var(--tool); }
-
-/* ═══════════════════════════════════════════════════════════
-   SLIDE 5 — PARALLEL TOOL CALLING
-═══════════════════════════════════════════════════════════ */
-#slide-5 {
-  background: var(--ink);
-}
-
-.parallel-layout {
-  width: 100%;
-  max-width: 950px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: clamp(1.5rem, 3vw, 3rem);
-  align-items: center;
-}
-
-.parallel-title {
-  font-size: clamp(1.5rem, 3.5vw, 2.8rem);
-  font-weight: 600;
-  line-height: 1.1;
-  margin-bottom: clamp(0.5rem, 1.5vh, 0.9rem);
-  opacity: 0;
-  animation: fadeUp 0.8s 0.1s forwards;
-}
-
-.parallel-title .flash {
-  color: var(--tool);
-  font-style: italic;
-}
-
-.parallel-desc {
-  font-size: clamp(0.78rem, 1.2vw, 0.95rem);
-  line-height: 1.7;
-  color: var(--muted);
-  opacity: 0;
-  animation: fadeUp 0.7s 0.3s forwards;
-  margin-bottom: clamp(0.8rem, 1.5vh, 1rem);
-}
-
-.comparison-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: clamp(0.5rem, 1.2vw, 0.8rem);
-  margin-top: clamp(0.5rem, 1.2vh, 0.8rem);
-}
-
-.cmp-box {
-  border-radius: 8px;
-  padding: clamp(0.7rem, 1.3vw, 0.9rem);
-  border: 1px solid;
-  opacity: 0;
-}
-
-.cmp-box.slow {
-  background: rgba(255,107,107,0.06);
-  border-color: rgba(255,107,107,0.2);
-  animation: fadeUp 0.6s 0.5s forwards;
-}
-
-.cmp-box.fast {
-  background: rgba(76,175,128,0.06);
-  border-color: rgba(76,175,128,0.25);
-  animation: fadeUp 0.6s 0.7s forwards;
-}
-
-.cmp-title {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.6rem, 0.9vw, 0.72rem);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 8px;
-}
-
-.cmp-box.slow .cmp-title { color: var(--user); }
-.cmp-box.fast .cmp-title { color: var(--result); }
-
-.timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.t-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.52rem, 0.78vw, 0.65rem);
-}
-
-.t-label { color: var(--muted); width: clamp(70px, 10vw, 90px); flex-shrink: 0; font-size: clamp(0.5rem, 0.72vw, 0.6rem); }
-
-.t-bar {
-  height: 8px;
-  border-radius: 3px;
-  position: relative;
-}
-
-.t-bar.memory { background: rgba(139,139,160,0.5); }
-.t-bar.time   { background: rgba(240,165,0,0.5); }
-.t-bar.weather { background: rgba(76,175,128,0.5); }
-.t-bar.llm    { background: rgba(123,140,222,0.5); }
-
-.t-iters {
-  margin-top: 8px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.52rem, 0.75vw, 0.62rem);
-  padding: 4px 8px;
-  border-radius: 4px;
-  text-align: center;
-  font-weight: 600;
-}
-
-.cmp-box.slow .t-iters { background: rgba(255,107,107,0.12); color: var(--user); }
-.cmp-box.fast .t-iters { background: rgba(76,175,128,0.12); color: var(--result); }
-
-/* Right side — code block */
-.parallel-code {
-  opacity: 0;
-  animation: fadeIn 0.7s 0.9s forwards;
-}
-
-.code-window {
-  background: var(--card);
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
-
-.code-toolbar {
-  padding: 10px 14px;
-  background: rgba(255,255,255,0.03);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.code-dot { width: 8px; height: 8px; border-radius: 50%; }
-.code-dot.r { background: #ff5f56; }
-.code-dot.y { background: #ffbd2e; }
-.code-dot.g { background: #27c93f; }
-
-.code-filename {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.65rem;
-  color: var(--muted);
-  margin-left: 6px;
-}
-
-.code-body {
-  padding: clamp(0.7rem, 1.5vw, 1rem) clamp(0.9rem, 1.5vw, 1.2rem);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.58rem, 0.9vw, 0.72rem);
-  line-height: 1.65;
-  overflow: auto;
-  max-height: clamp(200px, 35vh, 320px);
-}
-
-.c-keyword { color: #c792ea; }
-.c-fn      { color: #82aaff; }
-.c-str     { color: #98d982; }
-.c-comment { color: #546e7a; font-style: italic; }
-.c-tool    { color: var(--tool); }
-.c-result  { color: var(--result); }
-.c-num     { color: #f78c6c; }
-.c-cyan    { color: var(--cyan); }
-
-/* ═══════════════════════════════════════════════════════════
-   SLIDE 6 — THE AGENTIC LOOP (FULL FLOW)
-═══════════════════════════════════════════════════════════ */
-#slide-6 {
-  background: linear-gradient(160deg, #07070d 0%, #0b0b1a 100%);
-}
-
-.flow-layout {
-  width: 100%;
-  max-width: 980px;
-}
-
-.flow-title {
-  font-size: clamp(1.5rem, 3vw, 2.4rem);
-  font-weight: 600;
-  margin-bottom: clamp(0.8rem, 2vh, 1.3rem);
-  opacity: 0;
-  animation: fadeUp 0.8s 0.1s forwards;
-}
-
-.flow-diagram {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  position: relative;
-  padding: clamp(0.8rem, 1.5vw, 1.2rem) 0;
-}
-
-.flow-node {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  opacity: 0;
-}
-
-.flow-node:nth-child(odd) { animation: fadeUp 0.5s forwards; }
-.flow-node:nth-child(1) { animation-delay: 0.3s; }
-.flow-node:nth-child(3) { animation-delay: 0.55s; }
-.flow-node:nth-child(5) { animation-delay: 0.8s; }
-.flow-node:nth-child(7) { animation-delay: 1.05s; }
-.flow-node:nth-child(9) { animation-delay: 1.3s; }
-
-.flow-arrow {
-  flex-shrink: 0;
-  width: clamp(20px, 3vw, 36px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  font-size: clamp(0.8rem, 1.5vw, 1.2rem);
-  opacity: 0;
-}
-
-.flow-arrow:nth-child(2) { animation: fadeIn 0.5s 0.45s forwards; }
-.flow-arrow:nth-child(4) { animation: fadeIn 0.5s 0.7s forwards; }
-.flow-arrow:nth-child(6) { animation: fadeIn 0.5s 0.95s forwards; }
-.flow-arrow:nth-child(8) { animation: fadeIn 0.5s 1.2s forwards; }
-
-.flow-icon {
-  width: clamp(44px, 7vw, 64px);
-  height: clamp(44px, 7vw, 64px);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: clamp(1rem, 2vw, 1.6rem);
-  border: 1px solid;
-}
-
-.flow-icon.user-i  { background: var(--user-bg);   border-color: rgba(255,107,107,0.3); }
-.flow-icon.llm-i   { background: var(--llm-bg);    border-color: rgba(123,140,222,0.3); }
-.flow-icon.tool-i  { background: var(--tool-bg);   border-color: rgba(240,165,0,0.3); }
-.flow-icon.res-i   { background: var(--result-bg); border-color: rgba(76,175,128,0.3); }
-.flow-icon.out-i   { background: rgba(0,245,255,0.08); border-color: rgba(0,245,255,0.25); }
-
-.flow-label {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.55rem, 0.8vw, 0.68rem);
-  font-weight: 500;
-  text-align: center;
-  line-height: 1.3;
-}
-
-.flow-label.user-c  { color: var(--user); }
-.flow-label.llm-c   { color: var(--llm); }
-.flow-label.tool-c  { color: var(--tool); }
-.flow-label.res-c   { color: var(--result); }
-.flow-label.out-c   { color: var(--cyan); }
-
-/* Iteration loop box */
-.loop-box {
-  margin-top: clamp(0.8rem, 2vh, 1.3rem);
-  border: 1px dashed rgba(0,245,255,0.2);
-  border-radius: 10px;
-  padding: clamp(0.7rem, 1.5vw, 1rem) clamp(1rem, 2vw, 1.5rem);
-  position: relative;
-  opacity: 0;
-  animation: fadeIn 0.8s 1.5s forwards;
-}
-
-.loop-box-label {
-  position: absolute;
-  top: -10px;
-  left: 16px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.55rem, 0.85vw, 0.68rem);
-  font-weight: 600;
-  color: var(--cyan);
-  background: var(--surface);
-  padding: 0 8px;
-  letter-spacing: 0.05em;
-  opacity: 0.7;
-}
-
-.loop-box-content {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: clamp(0.5rem, 1vw, 0.8rem);
-}
-
-.iter-card {
-  border-radius: 7px;
-  padding: clamp(0.5rem, 1vw, 0.75rem);
-  border: 1px solid;
-  font-family: 'IBM Plex Mono', monospace;
-}
-
-.iter-card.i1 { background: rgba(123,140,222,0.06); border-color: rgba(123,140,222,0.2); }
-.iter-card.i2 { background: var(--tool-bg); border-color: rgba(240,165,0,0.2); }
-.iter-card.i3 { background: var(--result-bg); border-color: rgba(76,175,128,0.2); }
-
-.iter-num {
-  font-size: clamp(0.5rem, 0.75vw, 0.62rem);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 5px;
-}
-
-.i1 .iter-num { color: var(--llm); }
-.i2 .iter-num { color: var(--tool); }
-.i3 .iter-num { color: var(--result); }
-
-.iter-detail {
-  font-size: clamp(0.52rem, 0.75vw, 0.62rem);
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   SLIDE 7 — CONTEXT WINDOW
-═══════════════════════════════════════════════════════════ */
-#slide-7 {
-  background: var(--ink);
-}
-
-.ctx-layout {
-  width: 100%;
-  max-width: 950px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: clamp(1.5rem, 3vw, 3rem);
-  align-items: center;
-}
-
-.ctx-title {
-  font-size: clamp(1.5rem, 3.5vw, 2.8rem);
-  font-weight: 600;
-  line-height: 1.1;
-  margin-bottom: clamp(0.5rem, 1.5vh, 0.9rem);
-  opacity: 0;
-  animation: fadeUp 0.8s 0.1s forwards;
-}
-
-.ctx-desc {
-  font-size: clamp(0.78rem, 1.2vw, 0.95rem);
-  line-height: 1.7;
-  color: var(--muted);
-  opacity: 0;
-  animation: fadeUp 0.7s 0.3s forwards;
-  margin-bottom: clamp(0.7rem, 1.5vh, 1rem);
-}
-
-.ctx-bullets {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  opacity: 0;
-  animation: fadeUp 0.7s 0.5s forwards;
-}
-
-.ctx-bullet {
-  display: flex;
-  gap: 8px;
-  font-size: clamp(0.72rem, 1.1vw, 0.88rem);
-  align-items: flex-start;
-  line-height: 1.5;
-}
-
-.bullet-arrow {
-  color: var(--cyan);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.65rem, 1vw, 0.8rem);
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-/* Context window bar visualization */
-.ctx-visual {
-  opacity: 0;
-  animation: fadeIn 0.8s 0.7s forwards;
-}
-
-.ctx-window {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.ctx-header {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.6rem, 0.9vw, 0.72rem);
-  color: var(--muted);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.ctx-pct { color: var(--cyan); font-weight: 600; }
-
-.ctx-blocks {
-  padding: clamp(0.7rem, 1.2vw, 1rem);
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.ctx-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ctx-row-label {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.5rem, 0.72vw, 0.6rem);
-  color: var(--muted);
-  width: clamp(80px, 12vw, 110px);
-  flex-shrink: 0;
-}
-
-.ctx-bar-wrap {
-  flex: 1;
-  height: 10px;
-  background: rgba(255,255,255,0.04);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.ctx-bar-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 1s ease;
-}
-
-.ctx-bar-fill.sys-f  { background: rgba(139,139,160,0.5); }
-.ctx-bar-fill.usr-f  { background: rgba(255,107,107,0.6); }
-.ctx-bar-fill.tu-f   { background: rgba(240,165,0,0.6); }
-.ctx-bar-fill.tr-f   { background: rgba(76,175,128,0.6); }
-.ctx-bar-fill.ast-f  { background: rgba(123,140,222,0.6); }
-
-.ctx-tokens {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.48rem, 0.7vw, 0.58rem);
-  color: var(--muted);
-  width: 50px;
-  text-align: right;
-  flex-shrink: 0;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   SLIDE 8 — KEY TAKEAWAYS
-═══════════════════════════════════════════════════════════ */
-#slide-8 {
-  background: linear-gradient(160deg, #07070d 0%, #090914 100%);
-  justify-content: center;
-}
-
-.takeaway-layout {
-  width: 100%;
-  max-width: 950px;
-}
-
-.takeaway-title {
-  font-size: clamp(1.6rem, 3.5vw, 2.8rem);
-  font-weight: 600;
-  margin-bottom: clamp(0.8rem, 2vh, 1.4rem);
-  opacity: 0;
-  animation: fadeUp 0.8s 0.1s forwards;
-}
-
-.takeaway-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: clamp(0.7rem, 1.5vw, 1rem);
-  margin-bottom: clamp(0.8rem, 2vh, 1.3rem);
-}
-
-.tk-card {
-  border-radius: 10px;
-  padding: clamp(0.9rem, 1.8vw, 1.3rem);
-  border: 1px solid var(--border);
-  background: var(--card);
-  opacity: 0;
-  position: relative;
-  overflow: hidden;
-}
-
-.tk-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0;
-  right: 0;
-  height: 2px;
-}
-
-.tk-card:nth-child(1) { animation: fadeUp 0.5s 0.3s forwards; }
-.tk-card:nth-child(2) { animation: fadeUp 0.5s 0.45s forwards; }
-.tk-card:nth-child(3) { animation: fadeUp 0.5s 0.6s forwards; }
-.tk-card:nth-child(4) { animation: fadeUp 0.5s 0.75s forwards; }
-.tk-card:nth-child(5) { animation: fadeUp 0.5s 0.9s forwards; }
-.tk-card:nth-child(6) { animation: fadeUp 0.5s 1.05s forwards; }
-
-.tk-card:nth-child(1)::before { background: var(--llm); }
-.tk-card:nth-child(2)::before { background: var(--tool); }
-.tk-card:nth-child(3)::before { background: var(--result); }
-.tk-card:nth-child(4)::before { background: var(--user); }
-.tk-card:nth-child(5)::before { background: var(--cyan); }
-.tk-card:nth-child(6)::before { background: var(--system); }
-
-.tk-icon {
-  font-size: clamp(1.3rem, 2.2vw, 1.8rem);
-  margin-bottom: 8px;
-  display: block;
-}
-
-.tk-heading {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: clamp(0.65rem, 1vw, 0.8rem);
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 6px;
-  letter-spacing: -0.01em;
-}
-
-.tk-body {
-  font-size: clamp(0.65rem, 0.95vw, 0.78rem);
-  line-height: 1.55;
-  color: var(--muted);
-}
-
-.takeaway-footer {
-  text-align: center;
-  opacity: 0;
-  animation: fadeUp 0.8s 1.3s forwards;
-}
-
-.footer-quote {
-  font-family: 'Fraunces', serif;
-  font-style: italic;
-  font-size: clamp(0.9rem, 1.7vw, 1.3rem);
-  color: rgba(255,255,255,0.5);
-  max-width: 700px;
-  margin: 0 auto;
-  line-height: 1.5;
-}
-
-.footer-quote strong {
-  color: var(--cyan);
-  font-style: normal;
-  font-weight: 400;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   BREAKPOINTS
-═══════════════════════════════════════════════════════════ */
-@media (max-height: 700px) {
-  .loop-diagram { height: clamp(180px, 32vh, 280px); }
-  .llm-node { width: clamp(60px, 9vw, 90px); height: clamp(60px, 9vw, 90px); }
-  .orbit-container { width: clamp(90px, 14vw, 130px); height: clamp(90px, 14vw, 130px); }
-}
-
-@media (max-height: 600px) {
-  .takeaway-grid { grid-template-columns: repeat(3, 1fr); }
-  .msg-stack { grid-template-columns: repeat(5, 1fr); }
-  .tk-body { display: none; }
-  .loop-box-content { grid-template-columns: repeat(3, 1fr); }
-}
-
-@media (max-height: 500px) {
-  .takeaway-grid { grid-template-columns: repeat(6, 1fr); }
-}
-
-@media (max-width: 900px) {
-  .loop-layout, .mcp-layout, .parallel-layout, .ctx-layout { grid-template-columns: 1fr; gap: 1rem; }
-  .loop-diagram { height: clamp(160px, 25vh, 220px); }
-  .orbit-dot { display: none; }
+  font-family: var(--font-mono); font-size: clamp(6px,0.7vw,8px);
+  color: var(--tool); background: var(--tool-bg); border: 1px solid var(--amber-border);
+  border-radius: 3px; padding: 1px 6px; display: inline-block; align-self: flex-start;
+}
+.srv-desc { font-size: clamp(7px,0.78vw,9px); color: var(--muted); line-height: 1.4; }
+
+/* === CONTEXT WINDOW BARS ====================================== */
+.ctx-stages { display: flex; flex-direction: column; gap: clamp(5px,0.9vw,9px); max-width: 54ch; }
+.ctx-row { display: flex; align-items: center; gap: clamp(7px,1.1vw,12px); }
+.ctx-lbl { font-family: var(--font-mono); font-size: var(--small-size); color: var(--muted); flex-shrink: 0; min-width: clamp(90px,13vw,130px); }
+.ctx-outer { flex: 1; height: clamp(5px,0.8vw,8px); background: rgba(255,255,255,0.05); border-radius: 3px; border: 1px solid var(--border); overflow: hidden; }
+.ctx-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--llm), var(--amber)); transition: width 1.1s var(--ease); width: 0; }
+.slide.visible .ctx-fill { width: var(--ctx-w); }
+.ctx-pct { font-family: var(--font-mono); font-size: var(--small-size); color: var(--text); flex-shrink: 0; min-width: 36px; text-align: right; }
+
+/* === TAKEAWAYS GRID =========================================== */
+.tc-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: clamp(7px,1.3vw,13px); width: 100%; max-height: 68vh; }
+.tc-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: clamp(11px,1.8vw,18px); display: flex; flex-direction: column;
+  gap: clamp(3px,0.6vw,7px); transition: border-color 0.22s, transform 0.22s;
+}
+.tc-card:hover { border-color: rgba(245,158,11,0.22); transform: translateY(-2px); }
+.tc-num { font-family: var(--font-display); font-size: clamp(26px,4vw,44px); line-height: 1; color: rgba(245,158,11,0.13); letter-spacing: -0.03em; }
+.tc-title { font-family: var(--font-display); font-size: clamp(9px,1.2vw,13px); color: var(--text); }
+.tc-body  { font-size: clamp(8px,0.95vw,11px); color: var(--muted); line-height: 1.5; }
+.tc-badge { align-self: flex-start; margin-top: auto; }
+
+/* === CLOSING SLIDE ============================================ */
+.closing {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; gap: var(--gap); padding: var(--pad);
+}
+.closing-big { font-family: var(--font-display); font-size: clamp(2.4rem,7vw,6rem); line-height: 0.95; letter-spacing: -0.04em; color: var(--text); }
+.closing-big em { font-style: normal; color: var(--amber); }
+.closing-sub { font-size: var(--body-size); color: var(--muted); max-width: 40ch; line-height: 1.6; }
+.closing-ref { font-family: var(--font-mono); font-size: var(--small-size); color: rgba(245,158,11,0.42); letter-spacing: 0.08em; }
+
+/* === PROGRESS BAR ============================================= */
+.progress-bar { position: fixed; top: 0; left: 0; height: 2px; background: var(--amber); z-index: 9999; width: 0%; transition: width 0.3s ease; pointer-events: none; }
+
+/* === NAV DOTS ================================================= */
+.nav-dots { position: fixed; right: clamp(10px,1.8vw,18px); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: clamp(5px,0.9vw,9px); z-index: 1000; }
+.nav-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.14); cursor: pointer; transition: background 0.22s, transform 0.22s; border: none; padding: 0; }
+.nav-dot:hover { background: rgba(255,255,255,0.32); transform: scale(1.4); }
+.nav-dot.active { background: var(--amber); transform: scale(1.3); }
+
+/* === INLINE EDITING =========================================== */
+.edit-hotzone { position: fixed; top: 0; left: 0; width: 80px; height: 80px; z-index: 10000; cursor: pointer; }
+.edit-toggle {
+  position: fixed; top: clamp(8px,1.4vw,13px); left: clamp(8px,1.4vw,13px); z-index: 10001;
+  background: var(--card); border: 1px solid var(--amber-border); color: var(--amber);
+  font-family: var(--font-mono); font-size: clamp(9px,1.1vw,12px);
+  border-radius: 6px; padding: clamp(4px,0.6vw,6px) clamp(8px,1.2vw,11px);
+  cursor: pointer; opacity: 0; pointer-events: none; transition: opacity 0.28s; letter-spacing: 0.04em;
+}
+.edit-toggle.show, .edit-toggle.active { opacity: 1; pointer-events: auto; }
+.edit-toggle.active { background: var(--amber-bg); }
+.edit-banner {
+  position: fixed; top: 0; left: 0; right: 0; padding: clamp(5px,0.8vw,8px) 16px;
+  background: rgba(245,158,11,0.1); border-bottom: 1px solid var(--amber-border);
+  font-family: var(--font-mono); font-size: clamp(8px,0.9vw,10px);
+  color: var(--amber); letter-spacing: 0.1em; z-index: 9998; text-align: center; display: none;
+}
+.edit-banner.active { display: block; }
+body.edit-active [contenteditable="true"] {
+  outline: 1px dashed rgba(245,158,11,0.3); border-radius: 2px; cursor: text; min-width: 4px;
+}
+
+/* === RESPONSIVE =============================================== */
+@media (max-width: 768px) {
+  .layout-split { grid-template-columns: 1fr; }
+  .amber-card { display: none; }
+  .srv-grid { grid-template-columns: repeat(2,1fr); }
+  .tc-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════════════════
-  NAVIGATION DOTS
-═══════════════════════════════════════════════════════ -->
-<nav class="nav-dots" id="navDots" aria-label="Slide navigation">
-  <div class="nav-dot active" data-slide="0" title="Title"></div>
-  <div class="nav-dot" data-slide="1" title="Agentic Loop"></div>
-  <div class="nav-dot" data-slide="2" title="Message Stack"></div>
-  <div class="nav-dot" data-slide="3" title="MCP Servers"></div>
-  <div class="nav-dot" data-slide="4" title="Parallel Calls"></div>
-  <div class="nav-dot" data-slide="5" title="Full Flow"></div>
-  <div class="nav-dot" data-slide="6" title="Context Window"></div>
-  <div class="nav-dot" data-slide="7" title="Takeaways"></div>
-</nav>
+<div class="progress-bar" id="progressBar" aria-hidden="true"></div>
+<nav class="nav-dots" id="navDots" aria-label="Slide navigation"></nav>
 
-<!-- ═══════════════════════════════════════════════════════
-  SLIDE 1 — TITLE
-═══════════════════════════════════════════════════════ -->
-<section class="slide" id="slide-1" aria-label="Title slide">
-  <div class="title-orb"></div>
-  <div class="title-ring"></div>
-  <div class="title-ring"></div>
-  <div class="title-ring"></div>
-
-  <div class="title-content">
-    <div class="title-kicker">Technical Deep Dive</div>
-    <h1 class="main-title">How <span class="accent">Agentic AI</span><br>Works</h1>
-    <p class="title-sub">The agentic loop, message stacks, and parallel tool orchestration</p>
-    <div class="title-meta">
-      <span class="meta-chip"><span class="dot" style="background:var(--llm)"></span>LLM Core</span>
-      <span class="meta-chip"><span class="dot" style="background:var(--tool)"></span>MCP Servers</span>
-      <span class="meta-chip"><span class="dot" style="background:var(--result)"></span>Tool Results</span>
-      <span class="meta-chip"><span class="dot" style="background:var(--user)"></span>User Messages</span>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════════════
-  SLIDE 2 — THE AGENTIC LOOP
-═══════════════════════════════════════════════════════ -->
-<section class="slide" id="slide-2" aria-label="The Agentic Loop">
-  <div class="loop-layout">
-    <div class="loop-text">
-      <div class="eyebrow">Core Architecture</div>
-      <h2 class="slide-title loop-title">The Agentic<br>Loop</h2>
-      <p class="loop-desc">
-        Unlike a simple prompt-response model, an agentic AI enters a continuous
-        <em>think → act → observe</em> cycle. The LLM decides when to call tools,
-        inspects the results, and loops until it can respond with confidence.
+<!-- =============================================================
+     SLIDE 1 — Title
+     ============================================================= -->
+<section class="slide grid-bg" id="slide-1" aria-label="Title slide">
+  <div class="layout-split" style="align-items:stretch;">
+    <div class="split-left" style="justify-content:flex-end; padding-bottom:clamp(2rem,5vh,4.5rem);">
+      <div class="ghost-num" aria-hidden="true">01</div>
+      <div class="tag reveal editable">agentic-ai &middot; architecture</div>
+      <h1 class="slide-title reveal editable" style="margin-top:clamp(5px,0.9vw,9px);">
+        How <em>Agentic AI</em><br>Actually Works
+      </h1>
+      <p class="slide-body reveal editable" style="margin-top:clamp(7px,1.1vw,11px);">
+        A deep-dive into the LLM reasoning loop — tool calls, parallel
+        execution, and the messages stack that makes autonomous AI possible.
       </p>
-      <div class="loop-steps">
-        <div class="loop-step">
-          <span class="step-num" style="background:rgba(139,139,160,0.15);color:var(--system)">S</span>
-          <span style="color:var(--muted)">System prompt sets identity, tools &amp; rules</span>
-        </div>
-        <div class="loop-step">
-          <span class="step-num" style="background:var(--user-bg);color:var(--user)">1</span>
-          <span style="color:var(--muted)">User sends a message</span>
-        </div>
-        <div class="loop-step">
-          <span class="step-num" style="background:var(--llm-bg);color:var(--llm)">2</span>
-          <span style="color:var(--muted)">LLM thinks — decides what tools it needs</span>
-        </div>
-        <div class="loop-step">
-          <span class="step-num" style="background:var(--tool-bg);color:var(--tool)">3</span>
-          <span style="color:var(--muted)">Tools execute via MCP servers (JSON-RPC 2.0)</span>
-        </div>
-        <div class="loop-step">
-          <span class="step-num" style="background:var(--result-bg);color:var(--result)">4</span>
-          <span style="color:var(--muted)">Results injected → repeat until done</span>
-        </div>
+      <div class="role-badges reveal" style="margin-top:clamp(9px,1.6vw,16px);">
+        <span class="badge b-sys editable">system</span>
+        <span class="badge b-usr editable">user</span>
+        <span class="badge b-llm editable">assistant</span>
+        <span class="badge b-tool editable">tool_use &#x26A1;</span>
+        <span class="badge b-res editable">tool_result</span>
       </div>
     </div>
-
-    <div class="loop-diagram">
-      <!-- Concept labels floating around the center -->
-      <div class="concept-nodes">
-        <div class="c-node sys-node">system</div>
-        <div class="c-node user-node">user</div>
-        <div class="c-node tool-node">tool_use</div>
-        <div class="c-node res-node">tool_result</div>
-      </div>
-
-      <!-- Center LLM node with orbiting dots -->
-      <div class="llm-node">
-        <span class="llm-node-label">LLM</span>
-        <span class="llm-node-sub">claude-sonnet</span>
-      </div>
-      <div class="orbit-container">
-        <div class="orbit-dot orbit-dot-1"></div>
-        <div class="orbit-dot orbit-dot-2"></div>
-        <div class="orbit-dot orbit-dot-3"></div>
+    <div class="amber-card reveal-right">
+      <div class="ac-label">agentic loop</div>
+      <div class="ac-stat editable">10&times;</div>
+      <div class="ac-sub editable">max iterations<br>per request</div>
+      <div class="ac-div"></div>
+      <div class="ac-code">
+        <span class="ccmt">// reasoning loop</span><br>
+        <span class="cfn">chatWithLLM</span>({<br>
+        &nbsp;&nbsp;<span class="ckey">messages</span>: stack,<br>
+        &nbsp;&nbsp;<span class="ckey">tools</span>: mcp.tools,<br>
+        &nbsp;&nbsp;<span class="ckey">maxIter</span>: <span class="cnum">10</span><br>
+        })
       </div>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════
-  SLIDE 3 — THE MESSAGE STACK
-═══════════════════════════════════════════════════════ -->
-<section class="slide" id="slide-3" aria-label="The Message Stack">
-  <div class="message-layout">
-    <div class="section-header">
-      <div class="eyebrow" style="animation-delay:0s">Data Structure</div>
-      <h2 class="slide-title section-title">The Message <span style="color:var(--cyan)">Stack</span></h2>
-      <p class="section-subtitle">Every message in the conversation, serialised as <code style="font-family:'IBM Plex Mono';font-size:0.9em">messages[]</code></p>
-    </div>
-
-    <div class="msg-stack">
-      <!-- System -->
-      <div class="msg-block sys">
-        <div class="msg-block-role"><span class="role-dot"></span>system</div>
-        <div class="msg-block-body">You are a helpful AI assistant with access to weather, time, memory &amp; search tools.</div>
-        <div class="msg-block-meta">
-          <span class="msg-key">"role"</span>: <span class="msg-str">"system"</span><br>
-          <span class="msg-key">"index"</span>: <span style="color:#f78c6c">0</span>
-        </div>
-      </div>
-
-      <!-- User -->
-      <div class="msg-block usr">
-        <div class="msg-block-role"><span class="role-dot"></span>user</div>
-        <div class="msg-block-body">What's the weather like tomorrow?</div>
-        <div class="msg-block-meta">
-          <span class="msg-key">"role"</span>: <span class="msg-str">"user"</span><br>
-          <span class="msg-key">"index"</span>: <span style="color:#f78c6c">1</span>
-        </div>
-      </div>
-
-      <!-- Tool Use -->
-      <div class="msg-block tu">
-        <div class="msg-block-role"><span class="role-dot"></span>assistant · tool_use</div>
-        <div class="msg-block-body">Calling <strong>memory_mget</strong> + <strong>get_current_time</strong> <span style="color:var(--tool);font-size:0.85em">⚡ parallel</span></div>
-        <div class="msg-block-meta">
-          <span class="msg-key">"role"</span>: <span class="msg-str">"assistant"</span><br>
-          <span class="msg-key">"type"</span>: <span class="msg-str">"tool_use"</span>
-        </div>
-      </div>
-
-      <!-- Tool Result -->
-      <div class="msg-block tr">
-        <div class="msg-block-role"><span class="role-dot"></span>tool_result</div>
-        <div class="msg-block-body">Istanbul, Turkey · 2026-04-11T14:32Z — both arrive together</div>
-        <div class="msg-block-meta">
-          <span class="msg-key">"role"</span>: <span class="msg-str">"tool"</span><br>
-          <span class="msg-key">"index"</span>: <span style="color:#f78c6c">3, 4</span>
-        </div>
-      </div>
-
-      <!-- Assistant -->
-      <div class="msg-block ast">
-        <div class="msg-block-role"><span class="role-dot"></span>assistant</div>
-        <div class="msg-block-body">Tomorrow in Istanbul it'll be 21°C, sunny intervals and a light southwest wind.</div>
-        <div class="msg-block-meta">
-          <span class="msg-key">"role"</span>: <span class="msg-str">"assistant"</span><br>
-          <span class="msg-key">"index"</span>: <span style="color:#f78c6c">7</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="stack-note">The entire conversation history is re-sent to the LLM on every iteration — this is how it maintains context</div>
-  </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════════════
-  SLIDE 4 — MCP SERVERS
-═══════════════════════════════════════════════════════ -->
-<section class="slide" id="slide-4" aria-label="MCP Servers">
-  <div class="mcp-layout">
-    <div class="mcp-text">
-      <div class="eyebrow" style="animation-delay:0s">Tool Layer</div>
-      <h2 class="slide-title mcp-title">MCP Servers —<br><span style="color:var(--tool)">The Toolbox</span></h2>
-      <p class="mcp-desc">
-        Model Context Protocol servers are independent child processes that expose
-        typed tools to the LLM. They communicate via <strong>JSON-RPC 2.0 over stdio</strong>,
-        spawned lazily on first use.
+<!-- =============================================================
+     SLIDE 2 — The Reasoning Loop
+     ============================================================= -->
+<section class="slide grid-bg" id="slide-2" aria-label="The agentic loop">
+  <div class="s-header"><span class="sh-label">The Reasoning Loop</span><span class="sh-num">02 / 08</span></div>
+  <div class="layout-split">
+    <div class="split-left">
+      <div class="ghost-num" aria-hidden="true">02</div>
+      <div class="tag reveal editable">core concept</div>
+      <h2 class="slide-h2 reveal editable" style="margin-top:clamp(5px,0.9vw,9px);">
+        The <em>Reasoning</em> Loop
+      </h2>
+      <p class="slide-body reveal editable" style="margin-top:clamp(5px,0.9vw,9px);">
+        Instead of answering in a single pass, an agentic LLM enters a loop —
+        thinking, calling tools, reading results, and repeating until it has
+        everything it needs.
       </p>
-      <div class="mcp-fact">
-        Tool names follow the convention<br>
-        <span style="color:var(--text)">&lt;serverName&gt;_&lt;toolName&gt;</span><br>
-        e.g. <span style="color:var(--tool)">jobs_list_jobs</span>, <span style="color:var(--tool)">weather_get_forecast</span>
-      </div>
+      <ul class="bullets reveal" style="margin-top:clamp(9px,1.5vw,14px);">
+        <li><span class="b-icon bi-blue">1</span>
+            <span class="editable">LLM receives the full <span class="mono">messages[]</span> array and a list of available tools</span></li>
+        <li><span class="b-icon bi-amb">2</span>
+            <span class="editable">It decides: respond now, or call a tool to gather more information?</span></li>
+        <li><span class="b-icon bi-grn">3</span>
+            <span class="editable">Tool results are appended to the messages stack; the loop continues</span></li>
+        <li><span class="b-icon bi-blue">4</span>
+            <span class="editable">Loop exits when the LLM produces a final <span class="mono">assistant</span> text response</span></li>
+      </ul>
     </div>
-
-    <div class="server-grid">
-      <div class="srv-card">
-        <div class="srv-header">
-          <span class="srv-dot"></span>
-          <span class="srv-name">weather</span>
-          <span class="srv-badge">2 tools</span>
-        </div>
-        <div class="srv-tools">
-          <span class="srv-tool-name">get_weather</span><br>
-          <span class="srv-tool-name">get_forecast</span>
-        </div>
-      </div>
-
-      <div class="srv-card">
-        <div class="srv-header">
-          <span class="srv-dot"></span>
-          <span class="srv-name">time</span>
-          <span class="srv-badge">1 tool</span>
-        </div>
-        <div class="srv-tools">
-          <span class="srv-tool-name">get_current_time</span>
-        </div>
-      </div>
-
-      <div class="srv-card">
-        <div class="srv-header">
-          <span class="srv-dot"></span>
-          <span class="srv-name">memory</span>
-          <span class="srv-badge">4 tools</span>
-        </div>
-        <div class="srv-tools">
-          <span class="srv-tool-name">memory_mget</span>, <span class="srv-tool-name">memory_set</span><br>
-          <span class="srv-tool-name">memory_list</span>, <span class="srv-tool-name">memory_del</span>
-        </div>
-      </div>
-
-      <div class="srv-card">
-        <div class="srv-header">
-          <span class="srv-dot"></span>
-          <span class="srv-name">jobs</span>
-          <span class="srv-badge">3 tools</span>
-        </div>
-        <div class="srv-tools">
-          <span class="srv-tool-name">list_jobs</span>, <span class="srv-tool-name">enable_job</span><br>
-          <span class="srv-tool-name">update_params</span>
-        </div>
-      </div>
-
-      <div class="srv-card">
-        <div class="srv-header">
-          <span class="srv-dot"></span>
-          <span class="srv-name">tavily-search</span>
-          <span class="srv-badge">2 tools</span>
-        </div>
-        <div class="srv-tools">
-          <span class="srv-tool-name">web_search</span><br>
-          <span class="srv-tool-name">extract_content</span>
-        </div>
-      </div>
-
-      <div class="srv-card">
-        <div class="srv-header">
-          <span class="srv-dot"></span>
-          <span class="srv-name">google-messages</span>
-          <span class="srv-badge">5 tools</span>
-        </div>
-        <div class="srv-tools">
-          <span class="srv-tool-name">send_message</span>, <span class="srv-tool-name">read_thread</span><br>
-          <span class="srv-tool-name">list_conversations</span>…
-        </div>
+    <div class="amber-card reveal-right">
+      <div class="ac-label">iteration guard</div>
+      <div class="ac-stat editable">MAX</div>
+      <div class="ac-sub editable">prevents<br>infinite loops</div>
+      <div class="ac-div"></div>
+      <div class="ac-code">
+        <span class="ccmt">// guard clause</span><br>
+        if (iter &gt;= maxIter) {<br>
+        &nbsp;&nbsp;break;<br>
+        }<br><br>
+        <span class="ccmt">// check stop reason</span><br>
+        if (stop === <span class="ckey">"end_turn"</span>)<br>
+        &nbsp;&nbsp;return response;
       </div>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════
-  SLIDE 5 — PARALLEL TOOL CALLING
-═══════════════════════════════════════════════════════ -->
-<section class="slide" id="slide-5" aria-label="Parallel Tool Calling">
-  <div class="parallel-layout">
-    <div>
-      <div class="eyebrow" style="animation-delay:0s">Performance Pattern</div>
-      <h2 class="slide-title parallel-title"><span class="flash">⚡ Parallel</span><br>Tool Calling</h2>
-      <p class="parallel-desc">
-        When two tool calls are <strong>independent</strong>, the LLM issues them in a
-        single <code style="font-family:'IBM Plex Mono';font-size:0.9em">tool_use</code> response.
-        The MCP manager runs them via <code style="font-family:'IBM Plex Mono';font-size:0.9em">Promise.all()</code>,
-        saving a full iteration.
+<!-- =============================================================
+     SLIDE 3 — Messages Stack
+     ============================================================= -->
+<section class="slide grid-bg" id="slide-3" aria-label="Messages stack">
+  <div class="s-header"><span class="sh-label">Messages Stack</span><span class="sh-num">03 / 08</span></div>
+  <div class="layout-split">
+    <div class="split-left">
+      <div class="ghost-num" aria-hidden="true">03</div>
+      <div class="tag reveal editable">data structure</div>
+      <h2 class="slide-h2 reveal editable" style="margin-top:clamp(5px,0.9vw,9px);">
+        The <em>messages[]</em> Array
+      </h2>
+      <p class="slide-body reveal editable" style="margin-top:clamp(5px,0.9vw,9px); margin-bottom:clamp(7px,1.2vw,11px);">
+        Every exchange — system prompt, user input, tool calls, results — lives
+        in one growing array sent to the LLM on every iteration.
       </p>
-
-      <div class="comparison-grid">
-        <div class="cmp-box slow">
-          <div class="cmp-title">Sequential</div>
-          <div class="timeline">
-            <div class="t-row"><span class="t-label">memory_mget</span><div class="t-bar memory" style="width:80px"></div></div>
-            <div class="t-row"><span class="t-label">get_time</span><div class="t-bar time" style="width:75px;margin-left:80px"></div></div>
-            <div class="t-row"><span class="t-label">get_weather</span><div class="t-bar weather" style="width:80px;margin-left:155px"></div></div>
-          </div>
-          <div class="t-iters">3 iterations</div>
-        </div>
-
-        <div class="cmp-box fast">
-          <div class="cmp-title">Parallel ⚡</div>
-          <div class="timeline">
-            <div class="t-row">
-              <span class="t-label">memory + time</span>
-              <div style="display:flex;gap:3px">
-                <div class="t-bar memory" style="width:80px"></div>
-                <div style="font-family:'IBM Plex Mono';font-size:0.5rem;color:var(--tool);align-self:center">⚡</div>
-              </div>
-            </div>
-            <div class="t-row">
-              <span class="t-label">time (parallel)</span>
-              <div class="t-bar time" style="width:75px"></div>
-            </div>
-            <div class="t-row"><span class="t-label">get_weather</span><div class="t-bar weather" style="width:80px;margin-left:80px"></div></div>
-          </div>
-          <div class="t-iters">2 iterations saved 1 round-trip</div>
-        </div>
+      <div class="msg-stack reveal">
+        <div class="msg-row m-sys"><span class="mi">[0]</span><span class="mr">system</span><span class="mc">You are a helpful AI with access to tools&#8230;</span></div>
+        <div class="msg-row m-usr"><span class="mi">[1]</span><span class="mr">user</span><span class="mc">What&#39;s the weather like tomorrow?</span></div>
+        <div class="msg-row m-tu"><span class="mi">[2]</span><span class="mr">tool_use</span><span class="mc">memory_mget + get_current_time &#x26A1; parallel</span></div>
+        <div class="msg-row m-tr"><span class="mi">[3]</span><span class="mr">tool_result</span><span class="mc">Istanbul, Turkey (UTC+3)</span></div>
+        <div class="msg-row m-tr"><span class="mi">[4]</span><span class="mr">tool_result</span><span class="mc">2026-04-11T14:32:00Z</span></div>
+        <div class="msg-row m-tu"><span class="mi">[5]</span><span class="mr">tool_use</span><span class="mc">get_weather({ location, time })</span></div>
+        <div class="msg-row m-tr"><span class="mi">[6]</span><span class="mr">tool_result</span><span class="mc">Tomorrow: 21&#176;C, sunny. Wind SW 8 km/h.</span></div>
+        <div class="msg-row m-asst"><span class="mi">[7]</span><span class="mr">assistant</span><span class="mc">Tomorrow in Istanbul it&#39;ll be 21&#176;C&#8230;</span></div>
       </div>
     </div>
-
-    <div class="parallel-code">
-      <div class="code-window">
-        <div class="code-toolbar">
-          <div class="code-dot r"></div>
-          <div class="code-dot y"></div>
-          <div class="code-dot g"></div>
-          <span class="code-filename">mcpManager.ts — parallel execution</span>
-        </div>
-        <div class="code-body">
-<span class="c-comment">// Execute all tool calls concurrently</span><br>
-<span class="c-keyword">const</span> results = <span class="c-keyword">await</span> <span class="c-fn">Promise.all</span>(<br>
-&nbsp;&nbsp;toolCalls.<span class="c-fn">map</span>(<span class="c-keyword">async</span> (call) =&gt; {<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-keyword">const</span> server = <span class="c-keyword">this</span>.<span class="c-fn">getServer</span>(<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;call.serverName<br>
-&nbsp;&nbsp;&nbsp;&nbsp;);<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-keyword">return</span> server.<span class="c-fn">callTool</span>({<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;name: call.toolName,<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;arguments: call.input<br>
-&nbsp;&nbsp;&nbsp;&nbsp;});<br>
-&nbsp;&nbsp;})<br>
-);<br><br>
-<span class="c-comment">// Both tool_results arrive together</span><br>
-<span class="c-comment">// → injected as [3] and [4] in one shot</span><br>
-<span class="c-keyword">return</span> results.<span class="c-fn">map</span>(<br>
-&nbsp;&nbsp;(r, i) =&gt; ({<br>
-&nbsp;&nbsp;&nbsp;&nbsp;type: <span class="c-str">"tool_result"</span>,<br>
-&nbsp;&nbsp;&nbsp;&nbsp;tool_call_id: toolCalls[i].id,<br>
-&nbsp;&nbsp;&nbsp;&nbsp;content: r.<span class="c-cyan">content</span><br>
-&nbsp;&nbsp;})<br>
-);
-        </div>
+    <div class="amber-card reveal-right">
+      <div class="ac-label">message count</div>
+      <div class="ac-stat editable">8</div>
+      <div class="ac-sub editable">messages in<br>this exchange</div>
+      <div class="ac-div"></div>
+      <div class="ac-code">
+        <span class="ccmt">// JSON structure</span><br>
+        [<br>
+        &nbsp;{ <span class="ckey">role</span>: <span class="ckey">"system"</span> },<br>
+        &nbsp;{ <span class="ckey">role</span>: <span class="ckey">"user"</span> },<br>
+        &nbsp;{ <span class="ckey">role</span>: <span class="ckey">"assistant"</span>,<br>
+        &nbsp;&nbsp;&nbsp;<span class="ckey">tool_calls</span>: [] },<br>
+        &nbsp;{ <span class="ckey">role</span>: <span class="ckey">"tool"</span> },<br>
+        &nbsp;...<br>
+        ]
       </div>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════
-  SLIDE 6 — FULL FLOW DIAGRAM
-═══════════════════════════════════════════════════════ -->
-<section class="slide" id="slide-6" aria-label="Full Agentic Flow">
-  <div class="flow-layout">
-    <div class="eyebrow" style="animation-delay:0s">End-to-End</div>
-    <h2 class="slide-title flow-title">The Complete <span style="color:var(--cyan)">Agentic Flow</span></h2>
-
-    <div class="flow-diagram">
-      <div class="flow-node">
-        <div class="flow-icon user-i">💬</div>
-        <div class="flow-label user-c">User<br>Message</div>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-node">
-        <div class="flow-icon llm-i">🧠</div>
-        <div class="flow-label llm-c">LLM<br>Thinks</div>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-node">
-        <div class="flow-icon tool-i">⚙️</div>
-        <div class="flow-label tool-c">Tool<br>Calls</div>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-node">
-        <div class="flow-icon res-i">📦</div>
-        <div class="flow-label res-c">Results<br>Injected</div>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-node">
-        <div class="flow-icon out-i">✅</div>
-        <div class="flow-label out-c">Final<br>Answer</div>
-      </div>
-    </div>
-
-    <div class="loop-box">
-      <span class="loop-box-label">AGENTIC LOOP — repeats until no more tool_use blocks</span>
-      <div class="loop-box-content">
-        <div class="iter-card i1">
-          <div class="iter-num">Iteration 1</div>
-          <div class="iter-detail">
-            ⚡ memory_mget + get_current_time<br>
-            called in parallel via Promise.all<br>
-            Context: 32%
-          </div>
-        </div>
-        <div class="iter-card i2">
-          <div class="iter-num">Iteration 2</div>
-          <div class="iter-detail">
-            get_weather with location=[3]<br>
-            and tomorrow date from [4]+1d<br>
-            Context: 62%
-          </div>
-        </div>
-        <div class="iter-card i3">
-          <div class="iter-num">Iteration 3</div>
-          <div class="iter-detail">
-            No more tool calls — LLM composes<br>
-            the final natural language answer<br>
-            Context: 88%
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════════════
-  SLIDE 7 — CONTEXT WINDOW
-═══════════════════════════════════════════════════════ -->
-<section class="slide" id="slide-7" aria-label="Context Window">
-  <div class="ctx-layout">
-    <div>
-      <div class="eyebrow" style="animation-delay:0s">Memory Model</div>
-      <h2 class="slide-title ctx-title">The <span style="color:var(--llm)">Context</span><br>Window</h2>
-      <p class="ctx-desc">
-        The LLM has no persistent memory between calls. Its entire understanding
-        comes from the <strong>context window</strong> — every message re-sent on each iteration.
+<!-- =============================================================
+     SLIDE 4 — Parallel Tool Calls
+     ============================================================= -->
+<section class="slide grid-bg" id="slide-4" aria-label="Parallel tool calls">
+  <div class="s-header"><span class="sh-label">Parallel Execution</span><span class="sh-num">04 / 08</span></div>
+  <div class="layout-split">
+    <div class="split-left">
+      <div class="ghost-num" aria-hidden="true">04</div>
+      <div class="tag reveal editable">performance pattern</div>
+      <h2 class="slide-h2 reveal editable" style="margin-top:clamp(5px,0.9vw,9px);">
+        <em>Parallel</em> Tool Calls
+      </h2>
+      <p class="slide-body reveal editable" style="margin-top:clamp(5px,0.9vw,9px); margin-bottom:clamp(9px,1.4vw,13px);">
+        When the LLM needs multiple independent pieces of information, it
+        batches tool calls into one assistant message — all executed
+        simultaneously via <span class="mono">Promise.all()</span>.
       </p>
-      <div class="ctx-bullets">
-        <div class="ctx-bullet">
-          <span class="bullet-arrow">→</span>
-          <span>System prompt is prepended every iteration (constant cost)</span>
+      <div class="par-diag reveal">
+        <div class="pd-row">
+          <span class="pd-node m-usr">user: &#8220;What&#39;s the weather tomorrow?&#8221;</span>
         </div>
-        <div class="ctx-bullet">
-          <span class="bullet-arrow">→</span>
-          <span>Tool results grow the context — more tools = more tokens</span>
+        <div class="pd-row" style="padding-left:clamp(10px,1.8vw,18px);">
+          <span class="pd-arr">&#x2193;</span>
+          <span class="pd-hint">LLM batches 2 independent tools</span>
         </div>
-        <div class="ctx-bullet">
-          <span class="bullet-arrow">→</span>
-          <span>Conversation history window (default: 10 messages) controls growth</span>
+        <div class="pd-parallel">
+          <div class="pd-row">
+            <span class="pd-node m-tu">memory_mget(&#8220;user.location&#8221;)</span>
+            <span class="pd-arr" style="color:var(--tool);">&#x26A1;</span>
+          </div>
+          <div class="pd-row">
+            <span class="pd-node m-tu">get_current_time(&#8220;UTC&#8221;)</span>
+            <span class="pd-arr" style="color:var(--tool);">&#x26A1;</span>
+          </div>
         </div>
-        <div class="ctx-bullet">
-          <span class="bullet-arrow">→</span>
-          <span>Prompt caching (5-min TTL) reduces cost for repeated prefixes</span>
+        <div class="pd-row" style="padding-left:clamp(10px,1.8vw,18px);">
+          <span class="pd-arr">&#x2193;</span>
+          <span class="pd-hint">Both results arrive together</span>
+        </div>
+        <div class="pd-row" style="flex-wrap:wrap; gap:4px;">
+          <span class="pd-node m-tr">&#8220;Istanbul, Turkey&#8221;</span>
+          <span class="pd-arr">+</span>
+          <span class="pd-node m-tr">&#8220;2026-04-11T14:32Z&#8221;</span>
+        </div>
+        <div class="pd-row" style="padding-left:clamp(10px,1.8vw,18px);">
+          <span class="pd-arr">&#x2193;</span>
+          <span class="pd-hint">LLM calls get_weather with combined values</span>
         </div>
       </div>
     </div>
-
-    <div class="ctx-visual">
-      <div class="ctx-window">
-        <div class="ctx-header">
-          <span>Context utilisation — end of iteration 3</span>
-          <span class="ctx-pct">88%</span>
-        </div>
-        <div class="ctx-blocks">
-          <div class="ctx-row">
-            <span class="ctx-row-label">[0] system</span>
-            <div class="ctx-bar-wrap"><div class="ctx-bar-fill sys-f" style="width:20%"></div></div>
-            <span class="ctx-tokens">~500 tk</span>
-          </div>
-          <div class="ctx-row">
-            <span class="ctx-row-label">[1] user</span>
-            <div class="ctx-bar-wrap"><div class="ctx-bar-fill usr-f" style="width:8%"></div></div>
-            <span class="ctx-tokens">~80 tk</span>
-          </div>
-          <div class="ctx-row">
-            <span class="ctx-row-label">[2] tool_use ×2</span>
-            <div class="ctx-bar-wrap"><div class="ctx-bar-fill tu-f" style="width:18%"></div></div>
-            <span class="ctx-tokens">~300 tk</span>
-          </div>
-          <div class="ctx-row">
-            <span class="ctx-row-label">[3] tool_result</span>
-            <div class="ctx-bar-wrap"><div class="ctx-bar-fill tr-f" style="width:10%"></div></div>
-            <span class="ctx-tokens">~120 tk</span>
-          </div>
-          <div class="ctx-row">
-            <span class="ctx-row-label">[4] tool_result</span>
-            <div class="ctx-bar-wrap"><div class="ctx-bar-fill tr-f" style="width:8%"></div></div>
-            <span class="ctx-tokens">~90 tk</span>
-          </div>
-          <div class="ctx-row">
-            <span class="ctx-row-label">[5] tool_use</span>
-            <div class="ctx-bar-wrap"><div class="ctx-bar-fill tu-f" style="width:15%"></div></div>
-            <span class="ctx-tokens">~200 tk</span>
-          </div>
-          <div class="ctx-row">
-            <span class="ctx-row-label">[6] tool_result</span>
-            <div class="ctx-bar-wrap"><div class="ctx-bar-fill tr-f" style="width:12%"></div></div>
-            <span class="ctx-tokens">~150 tk</span>
-          </div>
-          <div class="ctx-row">
-            <span class="ctx-row-label">[7] assistant</span>
-            <div class="ctx-bar-wrap"><div class="ctx-bar-fill ast-f" style="width:22%"></div></div>
-            <span class="ctx-tokens">~350 tk</span>
-          </div>
-        </div>
+    <div class="amber-card reveal-right">
+      <div class="ac-label">parallel batch</div>
+      <div class="ac-stat editable">2&times;</div>
+      <div class="ac-sub editable">calls fired<br>simultaneously</div>
+      <div class="ac-div"></div>
+      <div class="ac-code">
+        <span class="ccmt">// parallel execution</span><br>
+        const [loc, time] =<br>
+        &nbsp;&nbsp;await <span class="cfn">Promise.all</span>([<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="cfn">callTool</span>(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ckey">"memory_mget"</span>),<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="cfn">callTool</span>(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ckey">"get_current_time"</span>)<br>
+        &nbsp;&nbsp;]);
       </div>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════
-  SLIDE 8 — KEY TAKEAWAYS
-═══════════════════════════════════════════════════════ -->
-<section class="slide" id="slide-8" aria-label="Key Takeaways">
-  <div class="takeaway-layout">
-    <div class="eyebrow" style="animation-delay:0s">Summary</div>
-    <h2 class="slide-title takeaway-title">Key <span style="color:var(--cyan)">Takeaways</span></h2>
-
-    <div class="takeaway-grid">
-      <div class="tk-card">
-        <span class="tk-icon">🔄</span>
-        <div class="tk-heading">Iterative Loop</div>
-        <div class="tk-body">The LLM loops until it produces a response with no tool_use blocks. Each iteration adds to the context.</div>
+<!-- =============================================================
+     SLIDE 5 — MCP Servers
+     ============================================================= -->
+<section class="slide grid-bg" id="slide-5" aria-label="MCP server infrastructure">
+  <div class="s-header"><span class="sh-label">MCP Server Infrastructure</span><span class="sh-num">05 / 08</span></div>
+  <div class="split-left" style="justify-content:center; flex:1; gap:var(--gap);">
+    <div class="ghost-num" aria-hidden="true">05</div>
+    <div class="tag reveal editable">tool layer</div>
+    <h2 class="slide-h2 reveal editable" style="margin-top:clamp(4px,0.8vw,8px);">
+      <em>MCP</em> Server Infrastructure
+    </h2>
+    <p class="slide-body reveal editable">
+      Each server is a child process communicating via JSON-RPC&nbsp;2.0 over&nbsp;stdio.
+      Servers start lazily on the first request and expose named tools to the LLM.
+    </p>
+    <div class="srv-grid reveal" style="margin-top:clamp(7px,1.1vw,12px);">
+      <div class="srv-card">
+        <div><span class="srv-dot" style="background:var(--result);"></span><span class="srv-name editable">weather</span></div>
+        <span class="srv-tools">2 tools</span>
+        <span class="srv-desc editable">get_weather, get_forecast</span>
       </div>
-
-      <div class="tk-card">
-        <span class="tk-icon">⚡</span>
-        <div class="tk-heading">Parallel Batching</div>
-        <div class="tk-body">Independent tool calls are batched in one response and executed via Promise.all — saving whole iterations.</div>
+      <div class="srv-card">
+        <div><span class="srv-dot" style="background:var(--llm);"></span><span class="srv-name editable">time</span></div>
+        <span class="srv-tools">1 tool</span>
+        <span class="srv-desc editable">get_current_time</span>
       </div>
-
-      <div class="tk-card">
-        <span class="tk-icon">📡</span>
-        <div class="tk-heading">JSON-RPC 2.0</div>
-        <div class="tk-body">MCP servers communicate via JSON-RPC over stdio. Each server is an independent child process with typed tools.</div>
+      <div class="srv-card">
+        <div><span class="srv-dot" style="background:var(--user);"></span><span class="srv-name editable">memory</span></div>
+        <span class="srv-tools">4 tools</span>
+        <span class="srv-desc editable">mget, mset, mdelete, mlist</span>
       </div>
-
-      <div class="tk-card">
-        <span class="tk-icon">📚</span>
-        <div class="tk-heading">Stateless LLM</div>
-        <div class="tk-body">The model has no memory between calls. State lives in the messages[] array, re-sent on every iteration.</div>
+      <div class="srv-card">
+        <div><span class="srv-dot" style="background:var(--tool);"></span><span class="srv-name editable">jobs</span></div>
+        <span class="srv-tools">3 tools</span>
+        <span class="srv-desc editable">list_jobs, enable, disable</span>
       </div>
-
-      <div class="tk-card">
-        <span class="tk-icon">🔢</span>
-        <div class="tk-heading">Context Growth</div>
-        <div class="tk-body">Each tool call + result grows the context window. History windowing (default: 10) controls token cost.</div>
+      <div class="srv-card">
+        <div><span class="srv-dot" style="background:var(--llm);"></span><span class="srv-name editable">tavily-search</span></div>
+        <span class="srv-tools">2 tools</span>
+        <span class="srv-desc editable">search, extract</span>
       </div>
-
-      <div class="tk-card">
-        <span class="tk-icon">🛡️</span>
-        <div class="tk-heading">Human-in-the-Loop</div>
-        <div class="tk-body">Dangerous tools (matching DANGEROUS_TOOL_PATTERNS) require explicit user approval before execution.</div>
+      <div class="srv-card">
+        <div><span class="srv-dot" style="background:var(--result);"></span><span class="srv-name editable">google-messages</span></div>
+        <span class="srv-tools">5 tools</span>
+        <span class="srv-desc editable">read, send, reply, search, draft</span>
       </div>
     </div>
-
-    <div class="takeaway-footer">
-      <p class="footer-quote">The power of agentic AI isn't in a single inference — it's in the <strong>loop</strong>: observe, reason, act, repeat.</p>
+    <div class="reveal">
+      <span class="badge b-tool editable">17 total tools</span>
+      <span style="margin-left:8px; font-family:var(--font-mono); font-size:var(--small-size); color:var(--muted);">across 6 servers &middot; JSON-RPC 2.0</span>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════
-  JAVASCRIPT — Navigation, keyboard, IntersectionObserver
-═══════════════════════════════════════════════════════ -->
+<!-- =============================================================
+     SLIDE 6 — Context Window
+     ============================================================= -->
+<section class="slide grid-bg" id="slide-6" aria-label="Context window growth">
+  <div class="s-header"><span class="sh-label">Context Window</span><span class="sh-num">06 / 08</span></div>
+  <div class="layout-split">
+    <div class="split-left">
+      <div class="ghost-num" aria-hidden="true">06</div>
+      <div class="tag reveal editable">token budget</div>
+      <h2 class="slide-h2 reveal editable" style="margin-top:clamp(5px,0.9vw,9px);">
+        Context <em>Grows</em> Each Iteration
+      </h2>
+      <p class="slide-body reveal editable" style="margin-top:clamp(5px,0.9vw,9px); margin-bottom:clamp(9px,1.4vw,14px);">
+        Every tool call and result is appended to the messages array, consuming
+        more of the LLM&#39;s context window. The agent must complete its task
+        before the window fills.
+      </p>
+      <div class="ctx-stages reveal">
+        <div class="ctx-row">
+          <span class="ctx-lbl">Initial prompt</span>
+          <div class="ctx-outer"><div class="ctx-fill" style="--ctx-w:8%; background:var(--llm);"></div></div>
+          <span class="ctx-pct">8%</span>
+        </div>
+        <div class="ctx-row">
+          <span class="ctx-lbl">+ parallel calls</span>
+          <div class="ctx-outer"><div class="ctx-fill" style="--ctx-w:24%;"></div></div>
+          <span class="ctx-pct">24%</span>
+        </div>
+        <div class="ctx-row">
+          <span class="ctx-lbl">+ tool results</span>
+          <div class="ctx-outer"><div class="ctx-fill" style="--ctx-w:42%;"></div></div>
+          <span class="ctx-pct">42%</span>
+        </div>
+        <div class="ctx-row">
+          <span class="ctx-lbl">+ weather call</span>
+          <div class="ctx-outer"><div class="ctx-fill" style="--ctx-w:61%;"></div></div>
+          <span class="ctx-pct">61%</span>
+        </div>
+        <div class="ctx-row">
+          <span class="ctx-lbl">Final response</span>
+          <div class="ctx-outer"><div class="ctx-fill" style="--ctx-w:78%; background:linear-gradient(90deg,var(--llm),var(--result));"></div></div>
+          <span class="ctx-pct">78%</span>
+        </div>
+      </div>
+      <p class="slide-body reveal editable" style="margin-top:clamp(9px,1.4vw,13px);">
+        Conversation history windowing (default: last 10 turns) keeps context
+        usage bounded across multi-turn sessions.
+      </p>
+    </div>
+    <div class="amber-card reveal-right">
+      <div class="ac-label">window budget</div>
+      <div class="ac-stat editable">10</div>
+      <div class="ac-sub editable">turn history<br>window size</div>
+      <div class="ac-div"></div>
+      <div class="ac-code">
+        <span class="ccmt">// sliding window</span><br>
+        const history =<br>
+        &nbsp;&nbsp;messages.<span class="cfn">slice</span>(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="cfn">Math.max</span>(<span class="cnum">0</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;len - windowSize)<br>
+        &nbsp;&nbsp;);
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================================================
+     SLIDE 7 — Key Takeaways
+     ============================================================= -->
+<section class="slide grid-bg" id="slide-7" aria-label="Key takeaways">
+  <div class="s-header"><span class="sh-label">Key Takeaways</span><span class="sh-num">07 / 08</span></div>
+  <div class="split-left" style="justify-content:center; flex:1; gap:var(--gap);">
+    <div class="ghost-num" aria-hidden="true">07</div>
+    <div class="tag reveal editable">summary</div>
+    <h2 class="slide-h2 reveal editable" style="margin-top:clamp(4px,0.8vw,8px);">
+      The <em>Complete</em> Picture
+    </h2>
+    <div class="tc-grid reveal" style="margin-top:clamp(8px,1.2vw,13px);">
+      <div class="tc-card">
+        <div class="tc-num">01</div>
+        <div class="tc-title editable">The Loop is Everything</div>
+        <div class="tc-body editable">Agentic AI is not a one-shot call. It&#39;s a stateful loop that iterates until the task is complete or the iteration limit is hit.</div>
+        <span class="badge b-llm tc-badge editable">chatWithLLM()</span>
+      </div>
+      <div class="tc-card">
+        <div class="tc-num">02</div>
+        <div class="tc-title editable">messages[] Is the State</div>
+        <div class="tc-body editable">The entire agent state lives in one JSON array &#8212; system prompt, user input, tool calls, and results all flow through the same structure.</div>
+        <span class="badge b-tool tc-badge editable">8 messages</span>
+      </div>
+      <div class="tc-card">
+        <div class="tc-num">03</div>
+        <div class="tc-title editable">Parallel Calls Are Free</div>
+        <div class="tc-body editable">When the LLM needs independent information it batches tool calls into one message. Promise.all() resolves them simultaneously.</div>
+        <span class="badge b-tool tc-badge editable">&#x26A1; Promise.all()</span>
+      </div>
+      <div class="tc-card">
+        <div class="tc-num">04</div>
+        <div class="tc-title editable">MCP = Composable Tools</div>
+        <div class="tc-body editable">Each MCP server is an isolated subprocess. Add a server, get new tools. No rebuilding the agent &#8212; just update mcp-servers.json.</div>
+        <span class="badge b-res tc-badge editable">JSON-RPC 2.0</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================================================
+     SLIDE 8 — Closing
+     ============================================================= -->
+<section class="slide grid-bg" id="slide-8" aria-label="Closing slide">
+  <div class="closing">
+    <div aria-hidden="true" style="position:absolute; font-family:var(--font-display); font-size:clamp(80px,18vw,200px); color:rgba(255,255,255,0.017); letter-spacing:-8px; user-select:none; pointer-events:none;">08</div>
+    <div class="tag reveal editable" style="z-index:2; justify-content:center;">thank you</div>
+    <h2 class="closing-big reveal editable" style="z-index:2;">Questions?</h2>
+    <p class="closing-sub reveal editable" style="z-index:2;">
+      The source animation, codebase, and all MCP server implementations
+      are available for exploration.
+    </p>
+    <div class="role-badges reveal" style="justify-content:center; z-index:2;">
+      <span class="badge b-sys editable">system</span>
+      <span class="badge b-usr editable">user</span>
+      <span class="badge b-llm editable">assistant</span>
+      <span class="badge b-tool editable">tool_use &#x26A1;</span>
+      <span class="badge b-res editable">tool_result</span>
+    </div>
+    <div class="closing-ref reveal editable" style="z-index:2;">
+      docs/agentic-ai-animation.html &mdash; interactive visualization
+    </div>
+  </div>
+</section>
+
+<!-- === INLINE EDITING UI ======================================= -->
+<div class="edit-hotzone" id="editHotzone"></div>
+<button class="edit-toggle" id="editToggle" aria-label="Toggle edit mode (E)">&#x270F; edit</button>
+<div class="edit-banner" id="editBanner">
+  EDIT MODE &mdash; click any text to edit &nbsp;&middot;&nbsp; Ctrl+S to save file
+</div>
+
 <script>
-/* === NAVIGATION ========================== */
-const dots  = document.querySelectorAll('.nav-dot');
-const slides = document.querySelectorAll('.slide');
+/* =============================================================
+   SLIDE PRESENTATION CONTROLLER
+   ============================================================= */
+class SlidePresentation {
+  constructor() {
+    this.slides      = document.querySelectorAll('.slide');
+    this.total       = this.slides.length;
+    this.current     = 0;
+    this.progressBar = document.getElementById('progressBar');
+    this.navDots     = document.getElementById('navDots');
 
-// IntersectionObserver syncs the nav dots with the visible slide
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (!entry.isIntersecting) return;
-    const idx = Array.from(slides).indexOf(entry.target);
-    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
-  });
-}, { threshold: 0.6 });
-
-slides.forEach(s => observer.observe(s));
-
-// Dot click → scroll to slide
-dots.forEach((dot, i) => {
-  dot.addEventListener('click', () => {
-    slides[i].scrollIntoView({ behavior: 'smooth' });
-  });
-});
-
-/* === KEYBOARD NAVIGATION ================= */
-document.addEventListener('keydown', e => {
-  const active = Array.from(dots).findIndex(d => d.classList.contains('active'));
-  if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ' ') {
-    e.preventDefault();
-    const next = Math.min(active + 1, slides.length - 1);
-    slides[next].scrollIntoView({ behavior: 'smooth' });
+    this.buildNavDots();
+    this.setupObserver();
+    this.setupKeyboard();
+    this.setupTouch();
+    this.setupScrollProgress();
   }
-  if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-    e.preventDefault();
-    const prev = Math.max(active - 1, 0);
-    slides[prev].scrollIntoView({ behavior: 'smooth' });
-  }
-});
 
-/* === TOUCH SWIPE ========================= */
-let touchStart = null;
-document.addEventListener('touchstart', e => { touchStart = e.touches[0].clientY; }, { passive: true });
-document.addEventListener('touchend', e => {
-  if (touchStart === null) return;
-  const delta = touchStart - e.changedTouches[0].clientY;
-  const active = Array.from(dots).findIndex(d => d.classList.contains('active'));
-  if (Math.abs(delta) > 50) {
-    const target = delta > 0
-      ? Math.min(active + 1, slides.length - 1)
-      : Math.max(active - 1, 0);
-    slides[target].scrollIntoView({ behavior: 'smooth' });
+  buildNavDots() {
+    /* Clear first to prevent duplicate dots if DOM is captured mid-render */
+    this.navDots.textContent = '';
+    this.slides.forEach((_, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'nav-dot' + (i === 0 ? ' active' : '');
+      btn.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+      btn.addEventListener('click', () => this.goTo(i));
+      this.navDots.appendChild(btn);
+    });
   }
-  touchStart = null;
-}, { passive: true });
+
+  updateDots(idx) {
+    this.navDots.querySelectorAll('.nav-dot')
+      .forEach((d, i) => d.classList.toggle('active', i === idx));
+  }
+
+  setupObserver() {
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (!e.isIntersecting) return;
+        e.target.classList.add('visible');
+        const idx = Array.from(this.slides).indexOf(e.target);
+        if (idx >= 0) { this.current = idx; this.updateDots(idx); this.updateProgress(idx); }
+      });
+    }, { threshold: 0.5 });
+    this.slides.forEach(s => obs.observe(s));
+  }
+
+  setupScrollProgress() {
+    window.addEventListener('scroll', () => {
+      const max = document.body.scrollHeight - window.innerHeight;
+      const pct = max > 0 ? (window.scrollY / max) * 100 : 0;
+      this.progressBar.style.width = pct + '%';
+    }, { passive: true });
+  }
+
+  updateProgress(idx) {
+    const pct = this.total > 1 ? (idx / (this.total - 1)) * 100 : 100;
+    this.progressBar.style.width = pct + '%';
+  }
+
+  goTo(idx) {
+    if (idx < 0 || idx >= this.total) return;
+    this.slides[idx].scrollIntoView({ behavior: 'smooth' });
+    this.current = idx; this.updateDots(idx); this.updateProgress(idx);
+  }
+
+  setupKeyboard() {
+    document.addEventListener('keydown', e => {
+      if (e.target.getAttribute('contenteditable') === 'true') return;
+      switch (e.key) {
+        case 'ArrowDown': case 'ArrowRight': case ' ':
+          e.preventDefault(); this.goTo(this.current + 1); break;
+        case 'ArrowUp': case 'ArrowLeft':
+          e.preventDefault(); this.goTo(this.current - 1); break;
+        case 'Home':     e.preventDefault(); this.goTo(0); break;
+        case 'End':      e.preventDefault(); this.goTo(this.total - 1); break;
+        case 'PageDown': e.preventDefault(); this.goTo(this.current + 1); break;
+        case 'PageUp':   e.preventDefault(); this.goTo(this.current - 1); break;
+      }
+    });
+  }
+
+  setupTouch() {
+    let startY = 0, startX = 0;
+    document.addEventListener('touchstart', e => {
+      startY = e.touches[0].clientY; startX = e.touches[0].clientX;
+    }, { passive: true });
+    document.addEventListener('touchend', e => {
+      const dy = startY - e.changedTouches[0].clientY;
+      const dx = startX - e.changedTouches[0].clientX;
+      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 50) {
+        this.goTo(dy > 0 ? this.current + 1 : this.current - 1);
+      }
+    }, { passive: true });
+  }
+}
+
+/* =============================================================
+   INLINE EDITOR
+   Note: localStorage keys use a per-element prefix. Content is
+   stored and restored as plain text (textContent) to avoid any
+   XSS risk from setting innerHTML with stored data.
+   ============================================================= */
+class InlineEditor {
+  constructor() {
+    this.active    = false;
+    this.toggle    = document.getElementById('editToggle');
+    this.banner    = document.getElementById('editBanner');
+    this.hotzone   = document.getElementById('editHotzone');
+    this.hideTimer = null;
+    this.STORE_KEY  = 'aai-pres-';
+
+    this.setupHotzone();
+    this.setupKeyboard();
+    this.restoreFromStorage();
+  }
+
+  toggleMode() {
+    this.active = !this.active;
+    if (this.active) {
+      document.body.classList.add('edit-active');
+      document.querySelectorAll('.editable').forEach(el => {
+        el.setAttribute('contenteditable', 'true');
+      });
+      this.toggle.classList.add('active');
+      this.banner.classList.add('active');
+    } else {
+      document.querySelectorAll('[contenteditable]').forEach(el => {
+        el.removeAttribute('contenteditable');
+        this.persist(el);
+      });
+      document.body.classList.remove('edit-active');
+      this.toggle.classList.remove('active', 'show');
+      this.banner.classList.remove('active');
+    }
+  }
+
+  /* --- Hotzone hover (JS-based; CSS sibling selector breaks with pointer-events:none) */
+  setupHotzone() {
+    this.toggle.addEventListener('click', () => this.toggleMode());
+    this.hotzone.addEventListener('click', () => this.toggleMode());
+    const show = () => { clearTimeout(this.hideTimer); this.toggle.classList.add('show'); };
+    const hide = () => {
+      this.hideTimer = setTimeout(() => {
+        if (!this.active) this.toggle.classList.remove('show');
+      }, 400);
+    };
+    this.hotzone.addEventListener('mouseenter', show);
+    this.hotzone.addEventListener('mouseleave', hide);
+    this.toggle.addEventListener('mouseenter', show);
+    this.toggle.addEventListener('mouseleave', hide);
+  }
+
+  setupKeyboard() {
+    document.addEventListener('keydown', e => {
+      if ((e.key === 'e' || e.key === 'E') && !e.target.getAttribute('contenteditable')) {
+        this.toggleMode();
+      }
+      if (e.ctrlKey && e.key === 's') { e.preventDefault(); this.exportFile(); }
+    });
+  }
+
+  /* --- Derive a stable storage key from element position ---- */
+  storageKey(el, idx) {
+    return this.STORE_KEY + (el.id || (el.className.split(' ')[0].slice(0, 30) + '-' + idx));
+  }
+
+  /* --- Save plain text to localStorage (avoids innerHTML XSS) */
+  persist(el, idx) {
+    const key = this.storageKey(el, idx);
+    localStorage.setItem(key, el.textContent);
+  }
+
+  /* --- Restore plain text from localStorage ----------------- */
+  restoreFromStorage() {
+    document.querySelectorAll('.editable').forEach((el, idx) => {
+      const key   = this.storageKey(el, idx);
+      const saved = localStorage.getItem(key);
+      /* Use textContent to prevent XSS from stored data */
+      if (saved !== null) el.textContent = saved;
+    });
+  }
+
+  /* --- Export clean HTML (strip edit UI state before capture) */
+  exportFile() {
+    /* Remove contenteditable so the saved file opens cleanly */
+    const editEls = Array.from(document.querySelectorAll('[contenteditable]'));
+    editEls.forEach(el => el.removeAttribute('contenteditable'));
+    document.body.classList.remove('edit-active');
+    this.toggle.classList.remove('active', 'show');
+    this.banner.classList.remove('active');
+
+    const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+    /* Restore edit state for the current session */
+    document.body.classList.add('edit-active');
+    editEls.forEach(el => el.setAttribute('contenteditable', 'true'));
+    this.toggle.classList.add('active');
+    this.banner.classList.add('active');
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = 'agentic-ai-presentation.html';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+}
+
+/* === INIT ===================================================== */
+new SlidePresentation();
+new InlineEditor();
 </script>
 </body>
 </html>
