@@ -3,7 +3,7 @@ import JobFactory from "../utils/jobFactory";
 import Logger from "../utils/logger";
 import { loadDynamicJobs } from "../utils/dynamicJobLoader";
 
-export default class Watchdog extends JobFactory {
+export default class DynamicJobLoaderJob extends JobFactory {
 
    protected getSpec() {
       const rule = new RecurrenceRule();
@@ -15,7 +15,7 @@ export default class Watchdog extends JobFactory {
       return (fireDate: Date) => {
          Logger.debug("watchDog: " + fireDate);
          loadDynamicJobs().catch(err =>
-            Logger.error(`[Watchdog] loadDynamicJobs error: ${err}`)
+            Logger.error(`[DynamicJobLoaderJob] loadDynamicJobs error: ${err}`)
          );
       }
    }
