@@ -16,16 +16,40 @@ agentsRouter.get("/version", asyncHandler(async (_req: Request, res: Response) =
 }));
 
 // List all loaded slash commands and skills (useful for frontend autocomplete)
-agentsRouter.get("/commands", asyncHandler(async (_req: Request, res: Response) => {
+// Accepts optional ?agent=<name> to filter commands to only those usable by that agent.
+agentsRouter.get("/commands", asyncHandler(async (req: Request, res: Response) => {
    slashCommandRegistry.initialize();
-   const commands = slashCommandRegistry.listCommands().map(cmd => ({
-      name: cmd.name,
-      description: cmd.description,
-      argumentHint: cmd.argumentHint,
-      model: cmd.model,
-      disableModelInvocation: cmd.disableModelInvocation,
-      allowedTools: cmd.allowedTools,
-   }));
+
+   // Resolve the agent's allowed server names (undefined = all servers allowed)
+   let agentAllowedServers: string[] | undefined;
+   const agentName = typeof req.query.agent === 'string' ? req.query.agent : undefined;
+   if (agentName) {
+      try {
+         const agent = await getAgentFromName(agentName);
+         agentAllowedServers = agent.getAllowedServerNames();
+      } catch {
+         // Unknown agent — return all commands unfiltered
+      }
+   }
+
+   const allCommands = slashCommandRegistry.listCommands();
+   const commands = allCommands
+      .filter(cmd => {
+         // If agent has no server restrictions, all commands are available
+         if (!agentAllowedServers) return true;
+         // If the command has no tool requirements, it's always available
+         if (!cmd.allowedTools || cmd.allowedTools.length === 0) return true;
+         // Only include command if all its required tools are in the agent's allowed servers
+         return cmd.allowedTools.every(tool => agentAllowedServers!.includes(tool));
+      })
+      .map(cmd => ({
+         name: cmd.name,
+         description: cmd.description,
+         argumentHint: cmd.argumentHint,
+         model: cmd.model,
+         disableModelInvocation: cmd.disableModelInvocation,
+         allowedTools: cmd.allowedTools,
+      }));
    const skills = Array.from(slashCommandRegistry.getSkills().keys());
    res.json({ commands, skills });
 }));

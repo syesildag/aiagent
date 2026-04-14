@@ -162,7 +162,7 @@ export const ChatInterface: React.FC = () => {
       .then(data => { if (data?.version) setReleaseData(data); })
       .catch(() => {/* non-critical */});
 
-    fetch('/commands')
+    fetch(`/commands?agent=${encodeURIComponent(agentName)}`)
       .then(res => res.ok ? res.json() : null)
       .then(data => { if (data) setAvailableCommands(data.commands ?? []); })
       .catch(() => {/* non-critical */});
