@@ -50,6 +50,8 @@ export interface LLMChatRequest {
   messages: LLMMessage[];
   tools?: Tool[];
   stream?: boolean;
+  /** When true, skip token-budget truncation (sanitization still runs). Use for final calls with no tools. */
+  skipTruncation?: boolean;
 }
 
 /**
@@ -473,6 +475,13 @@ export function handleTokenLimits(request: LLMChatRequest, maxTokens?: number): 
 
   // If maxTokens is undefined, treat as infinity (no limits)
   if (maxTokens === undefined) {
+    return request;
+  }
+
+  // Final iterations with no tools don't need budget truncation — the full
+  // conversation context is needed for a good answer and tool tokens are absent.
+  if (request.skipTruncation) {
+    Logger.debug('handleTokenLimits: skipTruncation=true, skipping budget truncation');
     return request;
   }
   

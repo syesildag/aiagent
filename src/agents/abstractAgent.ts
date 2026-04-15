@@ -1,15 +1,14 @@
 import { Options } from "ollama";
 import { Agent, AgentName } from "../agent";
-import { MCPServerManager, ImageGenerationResult, MixedContentResult } from "../mcp/mcpManager";
-import { ToolApprovalCallback } from "../mcp/approvalManager";
 import { AiAgentSession } from "../entities/ai-agent-session";
 import aiagentuserRepository from "../entities/ai-agent-user";
-import Logger from "../utils/logger";
-import { slashCommandRegistry } from "../utils/slashCommandRegistry";
-import { getEmbeddingService } from "../utils/embeddingService";
+import { ToolApprovalCallback } from "../mcp/approvalManager";
+import { ImageGenerationResult, MCPServerManager, MixedContentResult } from "../mcp/mcpManager";
 import { BM25Index } from "../utils/bm25Index";
 import { config } from "../utils/config";
-import { Log } from "crawlee";
+import { getEmbeddingService } from "../utils/embeddingService";
+import Logger from "../utils/logger";
+import { slashCommandRegistry } from "../utils/slashCommandRegistry";
 
 export default abstract class AbstractAgent implements Agent {
 

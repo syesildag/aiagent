@@ -1421,11 +1421,14 @@ export class MCPServerManager {
         throw new Error('Operation cancelled by user');
       }
 
-      // Final call can be streamed since we're not providing tools
+      // Final call can be streamed since we're not providing tools.
+      // skipTruncation: the full conversation context matters here; without tools
+      // the token budget is not shared with tool definitions, so we pass all messages.
       const finalResponse = await this.llmProvider.chat({
         model: this.model,
         messages: messages,
-        stream
+        stream,
+        skipTruncation: true
       }, abortSignal);
 
       return finalResponse?.message?.content;
