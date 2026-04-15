@@ -6,10 +6,8 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { AgentBrowser } from "./core/agent-browser/agent-browser";
-import { PlaywrightBrowserBackend } from "./core/browser-backend/index";
 
-const backend = new PlaywrightBrowserBackend();
-const browser = new AgentBrowser(backend);
+const browser = new AgentBrowser();
 let launched = false;
 
 async function ensureLaunched(): Promise<void> {
@@ -321,6 +319,33 @@ server.registerTool(
   }
 );
 
+// agent_browser_pdf
+server.registerTool(
+  "agent_browser_pdf",
+  {
+    title: "PDF",
+    description: "Export the current page as a PDF. Returns base64-encoded PDF when path is omitted; otherwise saves to file.",
+    inputSchema: z.object({
+      path: z.string().optional().describe("Optional file path to save the PDF"),
+      format: z.string().optional().describe("Page format, e.g. A4, Letter (default: Letter)"),
+      printBackground: z.boolean().optional().describe("Print background graphics"),
+    }),
+  },
+  async ({ path: filePath, format, printBackground }) => {
+    try {
+      await ensureLaunched();
+      const result = await browser.pdf(filePath, { format, printBackground });
+      if (filePath) {
+        return toolResult(`PDF saved to ${filePath}`);
+      }
+      const base64 = result instanceof Buffer ? result.toString("base64") : "";
+      return toolResult(base64 ? `data:application/pdf;base64,${base64}` : "(no pdf)");
+    } catch (err) {
+      return toolError(err);
+    }
+  }
+);
+
 // agent_browser_close
 server.registerTool(
   "agent_browser_close",
@@ -346,7 +371,6 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
-
 
 main().catch((e) => {
   console.error('Fatal:', e);

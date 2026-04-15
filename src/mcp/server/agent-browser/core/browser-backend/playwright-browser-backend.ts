@@ -96,6 +96,12 @@ export class PlaywrightBrowserBackend implements IBrowserBackend {
         return path ? undefined : (buffer as Buffer);
     }
 
+    async pdf(path?: string, options?: { format?: string; printBackground?: boolean }): Promise<Buffer | void> {
+        await this.ensurePage();
+        const buffer = await this.page!.pdf({ path, format: options?.format, printBackground: options?.printBackground });
+        return path ? undefined : (buffer as Buffer);
+    }
+
     async close(): Promise<void> {
         if (this.browser) {
             await this.browser.close();

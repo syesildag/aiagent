@@ -17,6 +17,7 @@ export interface IBrowserBackend {
     uncheck(selector: string): Promise<void>;
     scroll(direction: 'up' | 'down' | 'left' | 'right', pixels?: number): Promise<void>;
     screenshot(path?: string, options?: { fullPage?: boolean }): Promise<Buffer | void>;
+    pdf(path?: string, options?: { format?: string; printBackground?: boolean }): Promise<Buffer | void>;
     waitForPageStable(): Promise<void>;
     close(): Promise<void>;
 }

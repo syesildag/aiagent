@@ -1,4 +1,6 @@
 import { IBrowserBackend } from "../browser-backend/browser-backend.js";
+import { PlaywrightBrowserBackend } from "../browser-backend/index";
+
 import { NORMALIZE_SCRIPT } from "./normalize-script.js";
 
 export interface IAgentBrowser {
@@ -15,12 +17,18 @@ export interface IAgentBrowser {
     uncheck(ref: string): Promise<void>;
     scroll(direction: "up" | "down" | "left" | "right", pixels?: number): Promise<void>;
     screenshot(path?: string, options?: { fullPage?: boolean }): Promise<Buffer | void>;
+    pdf(path?: string, options?: { format?: string; printBackground?: boolean }): Promise<Buffer | void>;
     close(): Promise<void>;
     getWireframe(): Promise<string>;
 }
 
 export class AgentBrowser implements IAgentBrowser {
-    constructor(private readonly browserBackend: IBrowserBackend) {}
+
+    private readonly browserBackend: IBrowserBackend
+
+    constructor(browserBackend?: IBrowserBackend) {
+        this.browserBackend = browserBackend ?? new PlaywrightBrowserBackend();
+    }
 
     private async injectNormalizeScript(): Promise<void> {
         await this.browserBackend.evaluate(NORMALIZE_SCRIPT);
@@ -101,6 +109,13 @@ export class AgentBrowser implements IAgentBrowser {
         options?: { fullPage?: boolean }
     ): Promise<Buffer | void> {
         return this.browserBackend.screenshot(path, options);
+    }
+
+    async pdf(
+        path?: string,
+        options?: { format?: string; printBackground?: boolean }
+    ): Promise<Buffer | void> {
+        return this.browserBackend.pdf(path, options);
     }
 
     async close(): Promise<void> {
