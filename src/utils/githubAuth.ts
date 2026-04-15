@@ -92,6 +92,19 @@ export namespace AuthGithubCopilot {
     return "pending";
   }
 
+  /**
+   * Returns the raw GitHub OAuth token (used directly by endpoints like
+   * https://models.inference.ai.azure.com that accept GitHub PAT-style tokens).
+   */
+  export async function oauthToken(): Promise<string | null> {
+    const info = await Auth.get("github-copilot");
+    if (!info || info.type !== "oauth" || !info.refresh) {
+      Logger.debug("No OAuth token stored. Please run 'login' command.");
+      return null;
+    }
+    return info.refresh;
+  }
+
   export async function access() {
     const info = await Auth.get("github-copilot");
     if (!info || info.type !== "oauth") {

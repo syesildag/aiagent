@@ -1332,7 +1332,7 @@ export class MCPServerManager {
               messages.push({ role: 'assistant', content: response.message.content as string });
               messages.push({
                 role: 'user',
-                content: 'You have not called any tools yet. Execute the tool calls now as instructed. Do not explain or describe — call the tools immediately.'
+                content: 'Please use the available tools to respond to the request.'
               });
               nudgeInjected = true;
               currentIteration++;

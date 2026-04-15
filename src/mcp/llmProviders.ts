@@ -1,6 +1,7 @@
 import { Ollama } from 'ollama';
 import Logger from '../utils/logger';
 import { AuthGithubCopilot } from '../utils/githubAuth';
+import { config } from '../utils/config';
 
 /**
  * Universal LLM Provider System with Centralized Token Management
@@ -879,9 +880,41 @@ export class GitHubCopilotProvider implements LLMProvider {
   /**
    * Create headers for GitHub Copilot API requests
    */
+  private isAzureModelsEndpoint(): boolean {
+    return this.baseUrl.includes('models.inference.ai.azure.com');
+  }
+
+  /**
+   * The /models list uses full registry IDs like
+   * "azureml://registries/azure-openai/models/gpt-4o/versions/2",
+   * but /chat/completions only accepts the short name ("gpt-4o").
+   * Extract the leaf segment when targeting the Azure Models endpoint.
+   */
+  private normalizeModelId(modelId: string): string {
+    if (this.isAzureModelsEndpoint() && modelId.startsWith('azureml://')) {
+      const parts = modelId.split('/');
+      // URI: azureml://registries/<registry>/models/<name>/versions/<ver>
+      //      index:  0           1           2       3      4        5      6
+      const nameIdx = parts.indexOf('models');
+      if (nameIdx !== -1 && nameIdx + 1 < parts.length) {
+        return parts[nameIdx + 1];
+      }
+    }
+    return modelId;
+  }
+
   private async createHeaders(): Promise<Record<string, string>> {
-    // Get the current token (this will refresh if needed)
-    const currentToken = await AuthGithubCopilot.access() || this.apiKey;
+    // Azure Models endpoint uses a PAT with models:read scope (preferred) or the raw
+    // GitHub OAuth token. The standard Copilot endpoint uses the short-lived internal token.
+    let currentToken: string;
+    if (this.isAzureModelsEndpoint()) {
+      const pat = config.AUTH_GITHUB_COPILOT_PAT;
+      const source = pat ? 'PAT' : 'oauth-token';
+      Logger.debug(`Azure Models endpoint: using ${source} (PAT configured: ${!!pat})`);
+      currentToken = pat || (await AuthGithubCopilot.oauthToken()) || this.apiKey;
+    } else {
+      currentToken = (await AuthGithubCopilot.access()) ?? this.apiKey;
+    }
     
     const headers: Record<string, string> = {
       'Authorization': `Bearer ${currentToken}`,
@@ -987,6 +1020,10 @@ export class GitHubCopilotProvider implements LLMProvider {
   // We leave a small headroom below the true per-model limit so we never hit a hard 413.
   private static readonly COPILOT_REQUEST_TOKEN_LIMIT = 128000;
 
+  // GitHub Models (Azure AI Inference) free tier enforces an 8000-token hard limit
+  // per request (tools + messages combined). Leave headroom for the response.
+  private static readonly AZURE_MODELS_REQUEST_TOKEN_LIMIT = 7500;
+
   async chat(request: LLMChatRequest, abortSignal?: AbortSignal): Promise<LLMChatResponse> {
     // Store the model for this request
     this.model = request.model;
@@ -995,14 +1032,18 @@ export class GitHubCopilotProvider implements LLMProvider {
     // Use the smaller of the model's theoretical context window and the Copilot
     // per-request limit so that ageing models (gpt-4, 8192 tokens) are still
     // correctly capped while modern models (gpt-4.1, 1M tokens) get a realistic limit.
+    const endpointLimit = this.isAzureModelsEndpoint()
+      ? GitHubCopilotProvider.AZURE_MODELS_REQUEST_TOKEN_LIMIT
+      : GitHubCopilotProvider.COPILOT_REQUEST_TOKEN_LIMIT;
+
     const modelMaxTokens = Math.min(
       getModelMaxTokens(request.model),
-      GitHubCopilotProvider.COPILOT_REQUEST_TOKEN_LIMIT
+      endpointLimit
     );
     const adjustedRequest = handleTokenLimits(request, modelMaxTokens);
 
     const requestBody: any = {
-      model: adjustedRequest.model,
+      model: this.normalizeModelId(adjustedRequest.model),
       messages: adjustedRequest.messages,
       stream: adjustedRequest.stream ?? false
     };
@@ -1049,11 +1090,11 @@ export class GitHubCopilotProvider implements LLMProvider {
             
             // Try again with more aggressive truncation
             const retryBody: any = {
-              model: retryRequest.model,
+              model: this.normalizeModelId(retryRequest.model),
               messages: retryRequest.messages,
               stream: retryRequest.stream ?? false
             };
-            
+
             if (retryRequest.tools && retryRequest.tools.length > 0) {
               retryBody.tools = retryRequest.tools.map((tool: Tool) => ({
                 type: 'function',
@@ -1064,7 +1105,7 @@ export class GitHubCopilotProvider implements LLMProvider {
                 }
               }));
             }
-            
+
             const retryResponse = await fetch(`${this.baseUrl}/chat/completions`, {
               method: 'POST',
               headers: await this.createHeaders(),
@@ -1219,11 +1260,11 @@ export class GitHubCopilotProvider implements LLMProvider {
         const retryRequest = handleTokenLimits(strippedForRetry, maxTokens);
         
         const retryBody: any = {
-          model: retryRequest.model,
+          model: this.normalizeModelId(retryRequest.model),
           messages: retryRequest.messages,
           stream: retryRequest.stream ?? false
         };
-        
+
         if (retryRequest.tools && retryRequest.tools.length > 0) {
           retryBody.tools = retryRequest.tools.map((tool: Tool) => ({
             type: 'function',

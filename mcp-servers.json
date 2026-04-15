@@ -23,7 +23,7 @@
         "dist/src/mcp/server/outlook/index.js"
       ],
       "env": {},
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "memory",
@@ -80,7 +80,7 @@
       "args": [
         "dist/src/mcp/server/jobs.js"
       ],
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "google-messages",
@@ -89,7 +89,7 @@
       "env": {
         "OPENMESSAGES_PORT": "${OPENMESSAGES_PORT}"
       },
-      "enabled": true
+      "enabled": false
     }
   ]
 }

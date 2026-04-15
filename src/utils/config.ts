@@ -60,6 +60,8 @@ const envSchema = z.object({
   GITHUB_COPILOT_EMBEDDINGS_BASE_URL: z.string().url().default('https://api.githubcopilot.com'),
   // Serialized OAuth token object populated automatically after device-flow login
   AUTH_GITHUB_COPILOT: z.string().optional(),
+  // GitHub PAT with models:read scope — used for GitHub Models / Azure AI Inference endpoint
+  AUTH_GITHUB_COPILOT_PAT: z.string().optional(),
 
   // --- Default user (auto-created on first startup if both are set) ---
   DEFAULT_USERNAME: z.string().min(1).optional(),
