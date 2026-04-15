@@ -1480,6 +1480,13 @@ export class MCPServerManager {
     Logger.info(`Sub-agent runner registered with agents: ${Object.keys(descriptions).join(', ')}`);
   }
 
+  /** Returns the serverName of every registered virtual tool (e.g. 'sub-agent-runner'). */
+  getVirtualServerNames(): string[] {
+    return this.getVirtualTools()
+      .map(t => t.serverName)
+      .filter((n): n is string => Boolean(n));
+  }
+
   /**
    * Generate the virtual "task" tool that lets the LLM spawn sub-agents.
    * Only produced when a SubAgentRunner has been registered.
@@ -1495,6 +1502,7 @@ export class MCPServerManager {
 
     return [{
       type: 'function' as const,
+      serverName: 'sub-agent-runner',
       function: {
         name: VIRTUAL_TASK_TOOL_NAME,
         description: `Delegate work to a specialized sub-agent and receive its full response.\nAvailable sub-agents:\n${agentList}`,

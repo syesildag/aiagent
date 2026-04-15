@@ -4,18 +4,9 @@ import Logger from './utils/logger';
 import { config } from './utils/config';
 import { authenticateWithGitHub, whoami } from './utils/githubAuth';
 import { updateEnvVariables } from './utils/envManager';
-import {
-  AnthropicProvider,
-  GitHubCopilotProvider,
-  LLMChatResponse,
-  LLMMessage,
-  LLMProvider,
-  OllamaProvider,
-  OpenAIProvider,
-  Tool
-} from './mcp/llmProviders';
+import { LLMChatResponse, LLMMessage, LLMProvider, Tool } from './mcp/llmProviders';
 import { MCPConfig, MCPServer, MCPServerManager } from './mcp/mcpManager';
-import { GENERAL_ASSISTANT_SYSTEM_PROMPT } from './constants/systemPrompts';
+import { initializeAgents, getAgentFromName, getGlobalMCPManager, reinitializeAgentSystem, Agent } from './agent';
 import { slashCommandRegistry } from './utils/slashCommandRegistry';
 import { processCommand } from './utils/commandProcessor';
 
@@ -73,7 +64,7 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
           });
 
           // Update the manager with new provider configuration
-          updateManagerCallback();
+          await updateManagerCallback();
 
           console.log('✅ GitHub Copilot provider configured successfully!');
           console.log('Manager instance updated with new provider configuration.\n');
@@ -92,7 +83,7 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
         });
 
         // Update the manager with new provider configuration
-        updateManagerCallback();
+        await updateManagerCallback();
 
         console.log('✅ GitHub Copilot provider configured successfully!');
         console.log('Manager instance updated with new provider configuration.\n');
@@ -118,7 +109,7 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
       });
 
       // Update the manager with new provider configuration
-      updateManagerCallback();
+      await updateManagerCallback();
 
       console.log('✅ OpenAI provider configured successfully!');
       console.log('Manager instance updated with new provider configuration.\n');
@@ -140,7 +131,7 @@ async function handleLoginCommand(rl: readline.Interface, updateManagerCallback:
       });
 
       // Update the manager with new provider configuration
-      updateManagerCallback();
+      await updateManagerCallback();
 
       console.log('✅ Anthropic provider configured successfully!');
       console.log('Manager instance updated with new provider configuration.\n');
@@ -224,7 +215,7 @@ async function handleModelCommand(rl: readline.Interface, manager: MCPServerMana
     });
 
     // Update the manager with new model configuration
-    updateManagerCallback();
+    await updateManagerCallback();
 
     console.log(`✅ Model updated to: ${selectedModel}`);
     console.log('Manager instance updated with new model configuration.\n');
@@ -237,7 +228,7 @@ async function handleModelCommand(rl: readline.Interface, manager: MCPServerMana
       });
 
       // Update the manager with new model configuration
-      updateManagerCallback();
+      await updateManagerCallback();
 
       console.log(`✅ Model updated to: ${customModel}`);
       console.log('Manager instance updated with new model configuration.\n');
@@ -249,163 +240,27 @@ async function handleModelCommand(rl: readline.Interface, manager: MCPServerMana
   }
 }
 
-// LLM Provider Implementations
-// Example usage and CLI interface
 async function main() {
-  // Demo different LLM providers
-  Logger.info('=== LLM Provider Options ===');
-  Logger.info('1. Ollama (local) - Default');
-  Logger.info('2. GitHub Copilot (requires API key)');
-  Logger.info('3. OpenAI (requires API key)');
-  Logger.info('');
+  // Initialize the agent system — creates the MCP manager, registers all agents,
+  // loads file-based agents from .aiagent/agents/, and wires up the sub-agent runner.
+  await initializeAgents();
 
-  // For demo purposes, using Ollama. In production, you could:
-  // - Read from environment variables
-  // - Use command line arguments
-  // - Prompt user for selection
-
-  let llmProvider: LLMProvider;
-  let model: string = config.LLM_MODEL;
-  const providerType = config.LLM_PROVIDER;
-  let actualProviderType = providerType; // Track the actual provider being used (after fallbacks)
-
-  Logger.debug(`Provider: ${providerType}`);
-  Logger.debug(`Model: ${model}`);
-
-  switch (providerType.toLowerCase()) {
-    case 'github':
-    case 'copilot':
-      // Use OAuth system to get current GitHub Copilot token
-      const { AuthGithubCopilot } = await import('./utils/githubAuth.js');
-      try {
-        const githubApiKey = await AuthGithubCopilot.access();
-        if (!githubApiKey) {
-          Logger.error('GitHub Copilot requires authentication. Run "/login" command to authenticate.');
-          Logger.info('Falling back to Ollama provider...');
-          llmProvider = new OllamaProvider();
-          model = 'llama3.2:3b'; // Default model for Ollama
-          actualProviderType = 'ollama'; // Update actual provider type
-        } else {
-          const githubBaseUrl = config.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
-          Logger.debug(`GitHub Base URL: ${githubBaseUrl}`);
-          llmProvider = new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
-          Logger.info('Using GitHub Copilot provider');
-          actualProviderType = 'github'; // Keep original provider type
-        }
-      } catch (error) {
-        Logger.error(`GitHub Copilot authentication failed: ${error}`);
-        Logger.info('Falling back to Ollama provider...');
-        llmProvider = new OllamaProvider();
-        model = 'llama3.2:3b'; // Default model for Ollama
-        actualProviderType = 'ollama'; // Update actual provider type
-      }
-      break;
-
-    case 'openai':
-      const openaiApiKey = config.OPENAI_API_KEY;
-      if (!openaiApiKey) {
-        Logger.error('OpenAI requires OPENAI_API_KEY environment variable');
-        Logger.info('Falling back to Ollama provider...');
-        llmProvider = new OllamaProvider();
-        model = 'llama3.2:3b'; // Default model for Ollama
-        actualProviderType = 'ollama';
-        break;
-      }
-      else {
-        llmProvider = new OpenAIProvider(openaiApiKey, config.OPENAI_BASE_URL);
-        Logger.info('Using OpenAI provider');
-        actualProviderType = 'openai';
-        break;
-      }
-
-    case 'anthropic':
-      const anthropicApiKey = config.ANTHROPIC_API_KEY;
-      if (!anthropicApiKey) {
-        Logger.error('Anthropic requires ANTHROPIC_API_KEY environment variable');
-        Logger.info('Falling back to Ollama provider...');
-        llmProvider = new OllamaProvider();
-        model = 'llama3.2:3b'; // Default model for Ollama
-        actualProviderType = 'ollama';
-        break;
-      } else {
-        llmProvider = new AnthropicProvider(anthropicApiKey, config.ANTHROPIC_BASE_URL);
-        Logger.info('Using Anthropic provider');
-        actualProviderType = 'anthropic';
-        break;
-      }
-
-    case 'ollama':
-    default:
-      llmProvider = new OllamaProvider();
-      Logger.info('Using Ollama provider (local)');
-      actualProviderType = 'ollama';
-      break;
-  }
-
-  const currentManager = new MCPServerManager(config.MCP_SERVERS_PATH, llmProvider, model);
+  let generalAgent: Agent = await getAgentFromName('general');
+  let currentManager = getGlobalMCPManager()!;
 
   /**
-   * Create a new LLM provider based on current environment variables
-   */
-  async function createLLMProvider(): Promise<LLMProvider> {
-    const currentProviderType = config.LLM_PROVIDER;
-
-    switch (currentProviderType.toLowerCase()) {
-      case 'github':
-      case 'copilot':
-        const { AuthGithubCopilot } = await import('./utils/githubAuth.js');
-        try {
-          const githubApiKey = await AuthGithubCopilot.access();
-          if (!githubApiKey) {
-            Logger.error('GitHub Copilot requires authentication. Run "/login" command to authenticate.');
-            Logger.info('Falling back to Ollama provider...');
-            return new OllamaProvider();
-          }
-          const githubBaseUrl = config.GITHUB_COPILOT_BASE_URL || 'https://api.githubcopilot.com';
-          return new GitHubCopilotProvider(githubApiKey, githubBaseUrl);
-        } catch (error) {
-          Logger.error(`GitHub Copilot authentication failed: ${error}`);
-          Logger.info('Falling back to Ollama provider...');
-          return new OllamaProvider();
-        }
-
-      case 'openai':
-        const openaiApiKey = config.OPENAI_API_KEY;
-        if (!openaiApiKey) {
-          Logger.error('OpenAI requires OPENAI_API_KEY environment variable');
-          throw new Error('OpenAI configuration incomplete');
-        }
-        return new OpenAIProvider(openaiApiKey);
-
-      case 'anthropic':
-        const anthropicApiKey = config.ANTHROPIC_API_KEY;
-        if (!anthropicApiKey) {
-          Logger.error('Anthropic requires ANTHROPIC_API_KEY environment variable');
-          throw new Error('Anthropic configuration incomplete');
-        }
-        return new AnthropicProvider(anthropicApiKey, config.ANTHROPIC_BASE_URL);
-
-      case 'ollama':
-      default:
-        return new OllamaProvider();
-    }
-  }
-
-  /**
-   * Update the manager's LLM provider and model based on current environment variables
+   * Re-initialize the agent system after a provider or model change.
+   * Reassigns local bindings so the chat loop picks up the new config automatically.
    */
   async function updateManagerConfiguration(): Promise<void> {
-    const newProvider = await createLLMProvider();
-    const newModel = config.LLM_MODEL;
-
-    currentManager.updateConfiguration(newProvider, newModel);
-    Logger.info('Manager configuration updated with new provider/model settings');
+    await reinitializeAgentSystem();
+    generalAgent = await getAgentFromName('general');
+    currentManager = getGlobalMCPManager()!;
+    Logger.info('Agent system re-initialized with new provider/model settings');
   }
 
   try {
-
-    // Example interactions with the LLM using MCP tools
-    console.log(`\n--- Interactive Chat with ${actualProviderType.toUpperCase()} (${model}) ---`);
+    console.log(`\n--- Interactive Chat with ${currentManager.getProviderName().toUpperCase()} (${currentManager.getCurrentModel()}) ---`);
     console.log('Type your questions or commands. Special commands:');
     console.log('  - "/help" - Show available commands');
     console.log('  - "/login" - Configure LLM provider and authenticate');
@@ -671,15 +526,16 @@ async function main() {
             const processedPrompt = processCommand(cmd, parsed.args, slashCommandRegistry.getSkills());
             console.log(`Assistant: Thinking... (/${cmd.name})`);
 
-            const response = await currentManager.chatWithLLM({
-              message: processedPrompt,
-              customSystemPrompt: GENERAL_ASSISTANT_SYSTEM_PROMPT,
-              abortSignal: currentAbortController.signal,
-              stream: true,
-              toolNameFilter: cmd.allowedTools,
-              maxIterations: cmd.maxIterations,
-              freshContext: cmd.freshContext,
-            });
+            const response = await generalAgent.chat(
+              processedPrompt,
+              currentAbortController.signal,
+              true,
+              undefined,
+              undefined,
+              cmd.allowedTools,
+              cmd.maxIterations,
+              cmd.freshContext,
+            );
 
             currentAbortController = null;
 
@@ -695,14 +551,14 @@ async function main() {
                   assistantMessage += value;
                 }
                 console.log('\n');
-                await currentManager.addAssistantMessageToHistory(assistantMessage);
+                generalAgent.addAssistantMessageToHistory(assistantMessage);
               } finally {
                 reader.releaseLock();
               }
             } else {
               const text = typeof response === 'string' ? response : 'kind' in response && response.kind === 'mixed' ? response.text : '';
               console.log(`Assistant: ${text}\n`);
-              await currentManager.addAssistantMessageToHistory(text);
+              generalAgent.addAssistantMessageToHistory(text);
             }
           } catch (error) {
             currentAbortController = null;
@@ -724,12 +580,11 @@ async function main() {
           currentAbortController = new AbortController();
           console.log('Assistant: Thinking... (type "cancel" or press Ctrl+C to cancel)');
 
-          const response = await currentManager.chatWithLLM({
-            message: query,
-            customSystemPrompt: GENERAL_ASSISTANT_SYSTEM_PROMPT,
-            abortSignal: currentAbortController.signal,
-            stream: true
-          });
+          const response = await generalAgent.chat(
+            query,
+            currentAbortController.signal,
+            true,
+          );
 
           // Clear the abort controller since operation completed successfully
           currentAbortController = null;
@@ -750,7 +605,7 @@ async function main() {
                 assistantMessage += value;
               }
               console.log('\n'); // Add newline after streaming is complete
-              await currentManager.addAssistantMessageToHistory(assistantMessage);
+              generalAgent.addAssistantMessageToHistory(assistantMessage);
             } finally {
               reader.releaseLock();
             }
@@ -758,7 +613,7 @@ async function main() {
             // Handle non-streaming response (fallback)
             const text = typeof response === 'string' ? response : 'kind' in response && response.kind === 'mixed' ? response.text : '';
             console.log(`Assistant: ${text}\n`);
-            await currentManager.addAssistantMessageToHistory(text);
+            generalAgent.addAssistantMessageToHistory(text);
           }
         } catch (error) {
           // Clear the abort controller
