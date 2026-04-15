@@ -1669,6 +1669,7 @@ export class MCPServerManager {
       role: 'user',
       content: '[Conversation history was automatically compacted to free context space.]'
     });
+
     await this.conversationHistory.addMessage({
       role: 'assistant',
       content: `Summary of previous conversation:\n\n${summary}`
