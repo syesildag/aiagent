@@ -26,4 +26,8 @@ export class GeneralAgent extends AbstractAgent {
    getAllowedServerNames(): string[] | undefined {
       return undefined; // General agent uses all available servers
    }
+
+   getExcludedServerNames(): string[] {
+      return ['tavily-search'];
+   }
 }

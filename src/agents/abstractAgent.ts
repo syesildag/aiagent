@@ -61,6 +61,10 @@ export default abstract class AbstractAgent implements Agent {
       return undefined; // Default implementation - use all servers
    }
 
+   getExcludedServerNames(): string[] {
+      return [];
+   }
+
    /**
     * Override to use a different LLM model for this agent's calls.
     * File-based agents source this from the `model:` frontmatter field.
@@ -142,6 +146,7 @@ export default abstract class AbstractAgent implements Agent {
             customSystemPrompt: systemPrompt,
             abortSignal,
             serverNames,
+            excludedServerNames: this.getExcludedServerNames(),
             stream,
             attachments,
             userLogin,
