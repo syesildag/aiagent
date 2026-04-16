@@ -506,6 +506,7 @@ export class MCPServerManager {
   /** Injected after agent registry is built. Enables the Task sub-agent tool. */
   private subAgentRunner: SubAgentRunner | null = null;
   private subAgentDescriptions: Record<string, string> = {};
+  private subAgentAllowedServers: Record<string, string[] | undefined> = {};
 
   constructor(
     configPath: string = './mcp-servers.json', 
@@ -757,15 +758,12 @@ export class MCPServerManager {
       }
     }
 
-    // Append virtual tools (e.g. the Task sub-agent tool) after MCP tools
-    const virtualTools = this.getVirtualTools();
-    const allTools = [...tools, ...virtualTools];
+    // Cache only the MCP tools — virtual tools are generated per-call in chatWithLLM
+    // so their sub-agent list can be filtered to the calling agent's allowed servers.
+    this.cachedTools = tools;
 
-    // Cache the tools
-    this.cachedTools = allTools;
-
-    Logger.info(`Cached ${allTools.length} tools (${tools.length} MCP + ${virtualTools.length} virtual) from ${this.connections.size} MCP servers`);
-    return allTools;
+    Logger.info(`Cached ${tools.length} MCP tools from ${this.connections.size} MCP servers`);
+    return tools;
   }
 
   // Handle tool calls by routing them to appropriate MCP servers
@@ -1139,16 +1137,19 @@ export class MCPServerManager {
           : result.text;
       }
 
-      // Get all tools and filter by server names if specified
+      // Get MCP tools (cached), then append virtual tools filtered to this agent's server scope.
       let tools = this.convertMCPToolsToLLMFormat();
       Logger.debug(`Total tools available before filtering: ${tools.length}`);
-      
+
       if (serverNames != null) {
-        // Virtual tools (no serverName) always pass through — they are not MCP-server-specific
         tools = tools.filter(tool =>
           !tool.serverName || serverNames.includes(tool.serverName)
         );
       }
+
+      // Append virtual tools (e.g. Task) with sub-agents filtered to those whose
+      // allowed servers are fully covered by this agent's serverNames.
+      tools = [...tools, ...this.getVirtualTools(serverNames ?? null)];
 
       // Further filter by toolNameFilter from slash-command allowed-tools
       if (toolNameFilter && toolNameFilter.length > 0 && !toolNameFilter.includes('*')) {
@@ -1474,9 +1475,10 @@ export class MCPServerManager {
    * Register a sub-agent runner so the LLM can delegate tasks via the Task tool.
    * Called from agent.ts after the full agent registry is built.
    */
-  setSubAgentRunner(runner: SubAgentRunner, descriptions: Record<string, string>): void {
+  setSubAgentRunner(runner: SubAgentRunner, descriptions: Record<string, string>, allowedServers: Record<string, string[] | undefined>): void {
     this.subAgentRunner = runner;
     this.subAgentDescriptions = descriptions;
+    this.subAgentAllowedServers = allowedServers;
     this.invalidateToolsCache();
     Logger.info(`Sub-agent runner registered with agents: ${Object.keys(descriptions).join(', ')}`);
   }
@@ -1492,9 +1494,21 @@ export class MCPServerManager {
    * Generate the virtual "task" tool that lets the LLM spawn sub-agents.
    * Only produced when a SubAgentRunner has been registered.
    */
-  private getVirtualTools(): Tool[] {
+  private getVirtualTools(parentServerNames: string[] | null = null): Tool[] {
     if (!this.subAgentRunner) return [];
-    const agentNames = Object.keys(this.subAgentDescriptions);
+    let agentNames = Object.keys(this.subAgentDescriptions);
+    if (agentNames.length === 0) return [];
+
+    // When the parent agent has server restrictions, only include sub-agents whose
+    // entire allowed-server set is covered by the parent. Sub-agents with undefined
+    // allowed servers (meaning "all servers") are excluded — they're too permissive.
+    if (parentServerNames !== null) {
+      agentNames = agentNames.filter(name => {
+        const subAllowed = this.subAgentAllowedServers[name];
+        return subAllowed !== undefined && subAllowed.every(s => parentServerNames.includes(s));
+      });
+    }
+
     if (agentNames.length === 0) return [];
 
     const agentList = agentNames

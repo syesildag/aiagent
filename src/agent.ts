@@ -96,6 +96,7 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
    // Only file-based agents are exposed as sub-agents (populated below after
    // scanning .aiagent/agents/ directories).
    const subAgentDescriptions: Record<string, string> = {};
+   const subAgentAllowedServers: Record<string, string[] | undefined> = {};
 
    const subAgentRunner: SubAgentRunner = async (agentName, prompt, abortSignal) => {
       const subAgent = Agents[agentName];
@@ -131,10 +132,11 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
          }
          Agents[def.name] = fileAgent;
          subAgentDescriptions[def.name] = fileAgent.getDescription();
+         subAgentAllowedServers[def.name] = fileAgent.getAllowedServerNames();
       }
    }
 
-   globalMCPManager?.setSubAgentRunner(subAgentRunner, subAgentDescriptions);
+   globalMCPManager?.setSubAgentRunner(subAgentRunner, subAgentDescriptions, subAgentAllowedServers);
 
    initialized = true;
    

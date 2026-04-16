@@ -222,14 +222,34 @@ When a `SubAgentRunner` is registered the manager injects a virtual `task` tool 
 task(description, prompt, subagent_type)
 ```
 
-- `subagent_type` is an `enum` of all registered agent names.
-- The description field (in the LLM tool schema) lists each agent and its one-sentence description automatically.
+- `subagent_type` is an `enum` of the **permitted** sub-agent names (see filtering rules below).
+- The tool description lists each permitted sub-agent and its one-sentence description automatically.
+
+### Sub-agent server-coverage filtering
+
+The `subagent_type` enum shown to the LLM is **not** the full list of registered sub-agents — it is filtered at `chatWithLLM` time to only include sub-agents whose `getAllowedServerNames()` is entirely covered by the calling (parent) agent's own allowed servers.
+
+| Parent `serverNames` | Sub-agent `getAllowedServerNames()` | Included? |
+|---|---|---|
+| `null` (unrestricted) | anything | yes |
+| `['weather', 'time']` | `['weather', 'time']` | yes |
+| `['weather', 'time']` | `['weather']` | yes (subset) |
+| `['weather', 'time']` | `['weather', 'memory']` | **no** — `memory` not available to parent |
+| `['weather', 'time']` | `undefined` (all servers) | **no** — too permissive |
+
+This prevents privilege escalation: a restricted agent cannot delegate to a sub-agent that would use servers outside the parent's scope.
+
+> **Note for sub-agent authors**: a file-based agent must declare `allowedServerNames` in its frontmatter to appear as a delegation target for any restricted parent. An agent with no `allowedServerNames` (uses all servers) is only offered to unrestricted parents.
 
 ### Wiring (agent.ts)
 
 ```typescript
-// After all agents are created:
-globalMCPManager.setSubAgentRunner(subAgentRunner, subAgentDescriptions);
+// After all file-based agents are loaded:
+globalMCPManager.setSubAgentRunner(
+  subAgentRunner,
+  subAgentDescriptions,   // Record<name, description>
+  subAgentAllowedServers, // Record<name, string[] | undefined>
+);
 ```
 
 Sub-agent calls always run with `freshContext: true` (no shared history) and without streaming.
