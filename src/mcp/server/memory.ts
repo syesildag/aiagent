@@ -69,6 +69,12 @@ const MemorySchema = z.object({
   confidence: z.number().min(0).max(1).describe("Confidence score between 0 and 1")
 });
 
+// Accepts tags as either an array or a comma-separated string (LLMs sometimes produce strings)
+const TagsSchema = z.union([
+  z.array(z.string()),
+  z.string().transform(s => s.split(',').map(t => t.trim()).filter(Boolean))
+]).optional();
+
 // Input schemas for tools (using object shape, not Zod objects directly)
 // content uses z.any() to avoid TypeScript's recursive type instantiation
 // limit (TS2589) caused by ZodUnion<[ZodRecord, ZodString]> in the MCP SDK.
@@ -76,24 +82,24 @@ const CreateMemoryInputSchema = z.object({
   type: z.string().min(1, "Memory type cannot be empty"),
   content: z.any().describe("Memory content (object or string)"),
   source: z.string().min(1, "Source cannot be empty"),
-  tags: z.array(z.string()).optional().describe("Optional tags for the memory"),
-  confidence: z.number().min(0).max(1).describe("Confidence score between 0 and 1"),
+  tags: TagsSchema.describe("Optional tags for the memory"),
+  confidence: z.coerce.number().min(0).max(1).describe("Confidence score between 0 and 1"),
   user_login: z.string().optional().describe("User login to scope this memory to a specific user")
 });
 
 const SearchMemoryInputSchema = z.object({
   query: z.string().min(1, "Search query cannot be empty"),
   type: z.string().optional().describe("Filter by memory type"),
-  tags: z.array(z.string()).optional().describe("Filter by tags"),
-  limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return"),
-  min_similarity: z.number().min(0).max(1).optional().describe("Minimum similarity threshold (0-1). Results below this score are excluded. Default is 0.5."),
+  tags: TagsSchema.describe("Filter by tags"),
+  limit: z.coerce.number().int().min(1).max(100).optional().describe("Maximum results to return"),
+  min_similarity: z.coerce.number().min(0).max(1).optional().describe("Minimum similarity threshold (0-1). Results below this score are excluded. Default is 0.5."),
   user_login: z.string().optional().describe("Restrict search to memories of this user")
 });
 
 const ListMemoryInputSchema = z.object({
   type: z.string().optional().describe("Filter by memory type"),
-  tags: z.array(z.string()).optional().describe("Filter by tags"),
-  limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return"),
+  tags: TagsSchema.describe("Filter by tags"),
+  limit: z.coerce.number().int().min(1).max(100).optional().describe("Maximum results to return"),
   user_login: z.string().optional().describe("Restrict listing to memories of this user")
 });
 
