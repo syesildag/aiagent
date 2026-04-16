@@ -41,6 +41,7 @@ const DANGEROUS_TOOL_PATTERNS: RegExp[] = [
 ];
 
 const VIRTUAL_TASK_TOOL_NAME = 'task';
+export const SUB_AGENT_RUNNER = 'sub-agent-runner';
 
 /** Maximum characters allowed per text field in a tool result before truncation. */
 const MAX_TOOL_RESULT_TEXT_CHARS = 20_000;
@@ -667,7 +668,7 @@ export class MCPServerManager {
   }
 
   getEnabledServerConfigs(): MCPServer[] {
-    return this.servers;
+    return this.servers ? [...this.servers] : [];
   }
 
   async checkHealth(): Promise<boolean> {
@@ -1502,7 +1503,7 @@ export class MCPServerManager {
 
     return [{
       type: 'function' as const,
-      serverName: 'sub-agent-runner',
+      serverName: SUB_AGENT_RUNNER,
       function: {
         name: VIRTUAL_TASK_TOOL_NAME,
         description: `Delegate work to a specialized sub-agent and receive its full response.\nAvailable sub-agents:\n${agentList}`,

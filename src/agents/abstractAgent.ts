@@ -3,7 +3,7 @@ import { Agent, AgentName } from "../agent";
 import { AiAgentSession } from "../entities/ai-agent-session";
 import aiagentuserRepository from "../entities/ai-agent-user";
 import { ToolApprovalCallback } from "../mcp/approvalManager";
-import { ImageGenerationResult, MCPServerManager, MixedContentResult } from "../mcp/mcpManager";
+import { ImageGenerationResult, MCPServerManager, MixedContentResult, SUB_AGENT_RUNNER } from "../mcp/mcpManager";
 import { BM25Index } from "../utils/bm25Index";
 import { config } from "../utils/config";
 import { getEmbeddingService } from "../utils/embeddingService";
@@ -76,17 +76,20 @@ export default abstract class AbstractAgent implements Agent {
    }
 
    /**
-    * Filters the candidate server list using BM25 keyword scoring over cached
-    * tool descriptions. No neural-inference calls — runs entirely in-process.
+    * Partitions enabled servers into alwaysOn, noTools, withTools, and builds
+    * their tool entries. Returns null when scoring should be skipped (no tools
+    * available), signalling the caller to fall back to `allowed`.
     */
-   private filterServersByBM25(
-      prompt: string,
-      allowed: string[] | undefined,
-      threshold = config.EMBEDDING_SIMILARITY_THRESHOLD,
-   ): string[] | undefined {
-      if (!this.mcpManager) return allowed;
+   private prepareServerFiltering(allowed: string[] | undefined): {
+      alwaysOn: string[];
+      noTools: string[];
+      withTools: { name: string }[];
+      toolEntries: { serverName: string; description: string }[];
+   } | null {
+      if (!this.mcpManager) return null;
 
       const configs = this.mcpManager.getEnabledServerConfigs();
+      configs.push({ name: SUB_AGENT_RUNNER, enabled: true });
       const candidates = allowed
          ? configs.filter(s => allowed.includes(s.name))
          : configs;
@@ -99,10 +102,52 @@ export default abstract class AbstractAgent implements Agent {
          .map(s => s.name);
       const withTools = filterable.filter(s => toolsByServer[s.name]?.length > 0);
 
-      if (withTools.length === 0) return allowed;
+      if (withTools.length === 0) return null;
 
       const toolEntries = this.buildToolEntries(withTools, toolsByServer);
-      if (toolEntries.length === 0) return allowed;
+      if (toolEntries.length === 0) return null;
+
+      return { alwaysOn, noTools, withTools, toolEntries };
+   }
+
+   /**
+    * Assembles the final server list from pre-scored results. Servers in alwaysOn
+    * and noTools are unconditionally included; withTools servers are included only
+    * when their best score meets the threshold.
+    */
+   private buildMatchedFromScores(
+      alwaysOn: string[],
+      noTools: string[],
+      withTools: { name: string }[],
+      maxScoreByServer: Map<string, number>,
+      threshold: number,
+      metricLabel: string,
+   ): string[] {
+      const matched: string[] = [...alwaysOn, ...noTools];
+      for (const server of withTools) {
+         const score = maxScoreByServer.get(server.name) ?? 0;
+         Logger.debug(`[Servers] "${server.name}" max-tool-${metricLabel}=${score.toFixed(3)} threshold=${threshold}`);
+         if (score >= threshold) {
+            Logger.debug(`[Servers] Loaded "${server.name}" (max-tool-${metricLabel}=${score.toFixed(3)})`);
+            matched.push(server.name);
+         }
+      }
+      return matched;
+   }
+
+   /**
+    * Filters the candidate server list using BM25 keyword scoring over cached
+    * tool descriptions. No neural-inference calls — runs entirely in-process.
+    */
+   private filterServersByBM25(
+      prompt: string,
+      allowed: string[] | undefined,
+      threshold = config.EMBEDDING_SIMILARITY_THRESHOLD,
+   ): string[] | undefined {
+      const partitions = this.prepareServerFiltering(allowed);
+      if (!partitions) return allowed;
+
+      const { alwaysOn, noTools, withTools, toolEntries } = partitions;
 
       const bm25 = new BM25Index(toolEntries.map(e => e.description));
       // Normalize by self-score: how well the query matches itself using the
@@ -123,17 +168,7 @@ export default abstract class AbstractAgent implements Agent {
       }
 
       Logger.debug(`BM25 raw scores: ${toolEntries.map((e, i) => `"${e.serverName}": ${rawScores[i].toFixed(3)}`).join(', ')}`);
-      const matched: string[] = [...alwaysOn, ...noTools];
-      for (const server of withTools) {
-         const score = maxScoreByServer.get(server.name) ?? 0;
-         Logger.debug(`[Servers] "${server.name}" max-tool-bm25=${score.toFixed(3)} threshold=${threshold}`);
-         if (score >= threshold) {
-            Logger.debug(`[Servers] Loaded "${server.name}" (max-tool-bm25=${score.toFixed(3)})`);
-            matched.push(server.name);
-         }
-      }
-
-      return matched;
+      return this.buildMatchedFromScores(alwaysOn, noTools, withTools, maxScoreByServer, threshold, 'bm25');
    }
 
    /**
@@ -169,35 +204,18 @@ export default abstract class AbstractAgent implements Agent {
       allowed: string[] | undefined,
       threshold = config.EMBEDDING_SIMILARITY_THRESHOLD,
    ): Promise<string[] | undefined> {
-      if (!this.mcpManager) return allowed;
+      const partitions = this.prepareServerFiltering(allowed);
+      if (!partitions) return allowed;
 
-      const configs = this.mcpManager.getEnabledServerConfigs();
-      const candidates = allowed
-         ? configs.filter(s => allowed.includes(s.name))
-         : configs;
-
-      const toolsByServer = this.mcpManager.getToolsByServer();
-
-      const alwaysOn = candidates.filter(s => s.alwaysInclude).map(s => s.name);
-      const filterable = candidates.filter(s => !s.alwaysInclude);
-      // Servers not yet in the tools cache are always included (not yet started)
-      const noTools = filterable.filter(s => !toolsByServer[s.name] || toolsByServer[s.name].length === 0).map(s => s.name);
-      const withTools = filterable.filter(s => toolsByServer[s.name]?.length > 0);
-
-      if (withTools.length === 0) return allowed;
+      const { alwaysOn, noTools, withTools, toolEntries } = partitions;
 
       try {
          const embeddingService = getEmbeddingService();
 
-         // Build a flat list of tool descriptions and track which server each belongs to.
+         // Batch all texts so they use the same provider → consistent dimensions
          // Strip the "[serverName] " prefix added for LLM attribution — it adds noise to embeddings
          // (e.g. "[outlook]" pulls the vector toward email semantics, hurting calendar matches).
-         const toolEntries = this.buildToolEntries(withTools, toolsByServer);
-
          Logger.debug(`Filtering servers by embedding similarity: prompt="${prompt}", tools=[${toolEntries.map(e => `"${e.serverName}": "${e.description}"`).join(', ')}], threshold=${threshold}`);
-         if (toolEntries.length === 0) return allowed;
-
-         // Batch all texts so they use the same provider → consistent dimensions
          const texts = [prompt, ...toolEntries.map(e => e.description)];
          const embeddings = await embeddingService.generateBatchEmbeddings(texts);
          const promptEmbedding = embeddings[0];
@@ -211,18 +229,8 @@ export default abstract class AbstractAgent implements Agent {
             if (similarity > prev) maxSimilarityByServer.set(serverName, similarity);
          }
 
-         Logger.debug(`Embedding similarities: ${toolEntries.map((e, i) => `"${e.serverName}": ${maxSimilarityByServer.get(e.serverName)?.toFixed(3) ?? 'n/a'}`).join(', ')}`);
-         const matched: string[] = [...alwaysOn, ...noTools];
-         for (const server of withTools) {
-            const similarity = maxSimilarityByServer.get(server.name) ?? 0;
-            Logger.debug(`[Servers] "${server.name}" max-tool-similarity=${similarity.toFixed(3)} threshold=${threshold}`);
-            if (similarity >= threshold) {
-               Logger.debug(`[Servers] Loaded "${server.name}" (max-tool-similarity=${similarity.toFixed(3)})`);
-               matched.push(server.name);
-            }
-         }
-
-         return matched;
+         Logger.debug(`Embedding similarities: ${toolEntries.map(e => `"${e.serverName}": ${maxSimilarityByServer.get(e.serverName)?.toFixed(3) ?? 'n/a'}`).join(', ')}`);
+         return this.buildMatchedFromScores(alwaysOn, noTools, withTools, maxSimilarityByServer, threshold, 'similarity');
       } catch (error) {
          Logger.warn(`[Servers] Similarity filtering failed (${error instanceof Error ? error.message : String(error)}); using all candidates`);
          return allowed;
