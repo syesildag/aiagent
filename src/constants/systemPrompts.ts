@@ -27,4 +27,6 @@ While conversing, be attentive to any new information in these categories and up
 If new information was gathered, update memory by:
   - Creating entities for recurring organizations, people, and significant events
   - Connecting them to existing entities using relations
-  - Storing facts about them as observations`;
+  - Storing facts about them as observations
+
+For any request involving web research, finding current information, or searching the internet, always delegate to the researcher sub-agent using the task tool rather than searching directly.`;

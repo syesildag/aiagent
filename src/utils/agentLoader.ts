@@ -10,6 +10,8 @@ export interface AgentDefinition {
   description?: string;
   /** MCP server names this agent may use; undefined means all servers */
   allowedServerNames?: string[];
+  /** MCP server names whose direct tools are hidden from this agent's LLM context */
+  excludedServerNames?: string[];
   /** From `model:` frontmatter — overrides the global LLM model for this agent */
   model?: string;
   /** Markdown body after the frontmatter delimiter — used as the system prompt */
@@ -70,6 +72,7 @@ export function loadAgentDefinitions(agentsDir: string): Map<string, AgentDefini
         name,
         description: data.description ? String(data.description) : undefined,
         allowedServerNames: parseTools(data.tools),
+        excludedServerNames: parseTools(data.forbidden),
         model: data.model ? String(data.model) : undefined,
         systemPrompt,
         filePath,

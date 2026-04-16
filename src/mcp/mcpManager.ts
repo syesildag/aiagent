@@ -79,6 +79,7 @@ export interface ChatWithLLMArgs {
   customSystemPrompt: string;
   abortSignal?: AbortSignal;
   serverNames?: string[];
+  excludedServerNames?: string[];
   stream?: boolean;
   attachments?: {
     base64: string;

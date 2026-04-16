@@ -58,6 +58,12 @@ describe('GeneralAgent', () => {
     });
   });
 
+  describe('getExcludedServerNames', () => {
+    it('should exclude tavily-search to force delegation to researcher sub-agent', () => {
+      expect(agent.getExcludedServerNames()).toEqual(['tavily-search']);
+    });
+  });
+
   describe('Inherited AbstractAgent functionality', () => {
     it('should have getOptions method', () => {
       expect(agent.getOptions).toBeDefined();
