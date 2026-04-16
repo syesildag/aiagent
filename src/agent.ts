@@ -63,9 +63,11 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
    // Initialize global MCP manager — auth failures are non-fatal so agents are
    // always registered (chat will surface a meaningful error instead of a 404).
    try {
-      const llmProvider = await createLLMProvider();
-      const model = getLLMModel();
-      globalMCPManager = new MCPServerManager(config.MCP_SERVERS_PATH, llmProvider, model);
+      globalMCPManager = await MCPServerManager.create(
+         config.MCP_SERVERS_PATH,
+         await createLLMProvider(),
+         getLLMModel(),
+      );
       try {
          await globalMCPManager.ensureInitialized();
          Logger.info('Global MCP manager initialized successfully');

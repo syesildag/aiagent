@@ -21,17 +21,17 @@ import type { IConversationHistory } from '../descriptions/conversationTypes';
 import type { ChatWithLLMArgs, CompactInfo, ImageGenerationResult, MixedContentResult } from './mcpManager';
 import type { ToolRegistry } from './toolRegistry';
 import type { ToolExecutor } from './toolExecutor';
-import type { HistoryManager } from './historyManager';
 
 /** Fraction of the model's context window that triggers automatic history compaction. */
 const AUTO_COMPACT_THRESHOLD = 0.90;
+/** Number of most-recent messages to preserve verbatim after compaction. */
+const AUTO_COMPACT_KEEP_RECENT = 4;
 
 export interface AgentLoopDeps {
   llmProvider: LLMProvider;
   model: string;
   toolRegistry: ToolRegistry;
   toolExecutor: ToolExecutor;
-  historyManager: HistoryManager;
 }
 
 /**
@@ -50,10 +50,48 @@ export class AgentLoop {
 
   /**
    * Returns a NEW AgentLoop with the model overridden — no mutation.
-   * Fixes the model-mutation race condition in the original code.
+   * Fixes the model-mutation race condition: concurrent requests each call
+   * agentLoop.withModel(override).run(...) on their own short-lived instance.
    */
   withModel(model: string): AgentLoop {
     return new AgentLoop({ ...this.deps, model });
+  }
+
+  /** Inline compaction — called inside run() when token usage exceeds threshold. */
+  private async compactHistory(
+    history: IConversationHistory,
+  ): Promise<{ summarized: number; kept: number }> {
+    const { llmProvider, model } = this.deps;
+    const messages = await history.getCurrentConversation();
+    if (messages.length <= AUTO_COMPACT_KEEP_RECENT) {
+      return { summarized: 0, kept: messages.length };
+    }
+    const toSummarize = messages.slice(0, -AUTO_COMPACT_KEEP_RECENT);
+    const recentMessages = messages.slice(-AUTO_COMPACT_KEEP_RECENT);
+    const historyText = toSummarize
+      .map(m => `${m.role}: ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`)
+      .join('\n');
+    const summaryResponse = await llmProvider.chat({
+      model,
+      messages: [
+        { role: 'system', content: 'You are a conversation summarizer. Produce a concise summary of the conversation that preserves all key facts, decisions, and context needed to continue the conversation. Be thorough but brief.' },
+        { role: 'user', content: `Summarize this conversation:\n\n${historyText}` },
+      ],
+      tools: [],
+      stream: false,
+    });
+    const summary = summaryResponse.message.content as string;
+    await history.clearCurrentMessages();
+    await history.addMessage({ role: 'user', content: '[Conversation history was automatically compacted to free context space.]' });
+    await history.addMessage({ role: 'assistant', content: `Summary of previous conversation:\n\n${summary}` });
+    for (const msg of recentMessages) {
+      await history.addMessage({
+        role: msg.role as 'user' | 'assistant' | 'system' | 'tool',
+        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+      });
+    }
+    Logger.info(`Context auto-compacted: summarized ${toSummarize.length} messages, kept ${recentMessages.length} recent`);
+    return { summarized: toSummarize.length, kept: recentMessages.length };
   }
 
   async run(
@@ -65,7 +103,7 @@ export class AgentLoop {
       attachments, userLogin, isAdmin, approvalCallback, toolNameFilter,
       freshContext, onContextUpdate, onCompact,
     } = args;
-    const { llmProvider, model, toolRegistry, toolExecutor, historyManager } = this.deps;
+    const { llmProvider, model, toolRegistry, toolExecutor } = this.deps;
 
     // ── Track 1: Dedicated image-generation models (Images API) ─────────────
     if (isImageGenerationModel(model)) {
@@ -216,7 +254,7 @@ export class AgentLoop {
 
     if (usageRatio >= AUTO_COMPACT_THRESHOLD) {
       Logger.warn(`Context usage ${Math.round(usageRatio * 100)}% exceeds threshold — auto-compacting history`);
-      const compactResult = await historyManager.compactHistory(conversationHistory, llmProvider, model);
+      const compactResult = await this.compactHistory(conversationHistory);
       const compacted = await conversationHistory.getCurrentConversation();
       messages = [{ role: 'system', content: effectiveSystemPrompt }, ...compacted];
       const compactedTokens = messages.reduce((sum, m) => sum + estimateFullMessageTokens(m), 0);
