@@ -31,6 +31,18 @@ export class ConversationHistoryFactory {
   }
 
   /**
+   * Create a fresh (non-singleton) conversation history instance.
+   * Use this instead of getInstance() to get an isolated history per request,
+   * preventing shared-singleton bugs when multiple users chat concurrently.
+   */
+  static createFresh(): IConversationHistory {
+    if (config.NODE_ENV !== 'test' && config.USE_DB_CONVERSATION_HISTORY) {
+      return new DbConversationHistory();
+    }
+    return new InMemoryConversationHistory();
+  }
+
+  /**
    * Create a specific implementation (useful for testing)
    */
   static createInstance(type: 'memory' | 'database'): IConversationHistory {
