@@ -1496,22 +1496,22 @@ export class MCPServerManager {
    */
   private getVirtualTools(parentServerNames: string[] | null = null): Tool[] {
     if (!this.subAgentRunner) return [];
-    let agentNames = Object.keys(this.subAgentDescriptions);
-    if (agentNames.length === 0) return [];
+    let subAgentNames = Object.keys(this.subAgentDescriptions);
+    if (subAgentNames.length === 0) return [];
 
     // When the parent agent has server restrictions, only include sub-agents whose
     // entire allowed-server set is covered by the parent. Sub-agents with undefined
     // allowed servers (meaning "all servers") are excluded — they're too permissive.
     if (parentServerNames !== null) {
-      agentNames = agentNames.filter(name => {
+      subAgentNames = subAgentNames.filter(name => {
         const subAllowed = this.subAgentAllowedServers[name];
         return subAllowed !== undefined && subAllowed.every(s => parentServerNames.includes(s));
       });
     }
 
-    if (agentNames.length === 0) return [];
+    if (subAgentNames.length === 0) return [];
 
-    const agentList = agentNames
+    const subAgentList = subAgentNames
       .map(name => `- ${name}: ${this.subAgentDescriptions[name]}`)
       .join('\n');
 
@@ -1520,7 +1520,7 @@ export class MCPServerManager {
       serverName: SUB_AGENT_RUNNER,
       function: {
         name: VIRTUAL_TASK_TOOL_NAME,
-        description: `Delegate work to a specialized sub-agent and receive its full response.\nAvailable sub-agents:\n${agentList}`,
+        description: `Delegate work to a specialized sub-agent and receive its full response.\nAvailable sub-agents:\n${subAgentList}`,
         parameters: {
           type: 'object',
           properties: {
@@ -1535,13 +1535,73 @@ export class MCPServerManager {
             subagent_type: {
               type: 'string',
               description: 'Which specialized agent to invoke',
-              enum: agentNames,
+              enum: subAgentNames,
             },
           },
           required: ['description', 'prompt', 'subagent_type'],
         },
       },
     }];
+  }
+
+  /**
+   * Build the Markdown status page for /mcp-status without calling the LLM.
+   * Extracted here so both chat.ts and cli.ts can call a single method instead
+   * of each duplicating the 50-line Markdown-building block inline.
+   */
+  renderStatusMarkdown(): string {
+    const serverStatus = this.getServerStatus();
+    const cacheValid = this.isToolsCacheValid();
+    const cachedCount = this.getCachedToolsCount();
+    const toolsByServer = this.getToolsByServer();
+    const serverEntries = Object.entries(serverStatus);
+    const runningCount = serverEntries.filter(([, s]) => s.running).length;
+
+    const lines: string[] = [];
+    lines.push('# 🔌 MCP Status');
+    lines.push('');
+    lines.push('## Cache');
+    lines.push('');
+    lines.push('| Property | Value |');
+    lines.push('|---|---|');
+    lines.push(`| Status | ${cacheValid ? '✅ Valid' : '⚠️ Stale'} |`);
+    lines.push(`| Total tools | ${cachedCount} |`);
+    lines.push(`| Servers | ${runningCount} running / ${serverEntries.length} total |`);
+    lines.push('');
+    lines.push('---');
+    lines.push('');
+    lines.push('## Servers');
+    lines.push('');
+
+    for (const [serverName, info] of serverEntries) {
+      const serverTools = toolsByServer[serverName] ?? [];
+      const statusIcon = info.running ? '🟢' : '🔴';
+      const statusLabel = info.running ? 'running' : 'stopped';
+
+      lines.push(`### ${statusIcon} \`${serverName}\` — ${statusLabel}`);
+      lines.push('');
+      lines.push('| | Count |');
+      lines.push('|---|---|');
+      lines.push(`| 🛠 Tools | ${info.tools.length} |`);
+      lines.push(`| 📦 Resources | ${info.resources.length} |`);
+      lines.push(`| 💬 Prompts | ${info.prompts.length} |`);
+
+      if (serverTools.length > 0) {
+        lines.push('');
+        lines.push('<details><summary>📋 Cached tools</summary>');
+        lines.push('');
+        lines.push('| Tool | Description |');
+        lines.push('|---|---|');
+        for (const tool of serverTools) {
+          lines.push(`| \`${tool.function.name}\` | ${tool.function.description ?? '—'} |`);
+        }
+        lines.push('');
+        lines.push('</details>');
+      }
+      lines.push('');
+    }
+
+    return lines.join('\n');
   }
 
   /**
