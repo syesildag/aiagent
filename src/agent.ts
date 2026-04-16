@@ -7,11 +7,13 @@ import { FileBasedAgent } from './agents/fileBasedAgent';
 import { createLLMProvider, getLLMModel } from './mcp/llmFactory';
 import { MCPServerManager, SubAgentRunner, ImageGenerationResult, MixedContentResult } from './mcp/mcpManager';
 import { ToolApprovalCallback } from './mcp/approvalManager';
+import type { ServerFilter } from './mcp/serverFilter';
 import { AiAgentSession } from './entities/ai-agent-session';
 import { config } from './utils/config';
 import Logger from './utils/logger';
 import { loadAgentDefinitions } from './utils/agentLoader';
 import { MemoryAgent } from './agents/memoryAgent';
+import { slashCommandRegistry } from './utils/slashCommandRegistry';
 
 export type AgentName = string;
 
@@ -36,6 +38,7 @@ export interface Agent {
    getDescription(): string;
    getOptions(): Partial<Options> | undefined;
    setMCPManager(manager: MCPServerManager): void;
+   setServerFilter(sf: ServerFilter): void;
    getAllowedServerNames(): string[] | undefined;
    addAssistantMessageToHistory(content: string | undefined): void;
    hasActiveConversation(): boolean;
@@ -54,6 +57,9 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
    if (initialized) {
       return Agents;
    }
+
+   // Initialize slash command registry once at startup so agents don't race on it.
+   slashCommandRegistry.initialize();
 
    // Shutdown existing MCP manager if it exists
    if (globalMCPManager) {
@@ -139,6 +145,13 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
    }
 
    globalMCPManager?.setSubAgentRunner(subAgentRunner, subAgentDescriptions, subAgentAllowedServers);
+
+   // Inject a shared ServerFilter into every agent so AbstractAgent.chat() can
+   // delegate server-routing without carrying the logic itself.
+   if (globalMCPManager) {
+      const serverFilter = globalMCPManager.createServerFilter();
+      Object.values(Agents).forEach(agent => agent.setServerFilter(serverFilter));
+   }
 
    initialized = true;
    

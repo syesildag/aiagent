@@ -1,21 +1,17 @@
-import { randomUUID } from 'crypto';
 import { Request, Response, Router } from "express";
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import { getAgentFromName, getGlobalMCPManager } from '../agent';
 import type { ImageGenerationResult, MixedContentResult } from '../mcp/mcpManager';
-import { AiAgentConversationMessages } from "../entities/ai-agent-conversation-messages";
-import aiagentconversationmessagesRepository from "../entities/ai-agent-conversation-messages";
-import aiagentconversationsRepository, { AiAgentConversations } from "../entities/ai-agent-conversations";
 import { AiAgentSession } from "../entities/ai-agent-session";
 import aiagentuserRepository from "../entities/ai-agent-user";
 import { approvalManager } from '../mcp/approvalManager';
 import { asyncHandler } from "../utils/asyncHandler";
-import { processCommand } from '../utils/commandProcessor';
 import Logger from "../utils/logger";
-import { config } from '../utils/config';
-import { slashCommandRegistry } from '../utils/slashCommandRegistry';
+import { processSlashCommand } from '../utils/slashCommandProcessor';
 import { handleStreamingResponse } from '../utils/streamUtils';
+import { conversationService } from '../services/conversationService';
+import { chatService } from '../services/chatService';
 import { sendAuthenticationRequired } from "./routeUtils";
 
 export const chatRouter = Router();
@@ -114,102 +110,16 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
    res.flushHeaders();  // open the connection now so early writes (approvals) reach the client
 
    // ── Slash command processing ───────────────────────────────────────────────
-   slashCommandRegistry.initialize();
-   let effectivePrompt = prompt;
-   // toolNameFilter, cmdMaxIterations, and cmdFreshContext are ONLY set for slash
-   // commands ("/cmd args"). Natural-language prompts always get undefined here,
-   // meaning all enabled MCP tools are available — the skill's `allowed-tools`
-   // metadata is intentionally ignored for the semantic-injection path.
-   let toolNameFilter: string[] | undefined;
-   let cmdMaxIterations: number | undefined;
-   let cmdFreshContext: boolean | undefined;
-
-   if (slashCommandRegistry.hasCommand(prompt)) {
-     const parsed = slashCommandRegistry.parseInput(prompt);
-     if (parsed) {
-       const cmd = slashCommandRegistry.getCommand(parsed.name)!;
-       toolNameFilter = cmd.allowedTools;
-       cmdMaxIterations = cmd.maxIterations;
-       cmdFreshContext = cmd.freshContext;
-
-       if (cmd.disableModelInvocation) {
-         // Special case: mcp-status builds its response directly from the in-process
-         // MCPServerManager to avoid a deadlock (execSync bash capture + self-HTTP call
-         // would block the event loop before the server could respond to itself).
-         if (parsed.name === 'mcp-status') {
-           const manager = getGlobalMCPManager();
-           let text: string;
-           if (!manager) {
-             text = 'MCP manager not initialised yet.';
-           } else {
-             const serverStatus = manager.getServerStatus();
-             const cacheValid = manager.isToolsCacheValid();
-             const cachedCount = manager.getCachedToolsCount();
-             const toolsByServer = manager.getToolsByServer();
-             const serverEntries = Object.entries(serverStatus);
-             const runningCount = serverEntries.filter(([, s]) => s.running).length;
-
-             const lines: string[] = [];
-             lines.push('# 🔌 MCP Status');
-             lines.push('');
-             lines.push('## Cache');
-             lines.push('');
-             lines.push('| Property | Value |');
-             lines.push('|---|---|');
-             lines.push(`| Status | ${cacheValid ? '✅ Valid' : '⚠️ Stale'} |`);
-             lines.push(`| Total tools | ${cachedCount} |`);
-             lines.push(`| Servers | ${runningCount} running / ${serverEntries.length} total |`);
-             lines.push('');
-             lines.push('---');
-             lines.push('');
-             lines.push('## Servers');
-             lines.push('');
-
-             for (const [serverName, info] of serverEntries) {
-               const serverTools = toolsByServer[serverName] ?? [];
-               const statusIcon = info.running ? '🟢' : '🔴';
-               const statusLabel = info.running ? 'running' : 'stopped';
-
-               lines.push(`### ${statusIcon} \`${serverName}\` — ${statusLabel}`);
-               lines.push('');
-               lines.push('| | Count |');
-               lines.push('|---|---|');
-               lines.push(`| 🛠 Tools | ${info.tools.length} |`);
-               lines.push(`| 📦 Resources | ${info.resources.length} |`);
-               lines.push(`| 💬 Prompts | ${info.prompts.length} |`);
-
-               if (serverTools.length > 0) {
-                 lines.push('');
-                 lines.push('<details><summary>📋 Cached tools</summary>');
-                 lines.push('');
-                 lines.push('| Tool | Description |');
-                 lines.push('|---|---|');
-                 for (const tool of serverTools) {
-                   lines.push(`| \`${tool.function.name}\` | ${tool.function.description ?? '—'} |`);
-                 }
-                 lines.push('');
-                 lines.push('</details>');
-               }
-               lines.push('');
-             }
-
-             text = lines.join('\n');
-           }
-           res.write(JSON.stringify({ t: 'text', v: text }) + '\n');
-           res.end();
-           return;
-         }
-
-         // Return the processed body directly without calling the LLM
-         const body = processCommand(cmd, parsed.args, slashCommandRegistry.getSkills());
-         res.write(JSON.stringify({ t: 'text', v: body }) + '\n');
-         res.end();
-         return;
-       }
-
-       effectivePrompt = processCommand(cmd, parsed.args, slashCommandRegistry.getSkills());
-     }
+   const slashResult = processSlashCommand(prompt, getGlobalMCPManager());
+   if (slashResult?.kind === 'direct') {
+     res.write(JSON.stringify({ t: 'text', v: slashResult.response }) + '\n');
+     res.end();
+     return;
    }
+   const effectivePrompt = slashResult?.kind === 'chat' ? slashResult.effectivePrompt : prompt;
+   const toolNameFilter  = slashResult?.kind === 'chat' ? slashResult.toolNameFilter  : undefined;
+   const cmdMaxIterations = slashResult?.kind === 'chat' ? slashResult.maxIterations  : undefined;
+   const cmdFreshContext  = slashResult?.kind === 'chat' ? slashResult.freshContext   : undefined;
    // ── End slash command processing ──────────────────────────────────────────
 
    // Abort the request after timeout so slow LLMs/MCP servers don't hang forever
@@ -258,83 +168,34 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
      }
    };
 
-   // Resolve or create a conversation for persistence
+   // ── Conversation persistence ───────────────────────────────────────────────
    const userLogin = sessionEntity?.getUserLogin();
-   let activeConversationId = incomingConversationId ?? null;
-   // UUID stored in conversation metadata so DbConversationHistory can locate the row
-   // without creating a duplicate when USE_DB_CONVERSATION_HISTORY=true.
-   let activeConversationUuid: string | null = null;
-   if (userLogin) {
-      try {
-         // Validate that an incoming conversation ID still exists; if it was deleted
-         // (sliding window, server restart, migration reset) treat it as a new conversation
-         // to avoid FK violations when inserting messages.
-         if (activeConversationId) {
-            const existingConv = await aiagentconversationsRepository.getById(activeConversationId);
-            if (!existingConv) {
-               Logger.warn(`Conversation ${activeConversationId} not found in DB, starting a new one`);
-               activeConversationId = null;
-            } else {
-               // Carry forward the UUID already stored in the existing conversation's metadata.
-               activeConversationUuid = existingConv.getMetadata()?.id ?? null;
-            }
-         }
-         if (!activeConversationId) {
-            const title = prompt.slice(0, 60);
-            activeConversationUuid = randomUUID();
-            const conv = await new AiAgentConversations({
-               sessionId: sessionEntity.getId()!,
-               userId: userLogin,
-               metadata: { title, userLogin, id: activeConversationUuid },
-            }).save();
-            activeConversationId = conv?.getId() ?? null;
-         }
-         if (activeConversationId) {
-            // Emit conversation id so client can continue the conversation
-            res.write(JSON.stringify({ t: 'conversation', id: activeConversationId }) + '\n');
-            // When DbConversationHistory is active it persists messages itself; skip the direct insert to avoid duplicates and FK violations.
-            if (!config.USE_DB_CONVERSATION_HISTORY) {
-               await new AiAgentConversationMessages({
-                  conversationId: activeConversationId,
-                  role: 'user',
-                  content: prompt,
-               }).save();
-            }
-         }
-      } catch (err) {
-         Logger.error(`Failed to persist conversation: ${err}`);
-      }
+   const incomingId = incomingConversationId ?? null;
+   const { conversationId: activeConversationId, conversationUuid: activeConversationUuid } =
+      await conversationService.resolveOrCreateConversation(sessionEntity, incomingId, prompt);
+
+   if (activeConversationId) {
+      res.write(JSON.stringify({ t: 'conversation', id: activeConversationId }) + '\n');
+      await conversationService.persistUserMessage(activeConversationId, prompt);
    }
 
-   // Ensure the in-memory LLM context matches the DB conversation being served.
-   // Clear and restore whenever the conversation changes (new, switched, or after restart).
-   const currentDbConvId = agent.getActiveDbConversationId();
-   if (incomingConversationId !== currentDbConvId) {
-      try {
-         await agent.clearConversationHistory();
-         if (incomingConversationId) {
-            const priorMessages = await aiagentconversationmessagesRepository.findByConversationId(incomingConversationId);
-            if (priorMessages.length > 0) {
-               await agent.restoreConversationHistory(
-                  priorMessages.map(m => ({ role: m.getRole(), content: m.getContent() })),
-                  userLogin ?? undefined,
-               );
-               Logger.info(`Restored ${priorMessages.length} messages for conversationId=${incomingConversationId}`);
-            }
-         }
-         agent.setActiveDbConversationId(activeConversationId);
-         // Inform DbConversationHistory about the externally created conversation so
-         // hasActiveConversation() returns true and addMessage() doesn't create a duplicate row.
-         if (config.USE_DB_CONVERSATION_HISTORY && activeConversationUuid) {
-            agent.setCurrentConversationId(activeConversationUuid);
-         }
-      } catch (err) {
-         Logger.error(`Failed to sync conversation history: ${err}`);
-      }
-   }
+   await conversationService.syncAgentHistory(agent, incomingId, activeConversationId, userLogin ?? undefined, activeConversationUuid);
+   // ── End conversation persistence ──────────────────────────────────────────
 
    try {
-      const answer = await agent.chat(effectivePrompt, undefined, true, attachments, approvalCallback, toolNameFilter, cmdMaxIterations, cmdFreshContext, onContextUpdate, onCompact, isAdminUser);
+      const { answer, finalContent: chatFinalContent } = await chatService.chat({
+         agent,
+         prompt: effectivePrompt,
+         attachments,
+         approvalCallback,
+         onContextUpdate,
+         onCompact,
+         isAdmin: isAdminUser,
+         toolNameFilter,
+         maxIterations: cmdMaxIterations,
+         freshContext: cmdFreshContext,
+      });
+
       let finalContent: string | undefined;
 
       if (answer instanceof ReadableStream) {
@@ -344,7 +205,7 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
          for (const url of imageResult.urls) {
             res.write(JSON.stringify({ t: 'image', v: url }) + '\n');
          }
-         finalContent = `[Generated image: ${effectivePrompt.slice(0, 60)}]`;
+         finalContent = chatFinalContent;
          await agent.addAssistantMessageToHistory(finalContent);
          res.write(JSON.stringify({ t: 'done' }) + '\n');
          res.end();
@@ -354,12 +215,12 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
          for (const url of mixedResult.imageUrls) {
             res.write(JSON.stringify({ t: 'image', v: url }) + '\n');
          }
-         finalContent = mixedResult.text || `[Generated image: ${effectivePrompt.slice(0, 60)}]`;
+         finalContent = chatFinalContent;
          await agent.addAssistantMessageToHistory(finalContent);
          res.write(JSON.stringify({ t: 'done' }) + '\n');
          res.end();
       } else {
-         finalContent = answer as string;
+         finalContent = chatFinalContent;
          await agent.addAssistantMessageToHistory(finalContent);
          res.write(JSON.stringify({ t: 'text', v: finalContent }) + '\n');
          res.write(JSON.stringify({ t: 'done' }) + '\n');
@@ -367,20 +228,8 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
       }
 
       // Persist the assistant reply — skip when DbConversationHistory is active as it already persisted the message via addAssistantMessageToHistory().
-      if (userLogin && activeConversationId && finalContent && !config.USE_DB_CONVERSATION_HISTORY) {
-         try {
-            await new AiAgentConversationMessages({
-               conversationId: activeConversationId,
-               role: 'assistant',
-               content: finalContent,
-            }).save();
-            // Update conversation updated_at via a raw update
-            await aiagentconversationsRepository.getById(activeConversationId).then(async conv => {
-               if (conv) { conv.setUpdatedAt(new Date()); await conv.save(); }
-            });
-         } catch (err) {
-            Logger.error(`Failed to persist assistant message: ${err}`);
-         }
+      if (userLogin && activeConversationId && finalContent) {
+         await conversationService.persistAssistantMessage(activeConversationId, finalContent);
       }
    } catch (err) {
       // Headers are already sent (flushHeaders was called), so we cannot send

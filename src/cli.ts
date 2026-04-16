@@ -1,244 +1,12 @@
 import "dotenv/config";
 import * as readline from 'readline';
 import Logger from './utils/logger';
-import { config } from './utils/config';
-import { authenticateWithGitHub, whoami } from './utils/githubAuth';
-import { updateEnvVariables } from './utils/envManager';
 import { LLMChatResponse, LLMMessage, LLMProvider, Tool } from './mcp/llmProviders';
-import { MCPConfig, MCPServer, MCPServerManager } from './mcp/mcpManager';
+import { MCPConfig, MCPServer } from './mcp/mcpManager';
 import { initializeAgents, getAgentFromName, getGlobalMCPManager, reinitializeAgentSystem, Agent } from './agent';
 import { slashCommandRegistry } from './utils/slashCommandRegistry';
-import { processCommand } from './utils/commandProcessor';
-
-/**
- * Handle the login command - list providers and configure authentication
- */
-async function handleLoginCommand(rl: readline.Interface, updateManagerCallback: () => Promise<void>): Promise<void> {
-  console.log('\n=== LLM Provider Configuration ===');
-  console.log('Available LLM providers:');
-  console.log('1. Ollama (local) - No authentication required');
-  console.log('2. GitHub Copilot - Requires GitHub authentication');
-  console.log('3. OpenAI - Requires API key');
-  console.log('4. Anthropic - Requires API key');
-  console.log('');
-
-  // Create a promise-based input function
-  const askQuestion = (question: string): Promise<string> => {
-    return new Promise((resolve) => {
-      rl.question(question, (answer) => {
-        resolve(answer.trim());
-      });
-    });
-  };
-
-  const choice = await askQuestion('Select a provider (1-4): ');
-
-  switch (choice) {
-    case '1':
-      // Ollama
-      console.log('\nConfiguring Ollama provider...');
-      updateEnvVariables({
-        'LLM_PROVIDER': 'ollama'
-      });
-
-      // Update the manager with new provider configuration
-      await updateManagerCallback();
-
-      console.log('✅ Ollama provider configured successfully!');
-      console.log('Manager instance updated with new provider configuration.\n');
-      break;
-
-    case '2':
-      // GitHub Copilot
-      console.log('\nConfiguring GitHub Copilot provider...');
-
-      // Check if already authenticated
-      const currentUser = await whoami();
-      if (currentUser) {
-        console.log(`Already authenticated as: ${currentUser}`);
-        const reauth = await askQuestion('Do you want to re-authenticate? (y/N): ');
-        if (reauth.toLowerCase() !== 'y' && reauth.toLowerCase() !== 'yes') {
-          console.log('Using existing GitHub authentication.\n');
-          updateEnvVariables({
-            'LLM_PROVIDER': 'github'
-          });
-
-          // Update the manager with new provider configuration
-          await updateManagerCallback();
-
-          console.log('✅ GitHub Copilot provider configured successfully!');
-          console.log('Manager instance updated with new provider configuration.\n');
-          break;
-        }
-      }
-
-      // Authenticate with GitHub
-      console.log('Starting GitHub authentication...');
-      try {
-        await authenticateWithGitHub();
-
-        // Update environment variables
-        updateEnvVariables({
-          'LLM_PROVIDER': 'github'
-        });
-
-        // Update the manager with new provider configuration
-        await updateManagerCallback();
-
-        console.log('✅ GitHub Copilot provider configured successfully!');
-        console.log('Manager instance updated with new provider configuration.\n');
-      } catch (error) {
-        console.error(`GitHub authentication failed: ${error}`);
-        console.log('Provider configuration cancelled.\n');
-      }
-      break;
-
-    case '3':
-      // OpenAI
-      console.log('\nConfiguring OpenAI provider...');
-      const apiKey = await askQuestion('Enter your OpenAI API key: ');
-
-      if (!apiKey) {
-        console.log('API key is required for OpenAI provider.\n');
-        break;
-      }
-
-      updateEnvVariables({
-        'LLM_PROVIDER': 'openai',
-        'OPENAI_API_KEY': apiKey
-      });
-
-      // Update the manager with new provider configuration
-      await updateManagerCallback();
-
-      console.log('✅ OpenAI provider configured successfully!');
-      console.log('Manager instance updated with new provider configuration.\n');
-      break;
-
-    case '4':
-      // Anthropic
-      console.log('\nConfiguring Anthropic provider...');
-      const anthropicApiKey = await askQuestion('Enter your Anthropic API key: ');
-
-      if (!anthropicApiKey) {
-        console.log('API key is required for Anthropic provider.\n');
-        break;
-      }
-
-      updateEnvVariables({
-        'LLM_PROVIDER': 'anthropic',
-        'ANTHROPIC_API_KEY': anthropicApiKey
-      });
-
-      // Update the manager with new provider configuration
-      await updateManagerCallback();
-
-      console.log('✅ Anthropic provider configured successfully!');
-      console.log('Manager instance updated with new provider configuration.\n');
-      break;
-
-    default:
-      console.log('Invalid choice. Please select 1, 2, 3, or 4.\n');
-      break;
-  }
-}
-
-/**
- * Handle the model command - list available models and let user choose
- */
-async function handleModelCommand(rl: readline.Interface, manager: MCPServerManager, updateManagerCallback: () => Promise<void>): Promise<void> {
-  console.log('\n=== Model Selection ===');
-
-  // Create a promise-based input function
-  const askQuestion = (question: string): Promise<string> => {
-    return new Promise((resolve) => {
-      rl.question(question, (answer) => {
-        resolve(answer.trim());
-      });
-    });
-  };
-
-  const currentProvider = config.LLM_PROVIDER;
-  const currentModel = config.LLM_MODEL;
-
-  console.log(`Current provider: ${currentProvider}`);
-  console.log(`Current model: ${currentModel}\n`);
-
-  // Get available models from the provider
-  let availableModels: string[] = [];
-  try {
-    console.log('Fetching available models...');
-    availableModels = await manager.getAvailableModels();
-  } catch (error) {
-    console.log(`❌ Error fetching models: ${error}`);
-    console.log('You can still set a custom model name.\n');
-  }
-
-  if (availableModels.length === 0) {
-    console.log(`❌ No predefined models available for provider: ${currentProvider}`);
-    console.log('You can still set a custom model name.\n');
-
-    const customModel = await askQuestion('Enter custom model name (or press Enter to cancel): ');
-    if (customModel) {
-      updateEnvVariables({
-        'LLM_MODEL': customModel
-      });
-      console.log(`✅ Model updated to: ${customModel}`);
-      console.log('Restart the application to use the new model.\n');
-    } else {
-      console.log('Model selection cancelled.\n');
-    }
-    return;
-  }
-
-  console.log(`Available models for ${currentProvider}:`);
-  availableModels.forEach((model, index) => {
-    const current = model === currentModel ? ' (current)' : '';
-    console.log(`${index + 1}. ${model}${current}`);
-  });
-  console.log(`${availableModels.length + 1}. Enter custom model name`);
-  console.log('');
-
-  const choice = await askQuestion(`Select a model (1-${availableModels.length + 1}): `);
-  const choiceNum = parseInt(choice);
-
-  if (choiceNum >= 1 && choiceNum <= availableModels.length) {
-    const selectedModel = availableModels[choiceNum - 1];
-
-    if (selectedModel === currentModel) {
-      console.log(`Model "${selectedModel}" is already selected.\n`);
-      return;
-    }
-
-    updateEnvVariables({
-      'LLM_MODEL': selectedModel
-    });
-
-    // Update the manager with new model configuration
-    await updateManagerCallback();
-
-    console.log(`✅ Model updated to: ${selectedModel}`);
-    console.log('Manager instance updated with new model configuration.\n');
-
-  } else if (choiceNum === availableModels.length + 1) {
-    const customModel = await askQuestion('Enter custom model name: ');
-    if (customModel) {
-      updateEnvVariables({
-        'LLM_MODEL': customModel
-      });
-
-      // Update the manager with new model configuration
-      await updateManagerCallback();
-
-      console.log(`✅ Model updated to: ${customModel}`);
-      console.log('Manager instance updated with new model configuration.\n');
-    } else {
-      console.log('Model selection cancelled.\n');
-    }
-  } else {
-    console.log('Invalid choice. Please select a valid option.\n');
-  }
-}
+import { processSlashCommand } from './utils/slashCommandProcessor';
+import { providerService } from './services/providerService';
 
 async function main() {
   // Initialize the agent system — creates the MCP manager, registers all agents,
@@ -281,8 +49,7 @@ async function main() {
     console.log('\nMCP servers will be initialized on first use.');
     console.log('');
 
-    // Load slash commands and skills from .aiagent/ directory
-    slashCommandRegistry.initialize();
+    // List loaded slash commands (registry was initialized at agent startup).
     const loadedCommands = slashCommandRegistry.listCommands();
     if (loadedCommands.length > 0) {
       console.log(`Loaded ${loadedCommands.length} slash command(s). Type /help for list.`);
@@ -393,7 +160,7 @@ async function main() {
 
         if (query.toLowerCase() === '/login') {
           try {
-            await handleLoginCommand(rl, updateManagerConfiguration);
+            await providerService.configureProvider(rl, updateManagerConfiguration);
           } catch (error) {
             console.error(`Login failed: ${error}\n`);
           }
@@ -403,7 +170,7 @@ async function main() {
 
         if (query.toLowerCase() === '/model') {
           try {
-            await handleModelCommand(rl, currentManager, updateManagerConfiguration);
+            await providerService.selectModel(rl, currentManager, updateManagerConfiguration);
           } catch (error) {
             console.error(`Model selection failed: ${error}\n`);
           }
@@ -509,70 +276,17 @@ async function main() {
         }
 
         // ── Slash command handling ────────────────────────────────────────────
-        if (slashCommandRegistry.hasCommand(query)) {
-          const parsed = slashCommandRegistry.parseInput(query)!;
-          const cmd = slashCommandRegistry.getCommand(parsed.name)!;
-
-          if (cmd.disableModelInvocation) {
-            // Print the raw body without calling the LLM
-            const processed = processCommand(cmd, parsed.args, slashCommandRegistry.getSkills());
-            console.log(`\n${processed}\n`);
-            rl.prompt();
-            return;
-          }
-
-          try {
-            currentAbortController = new AbortController();
-            const processedPrompt = processCommand(cmd, parsed.args, slashCommandRegistry.getSkills());
-            console.log(`Assistant: Thinking... (/${cmd.name})`);
-
-            const response = await generalAgent.chat(
-              processedPrompt,
-              currentAbortController.signal,
-              true,
-              undefined,
-              undefined,
-              cmd.allowedTools,
-              cmd.maxIterations,
-              cmd.freshContext,
-            );
-
-            currentAbortController = null;
-
-            if (response instanceof ReadableStream) {
-              process.stdout.write('Assistant: ');
-              const reader = response.getReader();
-              try {
-                let assistantMessage = '';
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
-                  process.stdout.write(value);
-                  assistantMessage += value;
-                }
-                console.log('\n');
-                generalAgent.addAssistantMessageToHistory(assistantMessage);
-              } finally {
-                reader.releaseLock();
-              }
-            } else {
-              const text = typeof response === 'string' ? response : 'kind' in response && response.kind === 'mixed' ? response.text : '';
-              console.log(`Assistant: ${text}\n`);
-              generalAgent.addAssistantMessageToHistory(text);
-            }
-          } catch (error) {
-            currentAbortController = null;
-            if (error instanceof Error && error.message === 'Operation cancelled by user') {
-              console.log('Operation was cancelled.\n');
-            } else {
-              console.error(`Error: ${error}\n`);
-            }
-          }
-
-          rl.resume();
+        const slashResult = processSlashCommand(query, getGlobalMCPManager());
+        if (slashResult?.kind === 'direct') {
+          console.log(`\n${slashResult.response}\n`);
           rl.prompt();
           return;
         }
+
+        const chatPrompt = slashResult?.kind === 'chat' ? slashResult.effectivePrompt : query;
+        const chatToolFilter  = slashResult?.kind === 'chat' ? slashResult.toolNameFilter  : undefined;
+        const chatMaxIter     = slashResult?.kind === 'chat' ? slashResult.maxIterations   : undefined;
+        const chatFreshCtx    = slashResult?.kind === 'chat' ? slashResult.freshContext    : undefined;
         // ── End slash command handling ────────────────────────────────────────
 
         try {
@@ -581,25 +295,30 @@ async function main() {
           console.log('Assistant: Thinking... (type "cancel" or press Ctrl+C to cancel)');
 
           const response = await generalAgent.chat(
-            query,
+            chatPrompt,
             currentAbortController.signal,
             true,
+            undefined,
+            undefined,
+            chatToolFilter,
+            chatMaxIter,
+            chatFreshCtx,
           );
 
           // Clear the abort controller since operation completed successfully
           currentAbortController = null;
-          
+
           // Handle streaming response
           if (response instanceof ReadableStream) {
             process.stdout.write('Assistant: ');
             const reader = response.getReader();
-            
+
             try {
               let assistantMessage = '';
               while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                
+
                 // The stream returns string chunks directly
                 process.stdout.write(value);
                 assistantMessage += value;

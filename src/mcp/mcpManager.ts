@@ -13,6 +13,7 @@ import { ToolRegistry, SUB_AGENT_RUNNER as TOOL_REGISTRY_SUB_AGENT_RUNNER } from
 import { ToolExecutor } from './toolExecutor';
 import { AgentLoop } from './agentLoop';
 import { HistoryManager } from './historyManager';
+import { ServerFilter } from './serverFilter';
 import { createLLMProvider, getLLMModel } from './llmFactory';
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -346,6 +347,11 @@ export class MCPServerManager {
     }
 
     return lines.join('\n');
+  }
+
+  /** Creates a ServerFilter wired to this manager's internal toolRegistry and serverManager. */
+  createServerFilter(): ServerFilter {
+    return new ServerFilter(this.toolRegistry, this.serverManager);
   }
 
   // ── Conversation history (backward-compat delegates) ───────────────────────
