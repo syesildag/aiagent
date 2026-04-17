@@ -22,8 +22,8 @@ export default class XmltvDownloadJob extends JobFactory {
 
    protected override getJobCallback(): JobCallback {
       return (_fireDate: Date) => {
-         // Compiled output: dist/src/jobs/ → 2 levels up → dist/src/ → scripts/
-         const scriptPath = path.resolve(__dirname, "../../scripts/download-xmltv.sh");
+         // Compiled output: dist/src/jobs/ → 1 level up → dist/src/scripts/
+         const scriptPath = path.resolve(__dirname, "../scripts/download-xmltv.sh");
          Logger.info(`[XmltvDownloadJob] Running ${scriptPath}`);
 
          execFile("bash", [scriptPath], { timeout: 300_000 }, (error, stdout, stderr) => {
