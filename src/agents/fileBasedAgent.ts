@@ -41,6 +41,10 @@ export class FileBasedAgent extends AbstractAgent {
     return this.definition.allowedServerNames;
   }
 
+  getExcludedServerNames(): string[] {
+    return this.definition.excludedServerNames ?? [];
+  }
+
   getModelOverride(): string | undefined {
     return this.definition.model;
   }

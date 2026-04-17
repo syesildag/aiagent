@@ -20,6 +20,7 @@ import { CONTINUE_ITERATIONS_TOOL, ToolApprovalCallback } from './approvalManage
 import type { IConversationHistory } from '../descriptions/conversationTypes';
 import type { ChatWithLLMArgs, CompactInfo, ImageGenerationResult, MixedContentResult } from './mcpManager';
 import type { ToolRegistry } from './toolRegistry';
+import { SUB_AGENT_RUNNER } from './toolRegistry';
 import type { ToolExecutor } from './toolExecutor';
 
 /** Fraction of the model's context window that triggers automatic history compaction. */
@@ -99,7 +100,7 @@ export class AgentLoop {
     conversationHistory: IConversationHistory,
   ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
     const {
-      message, customSystemPrompt, abortSignal, serverNames, stream,
+      message, customSystemPrompt, abortSignal, serverNames, excludedServerNames, stream,
       attachments, userLogin, isAdmin, approvalCallback, toolNameFilter,
       freshContext, onContextUpdate, onCompact,
     } = args;
@@ -150,6 +151,13 @@ export class AgentLoop {
     }
 
     tools = [...tools, ...toolRegistry.getVirtualTools(serverNames ?? null)];
+
+    if (excludedServerNames && excludedServerNames.length > 0) {
+      tools = tools.filter(t =>
+        t.serverName === SUB_AGENT_RUNNER ||
+        !excludedServerNames.includes(t.serverName ?? '')
+      );
+    }
 
     if (toolNameFilter && toolNameFilter.length > 0 && !toolNameFilter.includes('*')) {
       tools = tools.filter(tool => {

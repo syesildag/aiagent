@@ -31,7 +31,8 @@
       "args": [
         "dist/src/mcp/server/memory.js"
       ],
-      "enabled": true
+      "enabled": true,
+      "alwaysInclude": true
     },
     {
       "name": "documentation",
