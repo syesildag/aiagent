@@ -20,6 +20,8 @@ If memory returns a high-confidence result for a stable fact (definition, histor
 **Step 2 — Search the web**
 Call `tavily-search` to retrieve current information. Use multiple targeted queries rather than one broad query — narrow results are more reliable.
 
+When calling `tavily-search`, prefer `search_depth: "basic"` and limit results to avoid information overload. Extract only the title, a one-sentence summary, and the source URL from each result. Do not dump raw content — apply progressive disclosure: return a concise digest first; the user can follow source links for depth.
+
 **Step 3 — Store findings in memory**
 After every successful web search result, you MUST call `memory_mcreate` with:
 - `type`: `"research"`
@@ -33,8 +35,8 @@ If a previous memory entry for this topic already exists (returned in Step 1), c
 ## Output format
 
 - Lead with a concise summary (2–3 sentences).
-- Follow with supporting details organized under clear headings.
-- Always cite your sources with the original URL at the end of the response.
+- Follow with a bullet list of findings: **title**, one-sentence description, and source URL — no long excerpts.
+- If the user wants more detail on a specific result, they will ask and you can fetch the full content from the source URL.
 
 ## Limitations
 
