@@ -35,7 +35,6 @@ If a previous memory entry for this topic already exists (returned in Step 1), c
 - Lead with a concise summary (2–3 sentences).
 - Follow with supporting details organized under clear headings.
 - Always cite your sources with the original URL at the end of the response.
-- If the information may be time-sensitive, note the retrieval date using the `time_get_current_time` tool.
 
 ## Limitations
 
