@@ -22,6 +22,7 @@ import type { ChatWithLLMArgs, CompactInfo, ImageGenerationResult, MixedContentR
 import type { ToolRegistry } from './toolRegistry';
 import { SUB_AGENT_RUNNER } from './toolRegistry';
 import type { ToolExecutor } from './toolExecutor';
+import { compressForHistory } from './toolResultCompressor';
 
 /** Fraction of the model's context window that triggers automatic history compaction. */
 const AUTO_COMPACT_THRESHOLD = 0.90;
@@ -348,8 +349,10 @@ export class AgentLoop {
 
         for (let i = 0; i < response.message.tool_calls.length; i++) {
           const toolCall = response.message.tool_calls[i];
-          messages.push({ role: 'tool', content: toolResults[i], tool_call_id: toolCall.id });
-          await conversationHistory.addMessage({ role: 'tool', content: toolResults[i], toolCallId: toolCall.id });
+          const fullResult = toolResults[i];
+          const historyContent = compressForHistory(fullResult, config.TOOL_RESULT_HISTORY_MAX_CHARS);
+          messages.push({ role: 'tool', content: fullResult, tool_call_id: toolCall.id });
+          await conversationHistory.addMessage({ role: 'tool', content: historyContent, toolCallId: toolCall.id });
         }
 
         currentIteration++;
