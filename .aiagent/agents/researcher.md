@@ -28,7 +28,7 @@ After every successful web search result, you MUST call `memory_mcreate` with:
 - `content`: a concise summary of the key facts found (string or object)
 - `source`: the URL of the primary source
 - `tags`: topic-relevant tags, e.g. `["research", "elon-musk"]`
-- `confidence`: `0.7`–`1.0` based on source reliability
+- `confidence`: `0.1`–`1.0` based on source reliability
 
 If a previous memory entry for this topic already exists (returned in Step 1), call `memory_mdelete` with its `id` before calling `memory_mcreate`.
 
