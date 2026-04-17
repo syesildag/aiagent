@@ -52,6 +52,8 @@ export interface LLMChatRequest {
   stream?: boolean;
   /** When true, skip token-budget truncation (sanitization still runs). Use for final calls with no tools. */
   skipTruncation?: boolean;
+  /** Controls tool-calling behaviour. 'required' forces the model to call at least one tool. */
+  tool_choice?: 'auto' | 'required' | 'none';
 }
 
 /**
@@ -1068,6 +1070,9 @@ export class GitHubCopilotProvider implements LLMProvider {
           parameters: tool.function.parameters
         }
       }));
+      if (adjustedRequest.tool_choice) {
+        requestBody.tool_choice = adjustedRequest.tool_choice;
+      }
     }
 
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -1772,12 +1777,16 @@ export class OpenAIProvider implements LLMProvider, ImageGenerationProvider, Res
 
     Logger.debug(`OpenAI chat request: model=${adjustedRequest.model}, messages=${adjustedRequest.messages.length}, tools=${adjustedRequest.tools?.length || 0}`);
 
-    const requestBody = {
+    const requestBody: any = {
       model: adjustedRequest.model,
       messages: adjustedRequest.messages,
       tools: adjustedRequest.tools,
       stream: adjustedRequest.stream ?? false
     };
+
+    if (adjustedRequest.tool_choice && adjustedRequest.tools && adjustedRequest.tools.length > 0) {
+      requestBody.tool_choice = adjustedRequest.tool_choice;
+    }
 
     Logger.debug(`Request body: ${JSON.stringify(requestBody, null, 2)}`);
 

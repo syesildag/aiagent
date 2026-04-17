@@ -291,7 +291,8 @@ export class AgentLoop {
           model,
           messages,
           tools,
-          stream: false  // Always false during tool iterations
+          stream: false,  // Always false during tool iterations
+          ...(!hasCalledTools && tools.length > 0 ? { tool_choice: 'required' as const } : {}),
         };
 
         let response = await llmProvider.chat(chatRequest, abortSignal);
