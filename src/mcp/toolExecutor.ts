@@ -39,6 +39,9 @@ const VIRTUAL_TASK_TOOL_NAME = 'task';
 /** Maximum characters allowed per text field in a tool result before truncation. */
 const MAX_TOOL_RESULT_TEXT_CHARS = 20_000;
 
+/** Maximum total characters for the entire serialized tool result (all fields combined). */
+const MAX_TOOL_RESULT_TOTAL_CHARS = 10_000;
+
 /**
  * Recursively truncates string values in a tool result object so that no
  * single text field exceeds MAX_TOOL_RESULT_TEXT_CHARS characters.
@@ -168,7 +171,10 @@ export class ToolExecutor {
         }
         const result = await connection.callTool(toolName, argsToSend);
         Logger.info(`[Tool] ${name} completed in ${Date.now() - toolStart}ms`);
-        return JSON.stringify(truncateToolResultText(result), null, 2);
+        const serialized = JSON.stringify(truncateToolResultText(result), null, 2);
+        return serialized.length > MAX_TOOL_RESULT_TOTAL_CHARS
+          ? serialized.slice(0, MAX_TOOL_RESULT_TOTAL_CHARS) + '\n...[result truncated]'
+          : serialized;
       }
     } catch (error) {
       Logger.error(`[Tool] ${name} failed after ${Date.now() - toolStart}ms: ${error instanceof Error ? error.message : String(error)}`);

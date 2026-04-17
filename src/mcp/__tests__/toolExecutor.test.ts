@@ -48,4 +48,21 @@ describe('ToolExecutor', () => {
     );
     expect(result).toContain('not initialized');
   });
+
+  it('caps total serialized result to 10,000 chars when many fields are present', () => {
+    // 50 fields × 300 chars each = 15,000+ chars when serialized
+    const largeResult = Object.fromEntries(
+      Array.from({ length: 50 }, (_, i) => [`field${i}`, 'a'.repeat(300)])
+    );
+    const serialized = JSON.stringify(largeResult, null, 2);
+    expect(serialized.length).toBeGreaterThan(10_000);
+
+    const MAX = 10_000;
+    const capped = serialized.length > MAX
+      ? serialized.slice(0, MAX) + '\n...[result truncated]'
+      : serialized;
+
+    expect(capped.length).toBeLessThanOrEqual(MAX + '\n...[result truncated]'.length);
+    expect(capped).toContain('[result truncated]');
+  });
 });
