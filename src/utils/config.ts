@@ -95,6 +95,10 @@ const envSchema = z.object({
   // Default of 8 000 leaves ~24 k tokens free for the system prompt, tools, and current turn
   // on the smallest supported model (qwen3:4b, 32 768-token context).
   CONVERSATION_HISTORY_TOKEN_BUDGET: z.string().transform(Number).pipe(z.number().min(500)).default('8000'),
+  // Maximum characters stored per tool result in conversation history (for future-session replay).
+  // The live session always receives the full result; only the persisted copy is compressed.
+  // Default 2,000 chars ≈ 500 tokens — enough context without dominating the token budget.
+  TOOL_RESULT_HISTORY_MAX_CHARS: z.string().transform(Number).pipe(z.number().min(100)).default('2000'),
   // Maximum number of past conversations retained in memory/DB. Defaults to 100.
   MAX_CONVERSATIONS: z.string().transform(Number).pipe(z.number().min(1)).default('100'),
   // Set to 'true' to persist conversation history in PostgreSQL instead of in-memory
@@ -171,6 +175,7 @@ function validateEnvironment(): Environment {
       MAX_LLM_ITERATIONS: 2,
       CONVERSATION_HISTORY_WINDOW_SIZE: undefined,
       CONVERSATION_HISTORY_TOKEN_BUDGET: 8000,
+      TOOL_RESULT_HISTORY_MAX_CHARS: 2000,
       MAX_CONVERSATIONS: 100,
       EMBEDDING_PROVIDER: 'auto',
       EMBEDDING_MODEL_OPENAI: 'text-embedding-nomic-embed-text-v1.5',
