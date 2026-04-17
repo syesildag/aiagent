@@ -1,6 +1,6 @@
 import { authenticateWithGitHub, whoami } from '../utils/githubAuth';
 import { updateEnvVariables } from '../utils/envManager';
-import { config } from '../utils/config';
+import { getLLMProvider, getLLMModel } from '../utils/config';
 import type { MCPServerManager } from '../mcp/mcpManager';
 import * as readline from 'readline';
 
@@ -112,8 +112,8 @@ export class ProviderService {
       new Promise(resolve => rl.question(question, answer => resolve(answer.trim())));
 
     console.log('\n=== Model Selection ===');
-    const currentProvider = config.LLM_PROVIDER;
-    const currentModel = config.LLM_MODEL;
+    const currentProvider = getLLMProvider();
+    const currentModel = getLLMModel();
     console.log(`Current provider: ${currentProvider}`);
     console.log(`Current model: ${currentModel}\n`);
 

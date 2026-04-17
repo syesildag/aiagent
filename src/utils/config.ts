@@ -203,6 +203,26 @@ function validateEnvironment(): Environment {
 }
 export const config = validateEnvironment();
 
+const LLM_PROVIDER_VALUES = ['ollama', 'openai', 'github', 'anthropic'] as const;
+
+/**
+ * Returns the current LLM provider, preferring the live process.env value so
+ * that runtime changes made via /login (which update process.env but not the
+ * frozen config object) are reflected immediately.
+ */
+export function getLLMProvider(): Environment['LLM_PROVIDER'] {
+  const val = process.env.LLM_PROVIDER;
+  if (val && (LLM_PROVIDER_VALUES as readonly string[]).includes(val)) {
+    return val as Environment['LLM_PROVIDER'];
+  }
+  return config.LLM_PROVIDER;
+}
+
+/** Returns the current LLM model, preferring the live process.env value. */
+export function getLLMModel(): string {
+  return process.env.LLM_MODEL ?? config.LLM_MODEL;
+}
+
 export const isProduction = () => config.NODE_ENV === 'production';
 export const isDevelopment = () => config.NODE_ENV === 'development';
 export const isTest = () => config.NODE_ENV === 'test';

@@ -1,10 +1,10 @@
 import { LLMProvider, OllamaProvider, OpenAIProvider, GitHubCopilotProvider, AnthropicProvider } from './llmProviders';
-import { config } from '../utils/config';
+import { config, getLLMProvider, getLLMModel } from '../utils/config';
 import Logger from '../utils/logger';
 import { AuthGithubCopilot } from '../utils/githubAuth';
 
 export async function createLLMProvider(): Promise<LLMProvider> {
-  const providerType = config.LLM_PROVIDER;
+  const providerType = getLLMProvider();
   
   switch (providerType) {
     case 'openai':
@@ -57,6 +57,4 @@ export async function createLLMProvider(): Promise<LLMProvider> {
   }
 }
 
-export function getLLMModel(): string {
-  return config.LLM_MODEL;
-}
+export { getLLMModel };
