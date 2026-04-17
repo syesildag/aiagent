@@ -30,7 +30,7 @@ import aiagentmemoriesRepository from "../../entities/ai-agent-memories.js";
  * TypeScript's instantiation depth limit (TS2589).
  */
 type CreateMemoryArgs = {
-  type: string;
+  type?: string;
   content: Record<string, any> | string;
   source: string;
   tags?: string[];
@@ -79,7 +79,12 @@ const TagsSchema = z.union([
 // content uses z.any() to avoid TypeScript's recursive type instantiation
 // limit (TS2589) caused by ZodUnion<[ZodRecord, ZodString]> in the MCP SDK.
 const CreateMemoryInputSchema = z.object({
-  type: z.string().min(1, "Memory type cannot be empty"),
+  type: z.string().min(1).optional().default("observation").describe(
+    "Memory category. Use one of: identity (name, age, location, job, education), " +
+    "behavior (habits, routines, patterns), preference (likes, dislikes, communication style), " +
+    "goal (targets, aspirations), relationship (people, organizations), observation (general facts). " +
+    "Defaults to 'observation' if omitted."
+  ),
   content: z.any().describe("Memory content (object or string)"),
   source: z.string().min(1, "Source cannot be empty"),
   tags: TagsSchema.describe("Optional tags for the memory"),
@@ -266,7 +271,8 @@ server.registerTool(
     inputSchema: CreateMemoryInputSchema.shape
   } as any,
   async (args) => {
-    const { type, content, source, tags = [], confidence, user_login } = args as unknown as CreateMemoryArgs;
+    const { type: _type, content, source, tags = [], confidence, user_login } = args as unknown as CreateMemoryArgs;
+    const type = _type ?? 'observation';
     try {
       // Validate input
       const validatedData = MemorySchema.parse({ type, content, source, tags, confidence });
