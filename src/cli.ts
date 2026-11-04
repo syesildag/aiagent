@@ -2,7 +2,7 @@ import "dotenv/config";
 import * as readline from 'readline';
 import Logger from './utils/logger';
 import { LLMChatResponse, LLMMessage, LLMProvider, Tool } from './mcp/llmProviders';
-import { MCPConfig, MCPServer } from './mcp/mcpManager';
+import { MCPConfig, MCPServer, MCPServerManager } from './mcp/mcpManager';
 import { initializeAgents, getAgentFromName, getGlobalMCPManager, reinitializeAgentSystem, Agent } from './agent';
 import { slashCommandRegistry } from './utils/slashCommandRegistry';
 import { processSlashCommand } from './utils/slashCommandProcessor';
@@ -14,7 +14,14 @@ async function main() {
   await initializeAgents();
 
   let generalAgent: Agent = await getAgentFromName('general');
-  let currentManager = getGlobalMCPManager()!;
+  let currentManager: MCPServerManager | null = getGlobalMCPManager();
+
+  /** Commands that need an initialized MCP manager (i.e. a working LLM provider). */
+  const MANAGER_REQUIRED_COMMANDS = new Set([
+    '/model', '/status', '/refresh', '/new', '/newchat', '/history', '/current', '/clearchat',
+  ]);
+  const NO_PROVIDER_MESSAGE =
+    'No LLM provider is available (authentication failed or not configured). Run "/login" first.\n';
 
   /**
    * Re-initialize the agent system after a provider or model change.
@@ -23,12 +30,17 @@ async function main() {
   async function updateManagerConfiguration(): Promise<void> {
     await reinitializeAgentSystem();
     generalAgent = await getAgentFromName('general');
-    currentManager = getGlobalMCPManager()!;
+    currentManager = getGlobalMCPManager();
     Logger.info('Agent system re-initialized with new provider/model settings');
   }
 
   try {
-    console.log(`\n--- Interactive Chat with ${currentManager.getProviderName().toUpperCase()} (${currentManager.getCurrentModel()}) ---`);
+    if (currentManager) {
+      console.log(`\n--- Interactive Chat with ${currentManager.getProviderName().toUpperCase()} (${currentManager.getCurrentModel()}) ---`);
+    } else {
+      console.log('\n--- Interactive Chat (no LLM provider available) ---');
+      console.log('⚠️  LLM provider initialization failed. Run "/login" to authenticate before chatting.');
+    }
     console.log('Type your questions or commands. Special commands:');
     console.log('  - "/help" - Show available commands');
     console.log('  - "/login" - Configure LLM provider and authenticate');
@@ -81,7 +93,7 @@ async function main() {
             isShuttingDown = true;
             console.log('\nGoodbye!');
             rl.close();
-            await currentManager.stopAllServers();
+            await currentManager?.stopAllServers();
             process.exit(0);
           }
         }
@@ -168,7 +180,13 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === '/model') {
+        if (!currentManager && MANAGER_REQUIRED_COMMANDS.has(query.toLowerCase())) {
+          console.log(NO_PROVIDER_MESSAGE);
+          rl.prompt();
+          return;
+        }
+
+        if (query.toLowerCase() === '/model' && currentManager) {
           try {
             await providerService.selectModel(rl, currentManager, updateManagerConfiguration);
           } catch (error) {
@@ -178,7 +196,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === '/status') {
+        if (query.toLowerCase() === '/status' && currentManager) {
           console.log('\nMCP Server Status:');
           console.log('\nllmProvider:' + currentManager.getProviderName());
           console.log('\nmodel:' + currentManager.getCurrentModel());
@@ -194,7 +212,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === '/refresh') {
+        if (query.toLowerCase() === '/refresh' && currentManager) {
           console.log('Refreshing tools cache...');
           const tools = await currentManager.refreshToolsCache();
           console.log(`Tools cache refreshed with ${tools.length} tools.\n`);
@@ -210,7 +228,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === '/new' || query.toLowerCase() === '/newchat') {
+        if ((query.toLowerCase() === '/new' || query.toLowerCase() === '/newchat') && currentManager) {
           try {
             const conversationId = await currentManager.startNewConversation();
             console.log(`Started new conversation: ${conversationId}\n`);
@@ -221,7 +239,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === '/history') {
+        if (query.toLowerCase() === '/history' && currentManager) {
           try {
             const conversations = await currentManager.getConversations();
             console.log('\nConversation History:');
@@ -240,7 +258,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === '/current') {
+        if (query.toLowerCase() === '/current' && currentManager) {
           try {
             const messages = await currentManager.getCurrentConversation();
             console.log('\nCurrent Conversation:');
@@ -259,7 +277,7 @@ async function main() {
           return;
         }
 
-        if (query.toLowerCase() === '/clearchat') {
+        if (query.toLowerCase() === '/clearchat' && currentManager) {
           try {
             await currentManager.clearConversationHistory();
             console.log('All conversation history cleared.\n');
@@ -279,6 +297,12 @@ async function main() {
         const slashResult = processSlashCommand(query, getGlobalMCPManager());
         if (slashResult?.kind === 'direct') {
           console.log(`\n${slashResult.response}\n`);
+          rl.prompt();
+          return;
+        }
+
+        if (!currentManager) {
+          console.log(NO_PROVIDER_MESSAGE);
           rl.prompt();
           return;
         }
@@ -353,7 +377,7 @@ async function main() {
         if (!isShuttingDown) {
           isShuttingDown = true;
           console.log('\nShutting down...');
-          await currentManager.stopAllServers();
+          await currentManager?.stopAllServers();
           process.exit(0);
         }
       });
