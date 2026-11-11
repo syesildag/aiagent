@@ -38,7 +38,7 @@ const envSchema = z.object({
   BEHIND_HTTPS_PROXY: z.string().transform(v => v === 'true').default('false'),
 
   // --- LLM ---
-  LLM_PROVIDER: z.enum(['ollama', 'openai', 'github', 'anthropic']).default('ollama'),
+  LLM_PROVIDER: z.enum(['ollama', 'openai', 'github', 'anthropic', 'claude-code']).default('ollama'),
   LLM_MODEL: z.string().min(1).default('qwen3:4b'),
   // Maximum number of tool-call iterations the agent may perform per chat turn
   MAX_LLM_ITERATIONS: z.string().transform(Number).pipe(z.number().min(1).max(20)).default('2'),
@@ -53,6 +53,14 @@ const envSchema = z.object({
   // --- Anthropic ---
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
   ANTHROPIC_BASE_URL: z.string().url().default('https://api.anthropic.com'),
+
+  // --- Claude Code (Claude Pro/Max subscription through the official `claude` CLI) ---
+  // Absolute path is safest: servers often start without ~/.local/bin on PATH.
+  CLAUDE_CODE_PATH: z.string().min(1).default('claude'),
+  // Long-lived token from `claude setup-token`. Optional when `claude` is already logged in.
+  CLAUDE_CODE_OAUTH_TOKEN: z.string().min(1).optional(),
+  // Dedicated Claude Code config dir (CLAUDE_CONFIG_DIR) so your personal setup stays separate.
+  CLAUDE_CODE_CONFIG_DIR: z.string().min(1).optional(),
 
   // --- GitHub Copilot ---
   GITHUB_COPILOT_CLIENT_ID: z.string().min(1).default('Iv1.b507a08c87ecfe98'),
@@ -160,6 +168,9 @@ function validateEnvironment(): Environment {
       OPENAI_BASE_URL: 'https://api.openai.com',
       ANTHROPIC_API_KEY: undefined,
       ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
+      CLAUDE_CODE_PATH: 'claude',
+      CLAUDE_CODE_OAUTH_TOKEN: undefined,
+      CLAUDE_CODE_CONFIG_DIR: undefined,
       GITHUB_COPILOT_BASE_URL: 'https://api.githubcopilot.com',
       GITHUB_COPILOT_EMBEDDINGS_BASE_URL: 'https://api.githubcopilot.com',
       AUTH_GITHUB_COPILOT: undefined,
@@ -208,7 +219,7 @@ function validateEnvironment(): Environment {
 }
 export const config = validateEnvironment();
 
-const LLM_PROVIDER_VALUES = ['ollama', 'openai', 'github', 'anthropic'] as const;
+const LLM_PROVIDER_VALUES = ['ollama', 'openai', 'github', 'anthropic', 'claude-code'] as const;
 
 /**
  * Returns the current LLM provider, preferring the live process.env value so

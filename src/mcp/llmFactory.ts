@@ -1,7 +1,17 @@
 import { LLMProvider, OllamaProvider, OpenAIProvider, GitHubCopilotProvider, AnthropicProvider } from './llmProviders';
+import { ClaudeCodeProvider } from './claudeCodeProvider';
 import { config, getLLMProvider, getLLMModel } from '../utils/config';
 import Logger from '../utils/logger';
 import { AuthGithubCopilot } from '../utils/githubAuth';
+
+/** Claude Code provider from the CLAUDE_CODE_* settings (also used by the CLI /login flow). */
+export function createClaudeCodeProvider(): ClaudeCodeProvider {
+  return new ClaudeCodeProvider({
+    binaryPath: config.CLAUDE_CODE_PATH,
+    configDir: config.CLAUDE_CODE_CONFIG_DIR,
+    oauthToken: config.CLAUDE_CODE_OAUTH_TOKEN,
+  });
+}
 
 export async function createLLMProvider(): Promise<LLMProvider> {
   const providerType = getLLMProvider();
@@ -49,6 +59,10 @@ export async function createLLMProvider(): Promise<LLMProvider> {
       }
       Logger.info('Creating Anthropic provider');
       return new AnthropicProvider(config.ANTHROPIC_API_KEY, config.ANTHROPIC_BASE_URL);
+
+    case 'claude-code':
+      Logger.info('Creating Claude Code provider (subscription via claude CLI)');
+      return createClaudeCodeProvider();
 
     case 'ollama':
     default:

@@ -14,6 +14,7 @@ import {
   isResponsesAPIImageModel,
   isImageGenerationProvider,
   isResponsesAPICapable,
+  isUserRestrictedProvider,
   type ResponsesAPICapable,
 } from './llmProviders';
 import { CONTINUE_ITERATIONS_TOOL, ToolApprovalCallback } from './approvalManager';
@@ -106,6 +107,11 @@ export class AgentLoop {
       freshContext, onContextUpdate, onCompact,
     } = args;
     const { llmProvider, model, toolRegistry, toolExecutor } = this.deps;
+
+    // Providers tied to a personal account (e.g. Claude Code subscription) decide who may use them.
+    if (isUserRestrictedProvider(llmProvider)) {
+      llmProvider.assertUserAllowed({ userLogin, isAdmin });
+    }
 
     // ── Track 1: Dedicated image-generation models (Images API) ─────────────
     if (isImageGenerationModel(model)) {

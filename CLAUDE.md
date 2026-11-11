@@ -73,7 +73,7 @@ Client (Browser SPA or CLI)
 
 **MCP layer** (`src/mcp/`): `MCPServerManager` reads `mcp-servers.json`, spawns each server as a child process, and communicates via JSON-RPC 2.0 over stdio. It also handles the LLM agentic loop (tool calling, iteration limits). Tool approval is required for tools matching `DANGEROUS_TOOL_PATTERNS` in `mcpManager.ts`. MCP servers live in `src/mcp/server/` and are built independently. Tool names follow the convention `<serverName>_<toolName>` (e.g. `jobs_list_jobs`). The tools cache has a 5-minute TTL and can be explicitly invalidated via `refreshToolsCache()`. Servers start lazily on the first `chatWithLLM()` call.
 
-**LLM providers** (`src/mcp/llmProviders.ts`, `src/mcp/llmFactory.ts`): Implements a `LLMProvider` interface with `OllamaProvider`, `OpenAIProvider`, and `GitHubCopilotProvider`. Provider is selected at startup from `config.LLM_PROVIDER`. GitHub Copilot uses OAuth device flow managed by `src/utils/githubAuth.ts` with auto-token refresh.
+**LLM providers** (`src/mcp/llmProviders.ts`, `src/mcp/llmFactory.ts`): Implements a `LLMProvider` interface with `OllamaProvider`, `OpenAIProvider`, and `GitHubCopilotProvider`. Provider is selected at startup from `config.LLM_PROVIDER`. GitHub Copilot uses OAuth device flow managed by `src/utils/githubAuth.ts` with auto-token refresh. `ClaudeCodeProvider` (`src/mcp/claudeCodeProvider.ts`, `LLM_PROVIDER=claude-code`) uses a Claude Pro/Max subscription by spawning one stateless `claude -p` per `chat()` call (built-in tools, MCP and user settings disabled); MCP tool calls go through the prompt protocol in `src/mcp/claudeCodeToolProtocol.ts`, so `AgentLoop` still owns tools, approvals and history. It implements `UserRestrictedProvider`: `AgentLoop` calls `assertUserAllowed()` first, because subscription credentials must not serve other users. Never send subscription OAuth tokens to the API directly (e.g. through `AnthropicProvider`).
 
 **Repository/ORM** (`src/repository/`): Custom decorator-based ORM over PostgreSQL. Entities extend `Entity<PK>` and annotate getter methods with `@Id`, `@Column`, `@OneToOne`, `@OneToMany`, `@ManyToOne`. Each entity file creates and registers its own `AbstractRepository` subclass via the global `repository` WeakMap (`src/repository/repository.ts`). The `@Find` decorator auto-generates find methods; method names encode ordering and filtering (e.g. `findByTypeOrderByCreatedAtDesc`). Use `getByFieldValues()` for flexible querying with ordering/limit/offset. Prefer the ORM for CRUD; use raw SQL for complex joins or vector similarity.
 
@@ -125,7 +125,7 @@ Optional with defaults:
 
 | Variable | Default | Notes |
 |---|---|---|
-| `LLM_PROVIDER` | `ollama` | `ollama` \| `openai` \| `github` |
+| `LLM_PROVIDER` | `ollama` | `ollama` \| `openai` \| `github` \| `anthropic` \| `claude-code` |
 | `LLM_MODEL` | `qwen3:4b` | |
 | `OLLAMA_HOST` | `http://localhost:11434` | |
 | `MCP_SERVERS_PATH` | `./mcp-servers.json` | |
@@ -135,6 +135,9 @@ Optional with defaults:
 | `USE_DB_CONVERSATION_HISTORY` | `false` | |
 | `SESSION_TIMEOUT_SECONDS` | `3600` | |
 | `OPENAI_API_KEY` | — | Required for OpenAI provider |
+| `CLAUDE_CODE_PATH` | `claude` | `claude` binary for `claude-code`; use an absolute path (e.g. `~/.local/bin` is often not on a server's PATH) |
+| `CLAUDE_CODE_OAUTH_TOKEN` | — | Token from `claude setup-token`; optional when `claude` is already logged in |
+| `CLAUDE_CODE_CONFIG_DIR` | — | Dedicated `CLAUDE_CONFIG_DIR` for the `claude-code` provider |
 | `OPENWEATHERMAP_API_KEY` | — | Required for weather MCP server |
 
 ### MCP Server Configuration (`mcp-servers.json`)

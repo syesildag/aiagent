@@ -45,7 +45,7 @@ async function main() {
     console.log('  - "/exit" or "/quit" - Exit the program');
     console.log('\nLLM Provider Configuration:');
     console.log('  - Default: Ollama (local)');
-    console.log('  - Use "login" command to configure GitHub Copilot, OpenAI, or Anthropic');
+    console.log('  - Use "login" command to configure GitHub Copilot, OpenAI, Anthropic, or Claude Code');
     console.log('\nMCP servers will be initialized on first use.');
     console.log('');
 

@@ -1,11 +1,13 @@
 import { createLLMProvider, getLLMModel } from './llmFactory';
 import { OllamaProvider, OpenAIProvider, GitHubCopilotProvider } from './llmProviders';
-import { config } from '../utils/config';
+import { ClaudeCodeProvider } from './claudeCodeProvider';
+import { config, getLLMProvider } from '../utils/config';
 import Logger from '../utils/logger';
 import { AuthGithubCopilot } from '../utils/githubAuth';
 
 // Mock dependencies
 jest.mock('./llmProviders');
+jest.mock('./claudeCodeProvider');
 jest.mock('../utils/config');
 jest.mock('../utils/logger');
 jest.mock('../utils/githubAuth');
@@ -172,6 +174,26 @@ describe('LLM Factory', () => {
           'refreshed-token',
           expect.any(String)
         );
+      });
+    });
+
+    describe('Claude Code provider', () => {
+      it('creates ClaudeCodeProvider from the CLAUDE_CODE_* settings, without an API key', async () => {
+        // Once: clearAllMocks() does not reset implementations, so a persistent stub would leak.
+        (getLLMProvider as jest.Mock).mockReturnValueOnce('claude-code');
+        mockConfig.CLAUDE_CODE_PATH = '/Users/me/.local/bin/claude';
+        mockConfig.CLAUDE_CODE_CONFIG_DIR = '/Users/me/.claude-aiagent';
+        mockConfig.CLAUDE_CODE_OAUTH_TOKEN = 'oat-token';
+        mockConfig.ANTHROPIC_API_KEY = undefined;
+
+        await createLLMProvider();
+
+        expect(ClaudeCodeProvider).toHaveBeenCalledWith({
+          binaryPath: '/Users/me/.local/bin/claude',
+          configDir: '/Users/me/.claude-aiagent',
+          oauthToken: 'oat-token',
+        });
+        expect(Logger.info).toHaveBeenCalledWith('Creating Claude Code provider (subscription via claude CLI)');
       });
     });
 

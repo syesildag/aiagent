@@ -1724,6 +1724,25 @@ export function isResponsesAPICapable(p: unknown): p is ResponsesAPICapable {
   return typeof (p as any)?.callResponsesAPI === 'function';
 }
 
+/** Who is asking for a chat turn. Both fields are undefined for the CLI and background jobs. */
+export interface ProviderUserContext {
+  userLogin?: string;
+  isAdmin?: boolean;
+}
+
+/**
+ * Provider capability: restrict which users may be served (e.g. a provider backed by a
+ * personal subscription). AgentLoop calls assertUserAllowed() before any LLM request.
+ */
+export interface UserRestrictedProvider {
+  /** Throws when the user must not use this provider. */
+  assertUserAllowed(ctx: ProviderUserContext): void;
+}
+
+export function isUserRestrictedProvider(p: unknown): p is UserRestrictedProvider {
+  return typeof (p as Partial<UserRestrictedProvider> | undefined)?.assertUserAllowed === 'function';
+}
+
 export class OpenAIProvider implements LLMProvider, ImageGenerationProvider, ResponsesAPICapable {
   name = 'OpenAI';
   private baseUrl: string;
