@@ -48,7 +48,7 @@
       "args": [
         "dist/src/mcp/server/weather.js"
       ],
-      "enabled": false
+      "enabled": true
     },
     {
       "name": "time",
@@ -56,7 +56,7 @@
       "args": [
         "dist/src/mcp/server/time.js"
       ],
-      "enabled": false
+      "enabled": true
     },
     {
       "name": "fetch",
@@ -64,7 +64,7 @@
       "args": [
         "dist/src/mcp/server/fetch.js"
       ],
-      "enabled": false
+      "enabled": true
     },
     {
       "name": "agent-browser",
@@ -72,7 +72,7 @@
       "args": [
         "dist/src/mcp/server/agent-browser/index.js"
       ],
-      "enabled": false
+      "enabled": true
     },
     {
       "name": "jobs",
@@ -80,7 +80,7 @@
       "args": [
         "dist/src/mcp/server/jobs.js"
       ],
-      "enabled": false
+      "enabled": true
     },
     {
       "name": "google-messages",
