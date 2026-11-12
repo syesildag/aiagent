@@ -87,7 +87,6 @@ const DEFAULT_WORK_DIR = path.join(os.tmpdir(), 'aiagent-claude-code');
 const FALLBACK_SYSTEM_PROMPT = 'You are a helpful assistant.';
 const MODEL_ALIASES = ['sonnet', 'opus', 'haiku'];
 const CANCELLED_MESSAGE = 'Operation cancelled by user';
-const IMAGE_PLACEHOLDER = '[image omitted: the claude-code provider does not forward images]';
 
 /**
  * Access policy: who may chat through the Claude subscription.
@@ -106,7 +105,28 @@ export function isAllowedSubscriptionUser(ctx: ProviderUserContext): boolean {
 
 // ── Pure helpers (exported for tests) ────────────────────────────────────────
 
-export function buildTranscript(messages: LLMMessage[]): { systemPrompt: string; prompt: string } {
+/** An Anthropic content block, as `--input-format stream-json` accepts it. */
+export type PromptBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } | { type: 'url'; url: string } };
+
+type ImageBlock = Extract<PromptBlock, { type: 'image' }>;
+/** Transcript pieces: text lines (joined with newlines) and images in their place. */
+type Segment = string | ImageBlock;
+
+const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+const IMAGE_MARKER = '[image]';
+
+export interface Transcript {
+  systemPrompt: string;
+  /** The prompt as plain text, with images shown as a marker. Sent when there are no images. */
+  prompt: string;
+  /** The prompt as content blocks with the images in place. Sent when hasImages is true. */
+  content: PromptBlock[];
+  hasImages: boolean;
+}
+
+export function buildTranscript(messages: LLMMessage[]): Transcript {
   const systemParts: string[] = [];
   const turns: LLMMessage[] = [];
   for (const message of messages) {
@@ -119,42 +139,91 @@ export function buildTranscript(messages: LLMMessage[]): { systemPrompt: string;
   const systemPrompt = systemParts.join('\n\n');
 
   if (turns.length === 1 && turns[0].role === 'user') {
-    return { systemPrompt, prompt: contentToText(turns[0].content) };
+    return finishTranscript(systemPrompt, contentToSegments(turns[0].content));
   }
 
   const toolNamesById = new Map<string, string>();
-  const parts: string[] = ['<conversation>'];
+  const segments: Segment[] = ['<conversation>'];
   for (const turn of turns) {
-    const text = contentToText(turn.content);
     if (turn.role === 'user') {
-      parts.push(`<user>\n${text}\n</user>`);
+      segments.push('<user>', ...contentToSegments(turn.content), '</user>');
     } else if (turn.role === 'assistant') {
+      const text = contentToText(turn.content);
       const calls = turn.tool_calls ?? [];
       calls.forEach(call => toolNamesById.set(call.id, call.function.name));
       const body = calls.length > 0 ? [text, serializeToolCalls(calls)].filter(Boolean).join('\n') : text;
-      parts.push(`<assistant>\n${body}\n</assistant>`);
+      segments.push('<assistant>', body, '</assistant>');
     } else if (turn.role === 'tool') {
       const callId = turn.tool_call_id ?? '';
       const name = toolNamesById.get(callId) ?? 'unknown';
-      parts.push(`<tool_result name="${name}" call_id="${callId}">\n${text}\n</tool_result>`);
+      segments.push(`<tool_result name="${name}" call_id="${callId}">`, ...contentToSegments(turn.content), '</tool_result>');
     }
   }
-  parts.push('</conversation>', '', 'Write the assistant\'s next reply to the conversation above.');
-  return { systemPrompt, prompt: parts.join('\n') };
+  segments.push('</conversation>', '', 'Write the assistant\'s next reply to the conversation above.');
+  return finishTranscript(systemPrompt, segments);
+}
+
+function finishTranscript(systemPrompt: string, segments: Segment[]): Transcript {
+  const content: PromptBlock[] = [];
+  let lines: string[] = [];
+  const flush = (): void => {
+    if (lines.length > 0) content.push({ type: 'text', text: lines.join('\n') });
+    lines = [];
+  };
+  for (const segment of segments) {
+    if (typeof segment === 'string') {
+      lines.push(segment);
+    } else {
+      flush();
+      content.push(segment);
+    }
+  }
+  flush();
+  const prompt = segments.map(segment => (typeof segment === 'string' ? segment : IMAGE_MARKER)).join('\n');
+  return { systemPrompt, prompt, content, hasImages: segments.some(segment => typeof segment !== 'string') };
+}
+
+function contentToSegments(content: LLMMessage['content']): Segment[] {
+  if (typeof content === 'string') return [content];
+  return content.map(part => (part.type === 'text' ? part.text : toImageBlock(part.image_url.url)));
 }
 
 function contentToText(content: LLMMessage['content']): string {
-  if (typeof content === 'string') return content;
-  return content
-    .map(part => {
-      if (part.type === 'text') return part.text;
-      Logger.warn('Claude Code provider: image attachment omitted (images are not forwarded)');
-      return IMAGE_PLACEHOLDER;
-    })
+  return contentToSegments(content)
+    .map(segment => (typeof segment === 'string' ? segment : IMAGE_MARKER))
     .join('\n');
 }
 
-export function buildCliArgs(opts: { model: string; systemPrompt: string; streaming: boolean }): string[] {
+/** Converts an image_url (data URL or http(s) URL) to an image block, or a text note if unusable. */
+function toImageBlock(url: string): Segment {
+  const match = /^data:([^;,]+);base64,(.*)$/s.exec(url);
+  if (match) {
+    const mediaType = match[1].toLowerCase();
+    if (!SUPPORTED_IMAGE_TYPES.has(mediaType)) {
+      Logger.warn(`Claude Code provider: unsupported image type ${mediaType} omitted`);
+      return `[image omitted: unsupported type ${mediaType}]`;
+    }
+    return { type: 'image', source: { type: 'base64', media_type: mediaType, data: match[2] } };
+  }
+  if (/^https?:\/\//i.test(url)) return { type: 'image', source: { type: 'url', url } };
+  Logger.warn('Claude Code provider: image with an unrecognised URL omitted');
+  return '[image omitted: unrecognised image URL]';
+}
+
+/** The single stdin line for `--input-format stream-json`. */
+export function buildStreamJsonInput(content: PromptBlock[]): string {
+  return `${JSON.stringify({ type: 'user', message: { role: 'user', content } })}\n`;
+}
+
+export function buildCliArgs(opts: {
+  model: string;
+  systemPrompt: string;
+  streaming: boolean;
+  /** Read the prompt as stream-json content blocks (needed to send images). */
+  blockInput?: boolean;
+}): string[] {
+  // stream-json input requires stream-json output (which requires --verbose).
+  const streamJsonOutput = opts.streaming || opts.blockInput === true;
   return [
     '-p',
     '--model', opts.model,
@@ -166,8 +235,10 @@ export function buildCliArgs(opts: { model: string; systemPrompt: string; stream
     '--setting-sources', 'local',
     '--disable-slash-commands',
     '--no-session-persistence',
-    '--output-format', opts.streaming ? 'stream-json' : 'json',
-    ...(opts.streaming ? ['--verbose', '--include-partial-messages'] : []),
+    ...(opts.blockInput ? ['--input-format', 'stream-json'] : []),
+    '--output-format', streamJsonOutput ? 'stream-json' : 'json',
+    ...(streamJsonOutput ? ['--verbose'] : []),
+    ...(opts.streaming ? ['--include-partial-messages'] : []),
   ];
 }
 
@@ -294,22 +365,25 @@ export class ClaudeCodeProvider implements LLMProvider, UserRestrictedProvider {
   async chat(request: LLMChatRequest, abortSignal?: AbortSignal): Promise<LLMChatResponse> {
     const adjusted = handleTokenLimits(request, getModelMaxTokens(request.model));
     const streaming = adjusted.stream === true;
-    const { systemPrompt, prompt } = buildTranscript(adjusted.messages);
+    const transcript = buildTranscript(adjusted.messages);
+    const { systemPrompt } = transcript;
+    const blockInput = transcript.hasImages;
+    const input = blockInput ? buildStreamJsonInput(transcript.content) : transcript.prompt;
 
     // Tool calls can only be parsed from a complete reply, so streamed calls get no tools.
     const tools = streaming || adjusted.tool_choice === 'none' ? [] : (adjusted.tools ?? []);
     const fullSystemPrompt = tools.length > 0
       ? `${systemPrompt}\n\n${buildToolProtocolPrompt(tools, adjusted.tool_choice === 'required' ? 'required' : 'auto')}`
       : systemPrompt;
-    const args = buildCliArgs({ model: adjusted.model, systemPrompt: fullSystemPrompt, streaming });
+    const args = buildCliArgs({ model: adjusted.model, systemPrompt: fullSystemPrompt, streaming, blockInput });
 
-    Logger.debug(`Claude Code chat: model=${adjusted.model}, messages=${adjusted.messages.length}, tools=${tools.length}, stream=${streaming}`);
+    Logger.debug(`Claude Code chat: model=${adjusted.model}, messages=${adjusted.messages.length}, tools=${tools.length}, stream=${streaming}, images=${blockInput}`);
 
     if (streaming) {
-      return { message: { role: 'assistant', content: this.stream(args, prompt, abortSignal) }, done: false };
+      return { message: { role: 'assistant', content: this.stream(args, input, abortSignal) }, done: false };
     }
 
-    const text = this.extractResult(await this.run(args, prompt, abortSignal));
+    const text = this.extractResult(await this.run(args, input, abortSignal));
     if (tools.length === 0) {
       return { message: { role: 'assistant', content: text }, done: true };
     }
@@ -386,8 +460,11 @@ export class ClaudeCodeProvider implements LLMProvider, UserRestrictedProvider {
     });
   }
 
+  /** Reads the result from `json` output, or from the last result line of `stream-json` output. */
   private extractResult({ code, stdout, stderr }: ProcessResult): string {
-    const parsed = parseJson(stdout.trim());
+    const lines = stdout.trim().split('\n');
+    const parsed = parseJson(stdout.trim())
+      ?? lines.reverse().map(line => parseJson(line)).find(isResultMessage);
     if (isResultMessage(parsed)) {
       if (parsed.is_error) throw resultError(parsed);
       return parsed.result ?? '';
