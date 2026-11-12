@@ -6,6 +6,7 @@ import { promisify } from 'util';
 import { config } from '../utils/config';
 import { asyncHandler } from '../utils/asyncHandler';
 import Logger from '../utils/logger';
+import { isXmltvStale, XMLTV_RETRY_AFTER_MS } from '../utils/xmltvFreshness';
 import aiAgentPushSubscriptionRepository, { AiAgentPushSubscription } from '../entities/ai-agent-push-subscription';
 import aiAgentScheduledPushNotificationRepository, { AiAgentScheduledPushNotification } from '../entities/ai-agent-scheduled-push-notification';
 
@@ -18,23 +19,59 @@ async function findXmltvFile(dir: string): Promise<string | undefined> {
   return found ? path.join(dir, found) : undefined;
 }
 
+// At most one download runs at a time; concurrent guide requests share it.
+let refreshInFlight: Promise<void> | null = null;
+let lastRefreshAttemptMs = 0;
+
+async function downloadXmltvFeed(xmltvDir: string): Promise<void> {
+  // npm scripts and `npm start` both run from the project root, where the script lives.
+  const scriptPath = path.resolve(process.cwd(), 'src/scripts/download-xmltv.sh');
+  Logger.info(`[xmltv] Downloading XMLTV feed into ${xmltvDir}`);
+  await execFileAsync('bash', [scriptPath], {
+    timeout: 300_000,
+    env: { ...process.env, XMLTV_PATH: xmltvDir },
+  });
+  // The zip keeps the feed's own timestamp. Stamp the file with the download time so the
+  // age check measures time since the last download.
+  const file = await findXmltvFile(xmltvDir);
+  if (file) {
+    const now = new Date();
+    await fs.promises.utimes(file, now, now);
+  }
+}
+
+function refreshXmltvFeed(xmltvDir: string): Promise<void> {
+  if (!refreshInFlight) {
+    lastRefreshAttemptMs = Date.now();
+    refreshInFlight = downloadXmltvFeed(xmltvDir).finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
 async function ensureXmltvFile(xmltvDir: string): Promise<string> {
-  // Try to find an existing file first
-  let xmlFile = await findXmltvFile(xmltvDir);
-  if (xmlFile) {
-    Logger.debug(`[xmltv] Using existing XMLTV file: ${xmlFile}`);
-    return xmlFile;
+  const existing = await findXmltvFile(xmltvDir);
+
+  if (existing) {
+    const { mtimeMs } = await fs.promises.stat(existing);
+    const now = Date.now();
+    if (isXmltvStale(mtimeMs, now) && now - lastRefreshAttemptMs >= XMLTV_RETRY_AFTER_MS) {
+      // Refresh in the background and serve the current copy meanwhile.
+      refreshXmltvFeed(xmltvDir).catch(error => {
+        Logger.warn(`[xmltv] Refresh failed, keeping the current copy: ${error instanceof Error ? error.message : String(error)}`);
+      });
+    }
+    Logger.debug(`[xmltv] Using XMLTV file: ${existing}`);
+    return existing;
   }
 
-  // Not found — run the download script and try again
-  const scriptPath = path.resolve(__dirname, '../../../scripts/download-xmltv.sh');
-  Logger.debug(`[xmltv] No XMLTV file found, running download script: ${scriptPath}`);
-  await execFileAsync('bash', [scriptPath], { timeout: 300_000 });
-
-  xmlFile = await findXmltvFile(xmltvDir);
-  if (!xmlFile) throw new Error('Download completed but no .xml file found in XMLTV_PATH');
-  Logger.debug(`[xmltv] Download complete, using: ${xmlFile}`);
-  return xmlFile;
+  // No copy yet, so this first load has to wait for the download.
+  await refreshXmltvFeed(xmltvDir);
+  const downloaded = await findXmltvFile(xmltvDir);
+  if (!downloaded) throw new Error('Download completed but no .xml file found in XMLTV_PATH');
+  Logger.debug(`[xmltv] Download complete, using: ${downloaded}`);
+  return downloaded;
 }
 
 export const xmltvRouter = Router();
