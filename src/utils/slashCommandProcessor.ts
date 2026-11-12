@@ -1,5 +1,6 @@
 import { processCommand } from './commandProcessor';
 import { slashCommandRegistry } from './slashCommandRegistry';
+import { missingServers } from './commandAvailability';
 import type { MCPServerManager } from '../mcp/mcpManager';
 
 /**
@@ -45,6 +46,16 @@ export function processSlashCommand(
   }
 
   const cmd = slashCommandRegistry.getCommand(parsed.name)!;
+
+  // A command whose MCP server is not enabled would run with no tools; say so instead.
+  const enabledServers = new Set((mcpManager?.getEnabledServerConfigs() ?? []).map(s => s.name));
+  const missing = missingServers(cmd.allowedTools, enabledServers);
+  if (missing.length > 0) {
+    return {
+      kind: 'direct',
+      response: `/${parsed.name} needs the ${missing.join(', ')} MCP server, which is not enabled in mcp-servers.json.`,
+    };
+  }
 
   if (cmd.disableModelInvocation) {
     // Special case: mcp-status builds its response directly from the in-process

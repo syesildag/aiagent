@@ -4,6 +4,7 @@ import { getAgentFromName, getAvailableAgentNames, getGlobalMCPManager, reinitia
 import { asyncHandler } from "../utils/asyncHandler";
 import Logger from "../utils/logger";
 import { slashCommandRegistry } from '../utils/slashCommandRegistry';
+import { missingServers } from '../utils/commandAvailability';
 import { parseReleases } from '../utils/releaseParser';
 import { sendAuthenticationRequired } from "./routeUtils";
 
@@ -34,9 +35,13 @@ agentsRouter.get("/commands", asyncHandler(async (req: Request, res: Response) =
       }
    }
 
+   // Offer only commands whose MCP servers are enabled in mcp-servers.json.
+   const enabledServers = new Set((getGlobalMCPManager()?.getEnabledServerConfigs() ?? []).map(s => s.name));
+
    const allCommands = slashCommandRegistry.listCommands();
    const commands = allCommands
       .filter(cmd => {
+         if (missingServers(cmd.allowedTools, enabledServers).length > 0) return false;
          // If agent has no server restrictions, all commands are available
          if (!agentAllowedServers) return true;
          // If the command has no tool requirements, it's always available
