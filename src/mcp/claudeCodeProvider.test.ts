@@ -5,6 +5,7 @@ import {
   ClaudeCodeProvider,
   buildTranscript,
   buildCliArgs,
+  buildStreamJsonInput,
   buildChildEnv,
   isAllowedSubscriptionUser,
   type SpawnFn,
@@ -129,20 +130,69 @@ describe('buildTranscript', () => {
     expect(prompt.indexOf('<tool_result')).toBeLessThan(prompt.indexOf('Thanks!'));
   });
 
-  it('replaces image parts with a placeholder and keeps the text parts', () => {
-    const { prompt } = buildTranscript([
+  it('keeps text-only transcripts as plain text with no image blocks', () => {
+    const transcript = buildTranscript([{ role: 'user', content: 'Hi' }]);
+
+    expect(transcript.hasImages).toBe(false);
+    expect(transcript.content).toEqual([{ type: 'text', text: 'Hi' }]);
+  });
+
+  it('turns image data URLs into image blocks, in place among the text', () => {
+    const transcript = buildTranscript([
       {
         role: 'user',
         content: [
-          { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } },
           { type: 'text', text: 'What is this?' },
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } },
+          { type: 'text', text: 'Be brief.' },
         ],
       },
     ]);
 
-    expect(prompt).toContain('[image omitted');
-    expect(prompt).toContain('What is this?');
-    expect(prompt).not.toContain('AAAA');
+    expect(transcript.hasImages).toBe(true);
+    expect(transcript.content).toEqual([
+      { type: 'text', text: 'What is this?' },
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
+      { type: 'text', text: 'Be brief.' },
+    ]);
+    expect(transcript.prompt).not.toContain('AAAA');
+  });
+
+  it('keeps images from earlier turns inside the conversation transcript', () => {
+    const { content } = buildTranscript([
+      { role: 'user', content: [{ type: 'text', text: 'Look' }, { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,BBBB' } }] },
+      { role: 'assistant', content: 'A cat.' },
+      { role: 'user', content: 'What colour?' },
+    ]);
+
+    expect(content).toHaveLength(3);
+    expect((content[0] as { text: string }).text).toMatch(/<conversation>\n<user>\nLook$/);
+    expect(content[1]).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'BBBB' } });
+    expect((content[2] as { text: string }).text).toMatch(/^<\/user>\n<assistant>\nA cat\./);
+  });
+
+  it('passes http(s) image URLs through and replaces unsupported images with a note', () => {
+    const { content } = buildTranscript([
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: 'https://example.com/a.png' } },
+          { type: 'image_url', image_url: { url: 'data:image/tiff;base64,CCCC' } },
+        ],
+      },
+    ]);
+
+    expect(content[0]).toEqual({ type: 'image', source: { type: 'url', url: 'https://example.com/a.png' } });
+    expect(content[1]).toEqual({ type: 'text', text: '[image omitted: unsupported type image/tiff]' });
+  });
+});
+
+describe('buildStreamJsonInput', () => {
+  it('wraps the content blocks in one stream-json user message line', () => {
+    const line = buildStreamJsonInput([{ type: 'text', text: 'Hi' }]);
+
+    expect(line.endsWith('\n')).toBe(true);
+    expect(JSON.parse(line)).toEqual({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'Hi' }] } });
   });
 });
 
@@ -167,6 +217,15 @@ describe('buildCliArgs', () => {
     expect(args.slice(args.indexOf('--output-format'), args.indexOf('--output-format') + 2)).toEqual(['--output-format', 'stream-json']);
     expect(args).toContain('--verbose');
     expect(args).toContain('--include-partial-messages');
+  });
+
+  it('reads stream-json input (with the stream-json output it requires) for block input', () => {
+    const args = buildCliArgs({ model: 'sonnet', systemPrompt: 'S', streaming: false, blockInput: true });
+
+    expect(args.slice(args.indexOf('--input-format'), args.indexOf('--input-format') + 2)).toEqual(['--input-format', 'stream-json']);
+    expect(args.slice(args.indexOf('--output-format'), args.indexOf('--output-format') + 2)).toEqual(['--output-format', 'stream-json']);
+    expect(args).toContain('--verbose');
+    expect(args).not.toContain('--include-partial-messages');
   });
 
   it('never leaves the system prompt empty, so Claude Code\'s coding prompt is not used', () => {
@@ -214,6 +273,26 @@ describe('ClaudeCodeProvider.chat (non-streaming)', () => {
     expect(child.stdin.end).toHaveBeenCalled();
     expect(response.message).toEqual({ role: 'assistant', content: 'Hello!' });
     expect(mockParseToolCalls).not.toHaveBeenCalled();
+  });
+
+  it('sends images as stream-json content blocks and reads the result line', async () => {
+    const child = new FakeChild();
+    const spawnFn = fakeSpawn(child, c => {
+      c.out(`${JSON.stringify({ type: 'system', subtype: 'init' })}\n${resultJson('A red square.')}\n`);
+      c.exit(0);
+    });
+    const image = { type: 'image_url' as const, image_url: { url: 'data:image/png;base64,AAAA' } };
+
+    const response = await makeProvider(spawnFn).chat(request({
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Describe' }, image] }],
+    }));
+
+    expect(spawnFn.mock.calls[0][1]).toEqual(expect.arrayContaining(['--input-format', 'stream-json']));
+    expect(JSON.parse(child.stdin.written).message.content).toEqual([
+      { type: 'text', text: 'Describe' },
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
+    ]);
+    expect(response.message).toEqual({ role: 'assistant', content: 'A red square.' });
   });
 
   it('adds the tool protocol to the system prompt and returns parsed tool calls', async () => {
