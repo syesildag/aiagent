@@ -327,6 +327,10 @@ async function main() {
             chatToolFilter,
             chatMaxIter,
             chatFreshCtx,
+            undefined, // onContextUpdate
+            undefined, // onCompact
+            undefined, // isAdmin
+            true,      // interactive: the operator at this terminal
           );
 
           // Clear the abort controller since operation completed successfully

@@ -116,4 +116,40 @@ describe('parseToolCalls', () => {
     expect(ids.every(id => id.length > 0)).toBe(true);
     expect(new Set(ids).size).toBe(2);
   });
+
+  it('accepts a block whose JSON is wrapped in a code fence', () => {
+    const text = `${TOOL_CALLS_OPEN_TAG}\n\`\`\`json\n[{"name":"time_now","arguments":{}}]\n\`\`\`\n${TOOL_CALLS_CLOSE_TAG}`;
+
+    const result = parseToolCalls(text);
+
+    expect(result.toolCalls.map(c => c.function.name)).toEqual(['time_now']);
+  });
+
+  it('leaves a malformed block as written and runs nothing', () => {
+    const text = `Checking.\n${TOOL_CALLS_OPEN_TAG}[{"name":"time_now",${TOOL_CALLS_CLOSE_TAG}`;
+
+    const result = parseToolCalls(text);
+
+    expect(result.toolCalls).toEqual([]);
+    expect(result.content).toBe(text);
+  });
+
+  it('leaves a block cut off before its close tag as written and runs nothing', () => {
+    const text = `${TOOL_CALLS_OPEN_TAG}[{"name":"time_now","arguments":{}}]`;
+
+    const result = parseToolCalls(text);
+
+    expect(result.toolCalls).toEqual([]);
+    expect(result.content).toBe(text);
+  });
+
+  it('passes raw-string arguments through unchanged, matching serializeToolCalls', () => {
+    const calls: ToolCall[] = [
+      { id: 'c1', type: 'function', function: { name: 'time_now', arguments: 'not json' } },
+    ];
+
+    const result = parseToolCalls(serializeToolCalls(calls));
+
+    expect(result.toolCalls[0].function.arguments).toBe('not json');
+  });
 });

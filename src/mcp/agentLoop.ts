@@ -103,14 +103,14 @@ export class AgentLoop {
   ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
     const {
       message, customSystemPrompt, abortSignal, serverNames, excludedServerNames, stream,
-      attachments, userLogin, isAdmin, approvalCallback, toolNameFilter,
+      attachments, userLogin, isAdmin, interactive, approvalCallback, toolNameFilter,
       freshContext, onContextUpdate, onCompact,
     } = args;
     const { llmProvider, model, toolRegistry, toolExecutor } = this.deps;
 
     // Providers tied to a personal account (e.g. Claude Code subscription) decide who may use them.
     if (isUserRestrictedProvider(llmProvider)) {
-      llmProvider.assertUserAllowed({ userLogin, isAdmin });
+      llmProvider.assertUserAllowed({ userLogin, isAdmin, interactive });
     }
 
     // ── Track 1: Dedicated image-generation models (Images API) ─────────────

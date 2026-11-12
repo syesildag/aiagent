@@ -1724,10 +1724,14 @@ export function isResponsesAPICapable(p: unknown): p is ResponsesAPICapable {
   return typeof (p as any)?.callResponsesAPI === 'function';
 }
 
-/** Who is asking for a chat turn. Both fields are undefined for the CLI and background jobs. */
+/**
+ * Who is asking for a chat turn. A web request carries userLogin. The CLI sets interactive
+ * (the operator at this terminal). Scheduled jobs set neither.
+ */
 export interface ProviderUserContext {
   userLogin?: string;
   isAdmin?: boolean;
+  interactive?: boolean;
 }
 
 /**

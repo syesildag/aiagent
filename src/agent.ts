@@ -31,6 +31,7 @@ export interface Agent {
      onContextUpdate?: (used: number, max: number) => void,
      onCompact?: (info: { summarized: number; kept: number; tokensBefore: number; tokensAfter: number }) => void,
      isAdmin?: boolean,
+     interactive?: boolean,
    ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult>;
    getSystemPrompt(): string;
    getName(): AgentName;

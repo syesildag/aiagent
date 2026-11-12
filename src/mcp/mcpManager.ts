@@ -88,6 +88,7 @@ export interface ChatWithLLMArgs {
   }[];
   userLogin?: string;
   isAdmin?: boolean;
+  interactive?: boolean;
   approvalCallback?: ToolApprovalCallback;
   toolNameFilter?: string[];
   maxIterations?: number;

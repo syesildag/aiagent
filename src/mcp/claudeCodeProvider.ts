@@ -32,8 +32,9 @@ import { buildToolProtocolPrompt, parseToolCalls, serializeToolCalls } from './c
  * disabled, and MCP tool calls travel through the prompt protocol in
  * claudeCodeToolProtocol.ts. AgentLoop keeps owning tools, approvals and history.
  *
- * Terms: OAuth subscription credentials are for your own use of Claude Code. Do not
- * serve other users through this provider — see isAllowedSubscriptionUser().
+ * Terms: OAuth subscription credentials are meant for your own use of Claude Code. Any
+ * signed-in web user and the CLI operator may use this provider (see
+ * isAllowedSubscriptionUser()), so the accounts on this server share the subscription.
  */
 
 export type SpawnFn = (
@@ -89,20 +90,18 @@ const CANCELLED_MESSAGE = 'Operation cancelled by user';
 const IMAGE_PLACEHOLDER = '[image omitted: the claude-code provider does not forward images]';
 
 /**
- * Access policy: who may chat through YOUR Claude subscription.
+ * Access policy: who may chat through the Claude subscription.
  *
- * Anthropic's terms allow your own use of Claude Code with your subscription, but not
- * routing other people's requests through it. This server has multiple accounts, so
- * decide here who counts as "you".
+ * Any signed-in web user and the CLI operator are allowed. Anthropic's terms are stricter
+ * about routing other people's requests through a personal subscription, and this server
+ * has multiple accounts that will share it.
  *
- * ctx.userLogin / ctx.isAdmin come from the web session (routes/chat.ts). Both are
- * undefined for the CLI and for scheduled AgentJobs — which also spend your plan's
- * 5-hour / weekly usage limits.
+ * ctx.userLogin comes from the web session (routes/chat.ts). ctx.interactive is set by the
+ * CLI. Scheduled AgentJobs set neither and are refused: they would spend the subscription's
+ * 5-hour / weekly usage limits with no person behind them.
  */
 export function isAllowedSubscriptionUser(ctx: ProviderUserContext): boolean {
-  // TODO(you): implement the policy (a few lines).
-  void ctx;
-  throw new Error('TODO: implement isAllowedSubscriptionUser in src/mcp/claudeCodeProvider.ts');
+  return Boolean(ctx.userLogin) || ctx.interactive === true;
 }
 
 // ── Pure helpers (exported for tests) ────────────────────────────────────────

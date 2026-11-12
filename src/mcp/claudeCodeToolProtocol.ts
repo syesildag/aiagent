@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+import Logger from '../utils/logger';
 import type { Tool, ToolCall } from './llmProviders';
 
 /**
@@ -80,7 +82,62 @@ function parseArgumentsOrRaw(args: string): unknown {
  * - Every call gets a unique, non-empty id — tool results are matched back by id.
  */
 export function parseToolCalls(text: string): ParsedAssistantTurn {
-  // TODO(you): implement — see the contract above and the parseToolCalls tests.
-  void text;
-  throw new Error('TODO: implement parseToolCalls in src/mcp/claudeCodeToolProtocol.ts');
+  // The model is asked to end with one block, so the last opening tag is the real one.
+  const open = text.lastIndexOf(TOOL_CALLS_OPEN_TAG);
+  if (open === -1) return { content: text, toolCalls: [] };
+
+  const bodyStart = open + TOOL_CALLS_OPEN_TAG.length;
+  const close = text.indexOf(TOOL_CALLS_CLOSE_TAG, bodyStart);
+  // A missing close tag means the reply was cut off mid-block; there is nothing safe to run.
+  if (close === -1) return { content: text, toolCalls: [] };
+
+  const requested = parseRequestedCalls(text.slice(bodyStart, close));
+  if (requested === undefined) {
+    // Show the reply as written rather than silently dropping what the model asked for.
+    Logger.warn('Claude Code tool protocol: ignoring a malformed <tool_calls> block');
+    return { content: text, toolCalls: [] };
+  }
+
+  const before = text.slice(0, open);
+  const after = text.slice(close + TOOL_CALLS_CLOSE_TAG.length);
+  return {
+    content: [before, after].map(part => part.trim()).filter(Boolean).join('\n'),
+    toolCalls: requested.map(call => ({
+      id: `call_${randomUUID()}`,
+      type: 'function',
+      function: { name: call.name, arguments: argumentsAsString(call.arguments) },
+    })),
+  };
+}
+
+interface RequestedCall {
+  name: string;
+  arguments?: unknown;
+}
+
+/** The calls listed in the block, or undefined when the block is not a list of named calls. */
+function parseRequestedCalls(body: string): RequestedCall[] | undefined {
+  // Models sometimes wrap the JSON in a Markdown code fence.
+  const json = body.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(parsed) || !parsed.every(isRequestedCall)) return undefined;
+  return parsed;
+}
+
+function isRequestedCall(value: unknown): value is RequestedCall {
+  return typeof value === 'object'
+    && value !== null
+    && typeof (value as { name?: unknown }).name === 'string'
+    && (value as { name: string }).name.trim() !== '';
+}
+
+function argumentsAsString(args: unknown): string {
+  if (args === undefined || args === null) return '{}';
+  // serializeToolCalls keeps unparseable arguments as a raw string, so a string passes through.
+  return typeof args === 'string' ? args : JSON.stringify(args);
 }

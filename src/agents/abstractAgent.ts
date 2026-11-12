@@ -95,6 +95,7 @@ export default abstract class AbstractAgent implements Agent {
       onContextUpdate?: (used: number, max: number) => void,
       onCompact?: (info: { summarized: number; kept: number; tokensBefore: number; tokensAfter: number }) => void,
       isAdmin?: boolean,
+      interactive?: boolean,
    ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');
@@ -151,6 +152,7 @@ export default abstract class AbstractAgent implements Agent {
             attachments,
             userLogin,
             isAdmin,
+            interactive,
             approvalCallback,
             toolNameFilter,
             maxIterations,

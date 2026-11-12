@@ -6,6 +6,7 @@ import {
   buildTranscript,
   buildCliArgs,
   buildChildEnv,
+  isAllowedSubscriptionUser,
   type SpawnFn,
 } from './claudeCodeProvider';
 import { isUserRestrictedProvider, OllamaProvider, type LLMChatRequest, type LLMMessage, type Tool } from './llmProviders';
@@ -432,5 +433,28 @@ describe('ClaudeCodeProvider.assertUserAllowed', () => {
     const provider = makeProvider(jest.fn(), { isUserAllowed: () => true });
 
     expect(() => provider.assertUserAllowed({})).not.toThrow();
+  });
+});
+
+describe('isAllowedSubscriptionUser', () => {
+  it('allows any signed-in web user, admin or not', () => {
+    expect(isAllowedSubscriptionUser({ userLogin: 'serkan', isAdmin: true })).toBe(true);
+    expect(isAllowedSubscriptionUser({ userLogin: 'guest', isAdmin: false })).toBe(true);
+  });
+
+  it('allows the CLI operator', () => {
+    expect(isAllowedSubscriptionUser({ interactive: true })).toBe(true);
+  });
+
+  it('refuses scheduled-job calls, which carry neither a userLogin nor interactive', () => {
+    expect(isAllowedSubscriptionUser({})).toBe(false);
+    expect(isAllowedSubscriptionUser({ isAdmin: true })).toBe(false);
+  });
+
+  it('is the default policy of the provider', () => {
+    const provider = makeProvider(jest.fn());
+
+    expect(() => provider.assertUserAllowed({ userLogin: 'guest' })).not.toThrow();
+    expect(() => provider.assertUserAllowed({})).toThrow(AppError);
   });
 });
