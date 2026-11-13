@@ -3,13 +3,19 @@ import { AiAgentConversationMessages } from '../entities/ai-agent-conversation-m
 import aiagentconversationmessagesRepository from '../entities/ai-agent-conversation-messages';
 import aiagentconversationsRepository, { AiAgentConversations } from '../entities/ai-agent-conversations';
 import type { AiAgentSession } from '../entities/ai-agent-session';
-import type { Agent } from '../agent';
+import type { IConversationHistory } from '../descriptions/conversationTypes';
+import { LRUCache } from 'lru-cache';
+import { HistoryManager } from '../mcp/historyManager';
 import { config } from '../utils/config';
+import { ConversationHistoryFactory } from '../utils/conversationHistoryFactory';
 import Logger from '../utils/logger';
 
+/** Idle time after which a web conversation's in-memory history is rebuilt from the DB. */
+const WEB_HISTORY_IDLE_TTL_MS = 60 * 60 * 1000;
+
 /**
- * Handles DB conversation persistence and history synchronization.
- * Extracted from src/routes/chat.ts lines 262–334 to keep the route handler
+ * Handles DB conversation persistence and per-conversation LLM history for
+ * the web server. Extracted from src/routes/chat.ts to keep the route handler
  * focused on HTTP concerns only.
  */
 export class ConversationService {
@@ -66,42 +72,77 @@ export class ConversationService {
   }
 
   /**
-   * Ensure the in-memory LLM context matches the DB conversation being served.
-   * Clears and restores history whenever the conversation changes (new, switched,
-   * or after restart). When DbConversationHistory is active, also sets the UUID
-   * so it can locate the row without creating a duplicate.
+   * In-memory LLM histories of web conversations, one per DB conversation id.
+   * Kept so tool calls/results from earlier turns stay in context; rebuilt
+   * from the DB (user/assistant messages) after eviction or a restart.
+   * Stores the promise so concurrent first requests share a single restore.
    */
-  async syncAgentHistory(
-    agent: Agent,
-    incomingConversationId: number | null,
-    activeConversationId: number | null,
-    userLogin: string | undefined,
+  private readonly webHistories = new LRUCache<number, Promise<IConversationHistory>>({
+    max: config.MAX_CONVERSATIONS,
+    ttl: WEB_HISTORY_IDLE_TTL_MS,
+    updateAgeOnGet: true,
+  });
+
+  private readonly historyManager = new HistoryManager();
+
+  /**
+   * Return the LLM history of one web conversation.
+   *
+   * Every conversation gets its own history object, so concurrent users never
+   * see or modify each other's context (the agents and the MCP manager are
+   * shared singletons; their own history is only for the single-user CLI).
+   *
+   * Call this BEFORE persisting the user's new message: a restore reads the
+   * conversation's DB rows and must not pick up the prompt about to be sent.
+   * `conversationId` must already be validated as owned by `userLogin`.
+   */
+  async getHistoryForConversation(
+    conversationId: number | null,
     conversationUuid: string | null,
-  ): Promise<void> {
-    const currentDbConvId = agent.getActiveDbConversationId();
-    if (incomingConversationId === currentDbConvId) {
-      return;
+    userLogin: string,
+  ): Promise<IConversationHistory> {
+    // No DB conversation (e.g. the DB was unavailable): an empty history only this turn sees.
+    if (conversationId === null) {
+      return ConversationHistoryFactory.createInstance('memory');
     }
 
-    try {
-      await agent.clearConversationHistory();
-      if (incomingConversationId) {
-        const priorMessages = await aiagentconversationmessagesRepository.findByConversationId(incomingConversationId);
-        if (priorMessages.length > 0) {
-          await agent.restoreConversationHistory(
-            priorMessages.map(m => ({ role: m.getRole(), content: m.getContent() })),
-            userLogin ?? undefined,
-          );
-          Logger.info(`Restored ${priorMessages.length} messages for conversationId=${incomingConversationId}`);
-        }
-      }
-      agent.setActiveDbConversationId(activeConversationId);
-      if (config.USE_DB_CONVERSATION_HISTORY && conversationUuid) {
-        agent.setCurrentConversationId(conversationUuid);
-      }
-    } catch (err) {
-      Logger.error(`Failed to sync conversation history: ${err}`);
+    // DbConversationHistory reads and writes this conversation's rows directly,
+    // so a fresh instance pointed at it is complete and isolated.
+    if (config.USE_DB_CONVERSATION_HISTORY && conversationUuid) {
+      const history = ConversationHistoryFactory.createInstance('database');
+      history.setCurrentConversationId(conversationUuid);
+      return history;
     }
+
+    const cached = this.webHistories.get(conversationId);
+    if (cached) {
+      return cached;
+    }
+    const restoring = this.restoreHistoryFromDb(conversationId, userLogin);
+    this.webHistories.set(conversationId, restoring);
+    try {
+      return await restoring;
+    } catch (err) {
+      this.webHistories.delete(conversationId);
+      Logger.error(`Failed to restore history for conversationId=${conversationId}: ${err}`);
+      return ConversationHistoryFactory.createInstance('memory');
+    }
+  }
+
+  /** Drop the cached history of a deleted conversation. */
+  forgetConversation(conversationId: number): void {
+    this.webHistories.delete(conversationId);
+  }
+
+  private async restoreHistoryFromDb(conversationId: number, userLogin: string): Promise<IConversationHistory> {
+    const history = ConversationHistoryFactory.createInstance('memory');
+    const rows = await aiagentconversationmessagesRepository.findByConversationId(conversationId);
+    // Only plain user/assistant turns can be replayed; tool rows lack their call context.
+    const messages = rows
+      .filter(m => (m.getRole() === 'user' || m.getRole() === 'assistant') && m.getContent())
+      .map(m => ({ role: m.getRole(), content: m.getContent() }));
+    await this.historyManager.restoreConversation(history, messages, userLogin);
+    return history;
   }
 
   /** Persist the user's message to the DB (skipped when DbConversationHistory is active). */

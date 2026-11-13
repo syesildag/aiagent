@@ -180,15 +180,21 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
    const { conversationId: activeConversationId, conversationUuid: activeConversationUuid } =
       await conversationService.resolveOrCreateConversation(sessionEntity, incomingId, prompt);
 
+   // This conversation's own LLM history: never the agent's shared one, which
+   // concurrent users would overwrite. Fetched before the new prompt is persisted
+   // so a restore from the DB does not include it twice. activeConversationId is
+   // already validated as owned by this user (or freshly created).
+   const history = await conversationService.getHistoryForConversation(
+      activeConversationId, activeConversationUuid, userLogin,
+   );
+   const addAssistantMessage = async (content: string | undefined): Promise<void> => {
+      if (content) await history.addMessage({ role: 'assistant', content });
+   };
+
    if (activeConversationId) {
       res.write(JSON.stringify({ t: 'conversation', id: activeConversationId }) + '\n');
       await conversationService.persistUserMessage(activeConversationId, prompt);
    }
-
-   // Sync against the *validated* conversation id: an id the user does not own was
-   // replaced by a new conversation and must never be loaded into the LLM context.
-   const ownedIncomingId = incomingId !== null && incomingId === activeConversationId ? incomingId : null;
-   await conversationService.syncAgentHistory(agent, ownedIncomingId, activeConversationId, userLogin, activeConversationUuid);
    // ── End conversation persistence ──────────────────────────────────────────
 
    try {
@@ -201,6 +207,7 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
          onCompact,
          isAdmin: isAdminUser,
          userLogin,
+         history,
          toolNameFilter,
          maxIterations: cmdMaxIterations,
          freshContext: cmdFreshContext,
@@ -209,14 +216,14 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
       let finalContent: string | undefined;
 
       if (answer instanceof ReadableStream) {
-         finalContent = await handleStreamingResponse(answer, res, agent.addAssistantMessageToHistory.bind(agent));
+         finalContent = await handleStreamingResponse(answer, res, addAssistantMessage);
       } else if (answer && typeof answer === 'object' && (answer as ImageGenerationResult).kind === 'image') {
          const imageResult = answer as ImageGenerationResult;
          for (const url of imageResult.urls) {
             res.write(JSON.stringify({ t: 'image', v: url }) + '\n');
          }
          finalContent = chatFinalContent;
-         await agent.addAssistantMessageToHistory(finalContent);
+         await addAssistantMessage(finalContent);
          res.write(JSON.stringify({ t: 'done' }) + '\n');
          res.end();
       } else if (answer && typeof answer === 'object' && (answer as MixedContentResult).kind === 'mixed') {
@@ -226,18 +233,19 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
             res.write(JSON.stringify({ t: 'image', v: url }) + '\n');
          }
          finalContent = chatFinalContent;
-         await agent.addAssistantMessageToHistory(finalContent);
+         await addAssistantMessage(finalContent);
          res.write(JSON.stringify({ t: 'done' }) + '\n');
          res.end();
       } else {
          finalContent = chatFinalContent;
-         await agent.addAssistantMessageToHistory(finalContent);
+         await addAssistantMessage(finalContent);
          res.write(JSON.stringify({ t: 'text', v: finalContent }) + '\n');
          res.write(JSON.stringify({ t: 'done' }) + '\n');
          res.end();
       }
 
-      // Persist the assistant reply — skip when DbConversationHistory is active as it already persisted the message via addAssistantMessageToHistory().
+      // Persist the assistant reply — skipped when DbConversationHistory is active, as
+      // addAssistantMessage() already wrote it to the conversation's rows.
       if (userLogin && activeConversationId && finalContent) {
          await conversationService.persistAssistantMessage(activeConversationId, finalContent);
       }

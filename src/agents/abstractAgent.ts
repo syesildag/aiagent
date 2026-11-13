@@ -1,5 +1,5 @@
 import { Options } from "ollama";
-import { Agent, AgentName } from "../agent";
+import { Agent, AgentChatContext, AgentName } from "../agent";
 import { AiAgentSession } from "../entities/ai-agent-session";
 import aiagentuserRepository from "../entities/ai-agent-user";
 import { ToolApprovalCallback } from "../mcp/approvalManager";
@@ -96,7 +96,7 @@ export default abstract class AbstractAgent implements Agent {
       onCompact?: (info: { summarized: number; kept: number; tokensBefore: number; tokensAfter: number }) => void,
       isAdmin?: boolean,
       interactive?: boolean,
-      userLoginOverride?: string | null,
+      context?: AgentChatContext,
    ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');
@@ -132,8 +132,8 @@ export default abstract class AbstractAgent implements Agent {
          // The agent is a shared singleton: this.session is whatever the last caller set,
          // so a concurrent request may have replaced it. Prefer the identity the caller
          // passed for this turn; null means an explicit "no user" (system context).
-         const userLogin = userLoginOverride !== undefined
-            ? userLoginOverride ?? undefined
+         const userLogin = context?.userLogin !== undefined
+            ? context.userLogin ?? undefined
             : this.session?.getUserLogin();
          Logger.debug(`[Agent] "${this.getName()}" user login: ${userLogin ?? '<<none>>'}`);
          // If isAdmin was not provided by the caller, fall back to a DB lookup for the
@@ -165,6 +165,7 @@ export default abstract class AbstractAgent implements Agent {
             modelOverride: this.getModelOverride(),
             onContextUpdate,
             onCompact,
+            history: context?.history,
          });
       } catch (error) {
          Logger.error(`MCP chat failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -176,30 +177,8 @@ export default abstract class AbstractAgent implements Agent {
       return this.mcpManager?.hasActiveConversation() ?? false;
    }
 
-   async restoreConversationHistory(
-      messages: Array<{ role: string; content: string }>,
-      userId?: string,
-   ): Promise<void> {
-      if (!this.mcpManager) {
-         throw new Error('MCP manager not initialized');
-      }
-      return this.mcpManager.restoreConversation(messages, userId);
-   }
-
    async clearConversationHistory(): Promise<void> {
       await this.mcpManager?.clearConversationHistory();
-   }
-
-   getActiveDbConversationId(): number | null {
-      return this.mcpManager?.getActiveDbConversationId() ?? null;
-   }
-
-   setActiveDbConversationId(id: number | null): void {
-      this.mcpManager?.setActiveDbConversationId(id);
-   }
-
-   setCurrentConversationId(uuid: string): void {
-      this.mcpManager?.setCurrentConversationId(uuid);
    }
 
    // Helper method for agents to get available tools for specific servers

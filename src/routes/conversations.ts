@@ -4,6 +4,7 @@ import aiagentconversationmessagesRepository from "../entities/ai-agent-conversa
 import { AiAgentConversationMessages } from "../entities/ai-agent-conversation-messages";
 import { resolveActiveSession } from "../middleware/session";
 import { asyncHandler } from "../utils/asyncHandler";
+import { conversationService } from "../services/conversationService";
 
 export const conversationsRouter = Router();
 
@@ -38,6 +39,7 @@ conversationsRouter.delete("/", asyncHandler(async (req: Request, res: Response)
    await Promise.all(conversations.map(async (c) => {
       const conv = await aiagentconversationsRepository.getById(c.id);
       if (conv) await conv.delete();
+      conversationService.forgetConversation(c.id);
    }));
    res.json({ ok: true, deleted: conversations.length });
 }));
@@ -54,6 +56,7 @@ conversationsRouter.delete("/:id", asyncHandler(async (req: Request, res: Respon
       res.status(403).json({ error: 'Conversation not found' }); return;
    }
    await conv.delete();
+   conversationService.forgetConversation(convId);
    res.json({ ok: true });
 }));
 

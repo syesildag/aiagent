@@ -1,6 +1,7 @@
 import { RecurrenceRule, Spec } from "node-schedule";
 import { getAgentFromName } from "../agent";
 import aiagentuserRepository from "../entities/ai-agent-user";
+import { ConversationHistoryFactory } from "./conversationHistoryFactory";
 import DbJobFactory from "./dbJobFactory";
 import Logger from "./logger";
 
@@ -85,7 +86,11 @@ export default abstract class AgentJob extends DbJobFactory {
          undefined, // no compaction callback
          ownerIsAdmin,
          undefined, // not interactive
-         ownerLogin,
+         {
+            userLogin: ownerLogin,
+            // Own throwaway history: never write into a user's live conversation.
+            history: ConversationHistoryFactory.createInstance('memory'),
+         },
       );
       const text = typeof result === 'string' ? result : '';
       Logger.info(`[AgentJob] "${this.getJobName()}" completed. Response length: ${text.length} chars`);

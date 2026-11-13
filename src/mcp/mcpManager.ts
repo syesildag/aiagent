@@ -96,6 +96,12 @@ export interface ChatWithLLMArgs {
   modelOverride?: string;
   onContextUpdate?: (used: number, max: number) => void;
   onCompact?: (info: CompactInfo) => void;
+  /**
+   * History this turn reads and writes. The web server passes one per
+   * conversation so concurrent users never share context. When omitted the
+   * manager's own shared history is used (CLI: one local user).
+   */
+  history?: IConversationHistory;
 }
 
 /** Metadata emitted when conversation history is auto-compacted. */
@@ -146,11 +152,10 @@ export const SUB_AGENT_RUNNER = TOOL_REGISTRY_SUB_AGENT_RUNNER;
  * Use the static `create()` factory — it wires the components together.
  */
 export class MCPServerManager {
-  // Per-manager conversation history. NOT the global getInstance() singleton —
-  // this is a fresh instance created at construction time. The route handler's
-  // clearConversationHistory / restoreConversationHistory calls operate on this.
+  // Shared conversation history for callers that do not pass their own
+  // (the CLI, which serves a single local user). The web server must never use
+  // it: it passes a per-conversation history in ChatWithLLMArgs.history.
   private _currentHistory: IConversationHistory;
-  private _activeDbConversationId: number | null = null;
 
   constructor(
     private readonly serverManager: ServerManager,
@@ -293,14 +298,14 @@ export class MCPServerManager {
   ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
     await this.ensureInitialized();
 
-    // Use the established history (populated by restoreConversationHistory if the
-    // route handler synced a prior conversation) so restored context is preserved.
     // withModel() returns a NEW AgentLoop — fixes the model-mutation race condition.
     const loop = args.modelOverride
       ? this.agentLoop.withModel(args.modelOverride)
       : this.agentLoop;
 
-    return loop.run(args, this._currentHistory);
+    // A caller-supplied history isolates this turn (web: one per conversation);
+    // otherwise fall back to the shared history (CLI).
+    return loop.run(args, args.history ?? this._currentHistory);
   }
 
   // ── MCP status rendering ────────────────────────────────────────────────────
@@ -395,27 +400,8 @@ export class MCPServerManager {
     Logger.info('Conversation history cleared');
   }
 
-  getActiveDbConversationId(): number | null {
-    return this._activeDbConversationId;
-  }
-
-  setActiveDbConversationId(id: number | null): void {
-    this._activeDbConversationId = id;
-  }
-
-  setCurrentConversationId(uuid: string): void {
-    this._currentHistory.setCurrentConversationId(uuid);
-  }
-
   hasActiveConversation(): boolean {
     return this._currentHistory.hasActiveConversation();
-  }
-
-  async restoreConversation(
-    messages: Array<{ role: string; content: string }>,
-    userId?: string,
-  ): Promise<void> {
-    return this.historyManager.restoreConversation(this._currentHistory, messages, userId);
   }
 
   async getConversationCount(): Promise<number> {

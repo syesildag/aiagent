@@ -92,7 +92,7 @@ Client (Browser SPA or CLI)
 
 `AgentJob` (`src/utils/agentJob.ts`) extends `DbJobFactory` and runs a named agent with a fixed prompt on a schedule. Create a subclass in `src/jobs/` to add a new agent-driven scheduled task.
 
-**Conversation history**: Two implementations share the `IConversationHistory` interface — in-memory (default) and `DbConversationHistory` (PostgreSQL, enabled via `USE_DB_CONVERSATION_HISTORY=true`). DB-backed history stores rows in `ai_agent_conversations` and `ai_agent_conversation_messages`.
+**Conversation history**: Two implementations share the `IConversationHistory` interface — in-memory (default) and `DbConversationHistory` (PostgreSQL, enabled via `USE_DB_CONVERSATION_HISTORY=true`). DB-backed history stores rows in `ai_agent_conversations` and `ai_agent_conversation_messages`. Agents and the `MCPServerManager` are shared singletons: their built-in history is only for the single-user CLI. Web chat turns get their own per-conversation history from `conversationService.getHistoryForConversation()` and pass it through `agent.chat(..., { userLogin, history })`; sub-agents and jobs use a throwaway history. Never let a web request read or write the shared history.
 
 **Embedding service** (`src/utils/embeddingService.ts`): Multi-provider (OpenAI, Ollama, GitHub Copilot, local transformers.js). Supports batch generation, LRU caching (1 h TTL), and pgvector similarity search (`cosineSimilarity`, `dotProduct`, `euclideanDistance`, `findMostSimilar`).
 

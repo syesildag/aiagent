@@ -1,4 +1,5 @@
 import type { Agent } from '../agent';
+import type { IConversationHistory } from '../descriptions/conversationTypes';
 import type { ToolApprovalCallback } from '../mcp/approvalManager';
 import type { ImageGenerationResult, MixedContentResult, CompactInfo } from '../mcp/mcpManager';
 
@@ -31,6 +32,8 @@ export class ChatService {
     isAdmin?: boolean;
     /** Authenticated user for this turn (agents are shared, so never rely on setSession). */
     userLogin?: string | null;
+    /** History of the conversation being served (never the agent's shared history). */
+    history?: IConversationHistory;
     toolNameFilter?: string[];
     maxIterations?: number;
     freshContext?: boolean;
@@ -38,7 +41,7 @@ export class ChatService {
   }): Promise<ChatResult> {
     const {
       agent, prompt, attachments, approvalCallback, onContextUpdate,
-      onCompact, isAdmin, userLogin, toolNameFilter, maxIterations, freshContext, abortSignal,
+      onCompact, isAdmin, userLogin, history, toolNameFilter, maxIterations, freshContext, abortSignal,
     } = params;
 
     const answer = await agent.chat(
@@ -54,7 +57,7 @@ export class ChatService {
       onCompact,
       isAdmin,
       undefined,       // interactive
-      userLogin,
+      { userLogin, history },
     );
 
     // Determine finalContent for non-streaming answers so the caller can

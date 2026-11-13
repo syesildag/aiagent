@@ -14,6 +14,8 @@ import Logger from './utils/logger';
 import { loadAgentDefinitions } from './utils/agentLoader';
 import { MemoryAgent } from './agents/memoryAgent';
 import { slashCommandRegistry } from './utils/slashCommandRegistry';
+import { ConversationHistoryFactory } from './utils/conversationHistoryFactory';
+import type { IConversationHistory } from './descriptions/conversationTypes';
 
 export type AgentName = string;
 
@@ -32,13 +34,7 @@ export interface Agent {
      onCompact?: (info: { summarized: number; kept: number; tokensBefore: number; tokensAfter: number }) => void,
      isAdmin?: boolean,
      interactive?: boolean,
-     /**
-      * Login of the user this turn runs for. Agents are shared singletons, so
-      * concurrent callers must pass their identity here instead of relying on
-      * setSession(). `null` means "no user" (system context); `undefined`
-      * falls back to the session set with setSession().
-      */
-     userLogin?: string | null,
+     context?: AgentChatContext,
    ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult>;
    getSystemPrompt(): string;
    getName(): AgentName;
@@ -48,13 +44,28 @@ export interface Agent {
    setMCPManager(manager: MCPServerManager): void;
    setServerFilter(sf: ServerFilter): void;
    getAllowedServerNames(): string[] | undefined;
+   /** Append to the shared (CLI) history. Web turns write to their own history instead. */
    addAssistantMessageToHistory(content: string | undefined): void;
    hasActiveConversation(): boolean;
-   restoreConversationHistory(messages: Array<{ role: string; content: string }>, userId?: string): Promise<void>;
    clearConversationHistory(): Promise<void>;
-   getActiveDbConversationId(): number | null;
-   setActiveDbConversationId(id: number | null): void;
-   setCurrentConversationId(uuid: string): void;
+}
+
+/**
+ * Per-turn context. Agents are shared singletons, so anything that belongs to
+ * one caller must travel with the call rather than live on the agent.
+ */
+export interface AgentChatContext {
+   /**
+    * Login of the user this turn runs for. `null` means "no user" (system
+    * context); `undefined` falls back to the session set with setSession().
+    */
+   userLogin?: string | null;
+   /**
+    * History this turn reads and writes. The web server passes one per
+    * conversation; sub-agents and jobs pass a throwaway one. When omitted the
+    * shared history is used, which only the single-user CLI should rely on.
+    */
+   history?: IConversationHistory;
 }
 
 const Agents: Record<string, Agent> = {};
@@ -132,7 +143,11 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
          undefined,   // no compaction callback
          context?.isAdmin ?? false,
          undefined,   // not interactive
-         context?.userLogin ?? null, // run as the parent user, never as the singleton's last session
+         {
+            userLogin: context?.userLogin ?? null, // run as the parent user, never as the singleton's last session
+            // Own throwaway history: never write into the parent's (or another user's) conversation.
+            history: ConversationHistoryFactory.createInstance('memory'),
+         },
       );
       return typeof result === 'string' ? result : '';
    };
