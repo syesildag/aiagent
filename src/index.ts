@@ -67,8 +67,18 @@ const buildCorsOptions = (): cors.CorsOptions => {
 };
 app.use(cors(buildCorsOptions()));
 
-// Trust proxy headers (required for express-rate-limit behind Ingress)
-app.set('trust proxy', 1);
+// Trust X-Forwarded-For only when a reverse proxy really sits in front (Ingress,
+// HTTPS proxy). Trusting it unconditionally lets any client spoof its IP and
+// bypass every IP-based rate limiter, including the login brute-force limit.
+function resolveTrustProxy(): boolean | number | string {
+   const raw = config.TRUST_PROXY?.trim();
+   if (!raw) return config.BEHIND_HTTPS_PROXY ? 1 : false;
+   if (raw === 'true') return true;
+   if (raw === 'false') return false;
+   if (/^\d+$/.test(raw)) return Number(raw);
+   return raw; // comma-separated proxy IPs / subnets
+}
+app.set('trust proxy', resolveTrustProxy());
 
 app.use(rateLimit({
    windowMs: 1 * 60 * 1000, // 1 minute

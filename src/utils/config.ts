@@ -36,6 +36,15 @@ const envSchema = z.object({
   // (e.g. Freebox built-in HTTPS). Node.js will listen on plain HTTP while all
   // production security headers (CSP, HSTS, etc.) remain active.
   BEHIND_HTTPS_PROXY: z.string().transform(v => v === 'true').default('false'),
+  // Express "trust proxy" setting: a hop count ("1"), "true"/"false", or a comma-separated
+  // list of proxy IPs/subnets. Only trust X-Forwarded-For when a proxy really sits in front,
+  // otherwise any client can spoof its IP and bypass the rate limiters.
+  // Defaults to 1 when BEHIND_HTTPS_PROXY=true, otherwise false.
+  TRUST_PROXY: z.string().optional(),
+  // Allow the fetch / browser MCP servers to reach private, loopback and link-local
+  // addresses (cloud metadata, the database, other local services). Keep false unless
+  // the LLM must browse a trusted internal network.
+  FETCH_ALLOW_PRIVATE_NETWORKS: z.string().transform(v => v === 'true').default('false'),
 
   // --- LLM ---
   LLM_PROVIDER: z.enum(['ollama', 'openai', 'github', 'anthropic', 'claude-code']).default('ollama'),
@@ -212,6 +221,8 @@ function validateEnvironment(): Environment {
       GITHUB_COPILOT_CLIENT_ID: 'Ov23liwtwZwa1bIdrSWG',
       XMLTV_PATH: 'logs',
       BEHIND_HTTPS_PROXY: false,
+      TRUST_PROXY: undefined,
+      FETCH_ALLOW_PRIVATE_NETWORKS: false,
     } as Environment;
   }
 

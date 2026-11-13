@@ -13,7 +13,9 @@ healthRouter.get('/readyz', async (_req: Request, res: Response) => {
       await queryDatabase('SELECT 1');
       res.status(200).json({ status: 'ready' });
    } catch (error) {
+      // Unauthenticated endpoint: log the details, but do not reveal database errors
+      // (host names, users, driver messages) to callers.
       Logger.error('Readiness check failed:', error);
-      res.status(503).json({ status: 'not ready', error: error instanceof Error ? error.message : String(error) });
+      res.status(503).json({ status: 'not ready' });
    }
 });

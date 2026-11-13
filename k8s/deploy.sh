@@ -55,12 +55,18 @@ for ns in "${clients[@]}"; do
   # Create namespace if it doesn't exist
   kubectl get namespace $ns >/dev/null 2>&1 || kubectl create namespace $ns
 
-  # Create generic secret if not exists
+  # Create generic secret if not exists. Never commit credentials: take them from
+  # AIAGENT_DEFAULT_USERNAME / AIAGENT_DEFAULT_PASSWORD, or generate a random password.
   if ! kubectl get secret ${ns}-default-values -n $ns >/dev/null 2>&1; then
+    default_username="${AIAGENT_DEFAULT_USERNAME:-serkan}"
+    default_password="${AIAGENT_DEFAULT_PASSWORD:-$(openssl rand -base64 24)}"
     kubectl create secret generic ${ns}-default-values \
-      --from-literal=username=serkan \
-      --from-literal=password=yesildag \
+      --from-literal=username="$default_username" \
+      --from-literal=password="$default_password" \
       -n $ns
+    unset default_password
+    echo "Created ${ns}-default-values. Read the password with:"
+    echo "  kubectl get secret ${ns}-default-values -n $ns -o jsonpath='{.data.password}' | base64 -d"
   fi
 
   # Generate TLS cert/key for each client

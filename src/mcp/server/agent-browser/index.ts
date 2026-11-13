@@ -2,10 +2,30 @@
  * MCP server that exposes AgentBrowser as tools over stdio.
  */
 
+import fs from "fs";
+import path from "path";
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { AgentBrowser } from "./core/agent-browser/agent-browser";
+
+/** Screenshots and PDFs are only ever written inside this folder. */
+const OUTPUT_DIR = path.resolve(process.cwd(), "logs", "agent-browser");
+
+/**
+ * Map an LLM-supplied file name to a path inside OUTPUT_DIR. Only the base
+ * name is kept, so the model cannot write to arbitrary locations (e.g.
+ * overwrite .env, mcp-servers.json or compiled code).
+ */
+function resolveOutputPath(requested: string, extension: ".png" | ".pdf"): string {
+  const base = path.basename(requested.replace(/\\/g, "/"));
+  if (!base || base === "." || base === "..") {
+    throw new Error(`Invalid file name: ${requested}`);
+  }
+  const fileName = base.toLowerCase().endsWith(extension) ? base : `${base}${extension}`;
+  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+  return path.join(OUTPUT_DIR, fileName);
+}
 
 const browser = new AgentBrowser();
 let launched = false;
@@ -299,12 +319,13 @@ server.registerTool(
     title: "Screenshot",
     description: "Take a screenshot. Returns base64 PNG when path is omitted; otherwise saves to file.",
     inputSchema: z.object({
-      path: z.string().optional().describe("Optional file path to save screenshot"),
+      path: z.string().optional().describe("Optional file name to save the screenshot under (saved in the server's agent-browser output folder)"),
       fullPage: z.boolean().optional().describe("Capture full scrollable page"),
     }),
   },
-  async ({ path: filePath, fullPage }) => {
+  async ({ path: requestedPath, fullPage }) => {
     try {
+      const filePath = requestedPath ? resolveOutputPath(requestedPath, ".png") : undefined;
       await ensureLaunched();
       const result = await browser.screenshot(filePath, { fullPage });
       if (filePath) {
@@ -326,13 +347,14 @@ server.registerTool(
     title: "PDF",
     description: "Export the current page as a PDF. Returns base64-encoded PDF when path is omitted; otherwise saves to file.",
     inputSchema: z.object({
-      path: z.string().optional().describe("Optional file path to save the PDF"),
+      path: z.string().optional().describe("Optional file name to save the PDF under (saved in the server's agent-browser output folder)"),
       format: z.string().optional().describe("Page format, e.g. A4, Letter (default: Letter)"),
       printBackground: z.boolean().optional().describe("Print background graphics"),
     }),
   },
-  async ({ path: filePath, format, printBackground }) => {
+  async ({ path: requestedPath, format, printBackground }) => {
     try {
+      const filePath = requestedPath ? resolveOutputPath(requestedPath, ".pdf") : undefined;
       await ensureLaunched();
       const result = await browser.pdf(filePath, { format, printBackground });
       if (filePath) {

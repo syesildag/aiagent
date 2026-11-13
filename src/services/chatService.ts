@@ -29,6 +29,8 @@ export class ChatService {
     onContextUpdate?: (used: number, max: number) => void;
     onCompact?: (info: CompactInfo) => void;
     isAdmin?: boolean;
+    /** Authenticated user for this turn (agents are shared, so never rely on setSession). */
+    userLogin?: string | null;
     toolNameFilter?: string[];
     maxIterations?: number;
     freshContext?: boolean;
@@ -36,7 +38,7 @@ export class ChatService {
   }): Promise<ChatResult> {
     const {
       agent, prompt, attachments, approvalCallback, onContextUpdate,
-      onCompact, isAdmin, toolNameFilter, maxIterations, freshContext, abortSignal,
+      onCompact, isAdmin, userLogin, toolNameFilter, maxIterations, freshContext, abortSignal,
     } = params;
 
     const answer = await agent.chat(
@@ -51,6 +53,8 @@ export class ChatService {
       onContextUpdate,
       onCompact,
       isAdmin,
+      undefined,       // interactive
+      userLogin,
     );
 
     // Determine finalContent for non-streaming answers so the caller can

@@ -19,11 +19,14 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+// Assistant output can carry text injected by fetched pages. Inline `style` is not
+// allowed: it lets such content draw full-screen overlays (fake login prompts,
+// hidden links) over the chat UI.
 const sanitizeSchema = {
     ...defaultSchema,
     attributes: {
         ...defaultSchema.attributes,
-        '*': [...(defaultSchema.attributes?.['*'] ?? []), 'style', 'className'],
+        '*': [...(defaultSchema.attributes?.['*'] ?? []), 'className'],
         img: ['src', 'alt', 'width', 'height'],
         a: ['href', 'target', 'rel'],
     },

@@ -22,6 +22,7 @@ import Logger from "../../utils/logger.js";
 import { interpolateSql } from "../../utils/sqlUtils.js";
 import { AiAgentMemories } from "../../entities/ai-agent-memories.js";
 import aiagentmemoriesRepository from "../../entities/ai-agent-memories.js";
+import { extractUserContext, isForeignMemory, resolveScopedUser } from "./memoryAccess.js";
 
 /**
  * Explicit TypeScript types for tool handler arguments.
@@ -108,7 +109,20 @@ const ListMemoryInputSchema = z.object({
   user_login: z.string().optional().describe("Restrict listing to memories of this user")
 });
 
+const DeduplicateMemoryInputSchema = z.object({
+  threshold: z.number().min(0).max(1).optional().describe("Cosine similarity threshold (0–1). Pairs above this value are considered duplicates. Defaults to 0.99."),
+  user_login: z.string().optional().describe("Restrict deduplication to a specific user's memories. If omitted, deduplicates memories with no user_login (global memories)."),
+  dry_run: z.boolean().optional().describe("If true, return the IDs that would be deleted without actually deleting them. Defaults to false."),
+});
+
+const DeleteMemoryInputSchema = z.object({
+  id: z.number().int().positive().describe("Memory ID to delete")
+});
+
 type Memory = z.infer<typeof MemorySchema>;
+
+// Tool schemas use .passthrough() so the host-injected `_userLogin` / `_isAdmin`
+// reach the handlers; memoryAccess.ts decides whose memories each call may touch.
 
 /**
  * Create a modern MCP server using the high-level McpServer API
@@ -268,10 +282,11 @@ server.registerTool(
   {
     title: "Create Memory",
     description: "Create a new memory entry with semantic embedding",
-    inputSchema: CreateMemoryInputSchema.shape
+    inputSchema: CreateMemoryInputSchema.passthrough()
   } as any,
   async (args) => {
-    const { type: _type, content, source, tags = [], confidence, user_login } = args as unknown as CreateMemoryArgs;
+    const { type: _type, content, source, tags = [], confidence, user_login: requestedUser } = args as unknown as CreateMemoryArgs;
+    const user_login = resolveScopedUser(extractUserContext(args), requestedUser);
     const type = _type ?? 'observation';
     try {
       // Validate input
@@ -336,10 +351,11 @@ server.registerTool(
   {
     title: "Search Memories",
     description: "Search stored memories using semantic similarity. Use this whenever the user asks about personal context, preferences, location, past events, or anything that may have been remembered before (e.g. 'where am I', 'what do I like', 'remind me about X', 'what did we discuss').",
-    inputSchema: SearchMemoryInputSchema.shape
+    inputSchema: SearchMemoryInputSchema.passthrough()
   } as any,
   async (args) => {
-    const { query, type, tags, limit = 10, min_similarity = 0.5, user_login } = args as unknown as SearchMemoryArgs;
+    const { query, type, tags, limit = 10, min_similarity = 0.5, user_login: requestedUser } = args as unknown as SearchMemoryArgs;
+    const user_login = resolveScopedUser(extractUserContext(args), requestedUser);
     try {
       // Discover all distinct embedding models stored for matching memories so
       // that memories stored with a different embedding provider are not silently
@@ -513,10 +529,11 @@ server.registerTool(
   {
     title: "List Memories",
     description: "List all memories with optional type and tag filters",
-    inputSchema: ListMemoryInputSchema.shape
+    inputSchema: ListMemoryInputSchema.passthrough()
   } as any,
   async (args) => {
-    const { type, tags, limit = 50, user_login } = args as unknown as ListMemoryArgs;
+    const { type, tags, limit = 50, user_login: requestedUser } = args as unknown as ListMemoryArgs;
+    const user_login = resolveScopedUser(extractUserContext(args), requestedUser);
     try {
       let memories: AiAgentMemories[] | null = null;
 
@@ -667,14 +684,11 @@ server.registerTool(
   {
     title: "Deduplicate Memories",
     description: "Remove near-duplicate memories based on semantic similarity. Keeps the newest entry (highest id) in each duplicate pair. Scoped per user so cross-user memories are never affected.",
-    inputSchema: {
-      threshold: z.number().min(0).max(1).optional().describe("Cosine similarity threshold (0–1). Pairs above this value are considered duplicates. Defaults to 0.99."),
-      user_login: z.string().optional().describe("Restrict deduplication to a specific user's memories. If omitted, deduplicates memories with no user_login (global memories)."),
-      dry_run: z.boolean().optional().describe("If true, return the IDs that would be deleted without actually deleting them. Defaults to false."),
-    }
+    inputSchema: DeduplicateMemoryInputSchema.passthrough()
   } as any,
   async (args) => {
-    const { threshold = 0.99, user_login, dry_run = false } = args as unknown as { threshold?: number; user_login?: string; dry_run?: boolean };
+    const { threshold = 0.99, user_login: requestedUser, dry_run = false } = args as unknown as { threshold?: number; user_login?: string; dry_run?: boolean };
+    const user_login = resolveScopedUser(extractUserContext(args), requestedUser);
     try {
       const { count, duplicates } = await deduplicateMemories({ threshold, userLogin: user_login ?? null, dryRun: dry_run });
 
@@ -704,17 +718,18 @@ server.registerTool(
   {
     title: "Delete Memory",
     description: "Delete a memory by its ID",
-    inputSchema: {
-      id: z.number().int().positive().describe("Memory ID to delete")
-    }
+    inputSchema: DeleteMemoryInputSchema.passthrough()
   } as any,
   async (args) => {
     const { id } = args as unknown as DeleteMemoryArgs;
+    const ctx = extractUserContext(args);
     try {
       // Find memory using repository pattern
       const memory = await aiagentmemoriesRepository.getById(id);
 
-      if (!memory) {
+      // Report another user's memory as "not found" so ids cannot be probed.
+      if (!memory || isForeignMemory(ctx, memory.getUserLogin())) {
+        if (memory) Logger.warn(`[Memory] User "${ctx.userLogin}" denied deleting memory ${id} owned by another user`);
         return {
           content: [{
             type: "text",

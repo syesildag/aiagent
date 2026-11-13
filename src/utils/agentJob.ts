@@ -1,5 +1,6 @@
 import { RecurrenceRule, Spec } from "node-schedule";
 import { getAgentFromName } from "../agent";
+import aiagentuserRepository from "../entities/ai-agent-user";
 import DbJobFactory from "./dbJobFactory";
 import Logger from "./logger";
 
@@ -65,6 +66,12 @@ export default abstract class AgentJob extends DbJobFactory {
          Logger.error(`[AgentJob] Agent "${this.agentName}" not found — skipping job "${this.getJobName()}"`);
          return;
       }
+      // Run as the user who owns the job row (null for system jobs). Never fall back to
+      // the shared agent's session: that is whoever chatted last, possibly an admin.
+      const record = await this.getStatus();
+      const ownerLogin = record?.getUserLogin() ?? null;
+      const owner = ownerLogin ? await aiagentuserRepository.findByLogin(ownerLogin) : null;
+      const ownerIsAdmin = owner?.getIsAdmin() ?? false;
       const result = await agent.chat(
          this.prompt,
          undefined, // no AbortSignal
@@ -74,6 +81,11 @@ export default abstract class AgentJob extends DbJobFactory {
          undefined, // no tool filter
          undefined, // use default max iterations
          true,      // freshContext — isolated from any user conversation
+         undefined, // no context-usage callback
+         undefined, // no compaction callback
+         ownerIsAdmin,
+         undefined, // not interactive
+         ownerLogin,
       );
       const text = typeof result === 'string' ? result : '';
       Logger.info(`[AgentJob] "${this.getJobName()}" completed. Response length: ${text.length} chars`);

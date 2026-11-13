@@ -36,10 +36,9 @@ export async function verifyPassword(
   if (!hmacKey) {
     return { valid: false, needsRehash: false };
   }
-  const legacyHash = legacyHashPassword(password, hmacKey);
-  const valid = crypto.timingSafeEqual(
-    new Uint8Array(Buffer.from(legacyHash, 'base64')),
-    new Uint8Array(Buffer.from(storedHash, 'base64')),
-  );
+  const computed = new Uint8Array(Buffer.from(legacyHashPassword(password, hmacKey), 'base64'));
+  const stored = new Uint8Array(Buffer.from(storedHash, 'base64'));
+  // timingSafeEqual throws on a length mismatch; a malformed stored value is simply "invalid".
+  const valid = computed.length === stored.length && crypto.timingSafeEqual(computed, stored);
   return { valid, needsRehash: valid };
 }

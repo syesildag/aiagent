@@ -2,18 +2,24 @@ import { Request, Response, Router } from "express";
 import aiagentconversationsRepository from "../entities/ai-agent-conversations";
 import aiagentconversationmessagesRepository from "../entities/ai-agent-conversation-messages";
 import { AiAgentConversationMessages } from "../entities/ai-agent-conversation-messages";
-import aiagentsessionRepository from "../entities/ai-agent-session";
+import { resolveActiveSession } from "../middleware/session";
 import { asyncHandler } from "../utils/asyncHandler";
 
 export const conversationsRouter = Router();
 
-// Resolve and validate session from query string or body — used by all conversation routes
+// Resolve and validate session from query string or body — used by all conversation routes.
+// Goes through resolveActiveSession so expired sessions are rejected here too.
 async function resolveSession(req: Request, res: Response) {
-   const session = (req.query.session ?? req.body?.session) as string | undefined;
+   const session = req.query.session ?? req.body?.session;
    if (!session) { res.status(401).json({ error: 'No session' }); return null; }
-   const sessionEntity = await aiagentsessionRepository.findByName(session);
+   const sessionEntity = await resolveActiveSession(session);
    if (!sessionEntity) { res.status(401).json({ error: 'Invalid session' }); return null; }
    return sessionEntity;
+}
+
+/** Parse a positive integer route id, or null when malformed. */
+function parseConversationId(raw: string): number | null {
+   return /^\d+$/.test(raw) ? Number(raw) : null;
 }
 
 // List conversations for the authenticated user
@@ -40,7 +46,8 @@ conversationsRouter.delete("/", asyncHandler(async (req: Request, res: Response)
 conversationsRouter.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
    const sessionEntity = await resolveSession(req, res);
    if (!sessionEntity) return;
-   const convId = parseInt(req.params.id, 10);
+   const convId = parseConversationId(req.params.id);
+   if (convId === null) { res.status(400).json({ error: 'Invalid conversation id' }); return; }
    const conv = await aiagentconversationsRepository.getById(convId);
    if (!conv) { res.status(404).json({ error: 'Conversation not found' }); return; }
    if (!await aiagentconversationsRepository.belongsToUserLogin(convId, sessionEntity.getUserLogin())) {
@@ -54,7 +61,8 @@ conversationsRouter.delete("/:id", asyncHandler(async (req: Request, res: Respon
 conversationsRouter.get("/:id/messages", asyncHandler(async (req: Request, res: Response) => {
    const sessionEntity = await resolveSession(req, res);
    if (!sessionEntity) return;
-   const convId = parseInt(req.params.id, 10);
+   const convId = parseConversationId(req.params.id);
+   if (convId === null) { res.status(400).json({ error: 'Invalid conversation id' }); return; }
    const conv = await aiagentconversationsRepository.getById(convId);
    if (!conv) { res.status(404).json({ error: 'Conversation not found' }); return; }
    if (!await aiagentconversationsRepository.belongsToUserLogin(convId, sessionEntity.getUserLogin())) {

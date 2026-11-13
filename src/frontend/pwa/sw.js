@@ -191,9 +191,19 @@ self.addEventListener('push', (event) => {
   );
 });
 
+/** Resolve a notification link, refusing anything outside this origin (no phishing redirects). */
+function sameOriginUrl(raw) {
+  try {
+    const url = new URL(raw || '/', self.location.origin);
+    return url.origin === self.location.origin ? url.href : '/';
+  } catch {
+    return '/';
+  }
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || '/';
+  const targetUrl = sameOriginUrl(event.notification.data?.url);
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       if (clients.length > 0) {

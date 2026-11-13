@@ -114,7 +114,20 @@ export type SubAgentRunner = (
   agentName: string,
   prompt: string,
   abortSignal?: AbortSignal,
+  context?: SubAgentContext,
 ) => Promise<string>;
+
+/**
+ * What a sub-agent inherits from the parent turn. Without it a sub-agent
+ * would run dangerous tools with no human approval, and under whatever
+ * identity its shared singleton last saw instead of the parent user's.
+ */
+export interface SubAgentContext {
+  approvalCallback?: ToolApprovalCallback;
+  /** Parent user's login; null when the parent turn has no user. */
+  userLogin: string | null;
+  isAdmin: boolean;
+}
 
 /** Re-export so callers that import SUB_AGENT_RUNNER from mcpManager.ts continue to work. */
 export const SUB_AGENT_RUNNER = TOOL_REGISTRY_SUB_AGENT_RUNNER;

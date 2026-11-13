@@ -36,6 +36,16 @@ const DANGEROUS_TOOL_PATTERNS: RegExp[] = [
 
 const VIRTUAL_TASK_TOOL_NAME = 'task';
 
+/**
+ * MCP servers that scope data per user. The host injects the authenticated
+ * identity as `_userLogin` / `_isAdmin` into every call to them; the LLM's own
+ * arguments are never trusted for identity (a prompt can ask for anything).
+ */
+const IDENTITY_AWARE_SERVERS = new Set(['jobs', 'memory']);
+
+/** Argument names reserved for the host-injected identity. */
+const IDENTITY_ARG_NAMES = ['_userLogin', '_isAdmin'] as const;
+
 /** Maximum characters allowed per text field in a tool result before truncation. */
 const MAX_TOOL_RESULT_TEXT_CHARS = 20_000;
 
@@ -98,6 +108,17 @@ export class ToolExecutor {
     } catch (error) {
       return `Error parsing tool arguments: ${error}`;
     }
+    if (parsedArgs === null || typeof parsedArgs !== 'object' || Array.isArray(parsedArgs)) {
+      parsedArgs = {};
+    }
+    // Drop any identity the LLM tried to supply itself (e.g. after prompt injection).
+    for (const reserved of IDENTITY_ARG_NAMES) {
+      delete parsedArgs[reserved];
+    }
+    const trustedIdentity = {
+      _userLogin: userContext?.userLogin ?? null,
+      _isAdmin: userContext?.isAdmin ?? false,
+    };
 
     // ── Virtual Task tool: delegate to a sub-agent ──────────────────────────
     if (name === VIRTUAL_TASK_TOOL_NAME) {
@@ -110,7 +131,12 @@ export class ToolExecutor {
       }
       Logger.info(`Task tool: delegating "${description ?? (prompt as string).slice(0, 60)}" to sub-agent "${subagent_type}"`);
       try {
-        const result = await subAgentRunner(subagent_type as string, prompt as string);
+        // The sub-agent inherits the parent's approval gate and user identity.
+        const result = await subAgentRunner(subagent_type as string, prompt as string, undefined, {
+          approvalCallback,
+          userLogin: trustedIdentity._userLogin,
+          isAdmin: trustedIdentity._isAdmin,
+        });
         Logger.info(`Task tool: sub-agent "${subagent_type}" completed`);
         return JSON.stringify({ result });
       } catch (error) {
@@ -149,8 +175,16 @@ export class ToolExecutor {
     Logger.info(`[Tool] ${name} args=${JSON.stringify(parsedArgs ?? {})}`);
     const toolStart = Date.now();
 
+    const isResourceRead = methodParts[0] === 'get' && methodParts[1] === 'resource';
+    // Resource reads carry no user context, so on a per-user server they would
+    // return every user's data. Only admins may read them.
+    if (isResourceRead && IDENTITY_AWARE_SERVERS.has(serverName) && !trustedIdentity._isAdmin) {
+      Logger.warn(`[Tool] ${name} denied: resources of per-user server "${serverName}" are admin-only`);
+      return `Error: ${name} is only available to administrators`;
+    }
+
     try {
-      if (methodParts[0] === 'get' && methodParts[1] === 'resource') {
+      if (isResourceRead) {
         const result = await connection.getResource((parsedArgs as any).uri);
         Logger.info(`[Tool] ${name} completed in ${Date.now() - toolStart}ms`);
         return JSON.stringify(result, null, 2);
@@ -161,14 +195,10 @@ export class ToolExecutor {
         return JSON.stringify(result, null, 2);
       } else {
         const toolName = methodParts.join('_');
-        let argsToSend = parsedArgs ?? {};
-        if (serverName === 'jobs' && userContext) {
-          argsToSend = {
-            ...argsToSend,
-            _userLogin: userContext.userLogin ?? null,
-            _isAdmin:   userContext.isAdmin  ?? false,
-          };
-        }
+        // Identity always comes from the host, spread last so it cannot be overridden.
+        const argsToSend = IDENTITY_AWARE_SERVERS.has(serverName)
+          ? { ...parsedArgs, ...trustedIdentity }
+          : parsedArgs;
         const result = await connection.callTool(toolName, argsToSend);
         Logger.info(`[Tool] ${name} completed in ${Date.now() - toolStart}ms`);
         const serialized = JSON.stringify(truncateToolResultText(result), null, 2);

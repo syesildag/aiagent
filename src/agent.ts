@@ -32,6 +32,13 @@ export interface Agent {
      onCompact?: (info: { summarized: number; kept: number; tokensBefore: number; tokensAfter: number }) => void,
      isAdmin?: boolean,
      interactive?: boolean,
+     /**
+      * Login of the user this turn runs for. Agents are shared singletons, so
+      * concurrent callers must pass their identity here instead of relying on
+      * setSession(). `null` means "no user" (system context); `undefined`
+      * falls back to the session set with setSession().
+      */
+     userLogin?: string | null,
    ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult>;
    getSystemPrompt(): string;
    getName(): AgentName;
@@ -107,7 +114,7 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
    const subAgentDescriptions: Record<string, string> = {};
    const subAgentAllowedServers: Record<string, string[] | undefined> = {};
 
-   const subAgentRunner: SubAgentRunner = async (agentName, prompt, abortSignal) => {
+   const subAgentRunner: SubAgentRunner = async (agentName, prompt, abortSignal, context) => {
       const subAgent = Agents[agentName];
       if (!subAgent) {
          throw new Error(`Unknown sub-agent: "${agentName}". Available: ${Object.keys(Agents).join(', ')}`);
@@ -117,10 +124,15 @@ export async function initializeAgents(): Promise<Record<AgentName, Agent>> {
          abortSignal,
          false,       // no streaming — we need the full string result
          undefined,   // no attachments
-         undefined,   // no approval callback for sub-agents
+         context?.approvalCallback, // dangerous tools still need the parent user's approval
          undefined,   // no tool filter
          undefined,   // use default max iterations
          true,        // freshContext — isolated from parent history
+         undefined,   // no context-usage callback
+         undefined,   // no compaction callback
+         context?.isAdmin ?? false,
+         undefined,   // not interactive
+         context?.userLogin ?? null, // run as the parent user, never as the singleton's last session
       );
       return typeof result === 'string' ? result : '';
    };

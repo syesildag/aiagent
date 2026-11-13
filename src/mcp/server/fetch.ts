@@ -13,12 +13,16 @@ import { z } from "zod";
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 import Logger from "../../utils/logger.js";
+import { safeFetch } from "../../utils/ssrfGuard.js";
 
 /** Maximum characters returned per article to avoid token bloat */
 const MAX_CONTENT_CHARS = 3000;
 
 /** Request timeout in milliseconds */
 const FETCH_TIMEOUT_MS = 10_000;
+
+/** Maximum HTML size downloaded before parsing, to bound memory use */
+const MAX_HTML_BYTES = 5 * 1024 * 1024;
 
 /** Browser-like User-Agent to avoid basic bot blocks */
 const USER_AGENT =
@@ -53,42 +57,34 @@ async function fetchAndExtract(
   url: string,
   maxChars: number
 ): Promise<{ title: string; textContent: string; excerpt: string; url: string }> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  // safeFetch blocks private/loopback/link-local/metadata destinations, on the
+  // first request and on every redirect (the URL is chosen by the LLM).
+  const response = await safeFetch(url, {
+    headers: {
+      "User-Agent": USER_AGENT,
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
+    },
+    timeoutMs: FETCH_TIMEOUT_MS,
+    maxBytes: MAX_HTML_BYTES,
+  });
 
-  let html: string;
-  try {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-      },
-      signal: controller.signal,
-    });
-
-    clearTimeout(timer);
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.includes("html") && !contentType.includes("xhtml")) {
-      throw new Error(
-        `Unsupported content type "${contentType}". Only HTML pages are supported.`
-      );
-    }
-
-    html = await response.text();
-  } catch (err) {
-    clearTimeout(timer);
-    throw err;
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
-  // Parse with JSDOM and extract with Readability
-  const dom = new JSDOM(html, { url });
+  const contentType = String(response.headers["content-type"] ?? "");
+  if (!contentType.includes("html") && !contentType.includes("xhtml")) {
+    throw new Error(
+      `Unsupported content type "${contentType}". Only HTML pages are supported.`
+    );
+  }
+
+  const html = response.body;
+
+  // Parse with JSDOM and extract with Readability (scripts are not executed by default)
+  const dom = new JSDOM(html, { url: response.url });
   const reader = new Readability(dom.window.document);
   const article = reader.parse();
 

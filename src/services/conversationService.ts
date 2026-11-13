@@ -39,6 +39,10 @@ export class ConversationService {
         if (!existingConv) {
           Logger.warn(`Conversation ${activeConversationId} not found in DB, starting a new one`);
           activeConversationId = null;
+        } else if (!await aiagentconversationsRepository.belongsToUserLogin(activeConversationId, userLogin)) {
+          // Never continue (or load the history of) another user's conversation.
+          Logger.warn(`User ${userLogin} tried to continue conversation ${activeConversationId} they do not own; starting a new one`);
+          activeConversationId = null;
         } else {
           activeConversationUuid = existingConv.getMetadata()?.id ?? null;
         }

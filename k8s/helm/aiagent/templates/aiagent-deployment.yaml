@@ -62,6 +62,10 @@ spec:
               value: "{{ .Values.postgres.user }}"
             - name: DB_PASSWORD
               value: "{{ .Values.postgres.password }}"
+            # Traffic arrives through ingress-nginx: trust exactly one proxy hop so
+            # rate limits key on the real client IP.
+            - name: TRUST_PROXY
+              value: "1"
           resources:
             requests:
               cpu: "1000m"

@@ -254,7 +254,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
 }
 
 /** Upserts a push subscription on the server (idempotent). */
-async function saveSubscriptionToServer(sub: PushSubscription): Promise<boolean> {
+async function saveSubscriptionToServer(sub: PushSubscription, session: string): Promise<boolean> {
   const p256dhBuf = sub.getKey('p256dh');
   const authBuf   = sub.getKey('auth');
   if (!p256dhBuf || !authBuf) {
@@ -269,6 +269,7 @@ async function saveSubscriptionToServer(sub: PushSubscription): Promise<boolean>
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      session,
       endpoint: sub.endpoint,
       p256dh: toBase64url(p256dhBuf),
       auth:   toBase64url(authBuf),
@@ -605,6 +606,9 @@ interface XmltvViewerProps {
 }
 
 const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
+  // Push helpers are memoised with empty deps; read the session through a ref.
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
   const theme = useTheme();
   const { logout, darkMode, toggleDarkMode } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -678,7 +682,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
 
         console.debug('[push] reusing existing subscription:', sub.endpoint.slice(0, 60) + '…');
         pushSubscriptionRef.current = sub;
-        await saveSubscriptionToServer(sub);
+        await saveSubscriptionToServer(sub, sessionRef.current);
         if (!cancelled) setPushStatus('ok');
       } catch (err) {
         console.warn('[push] push setup failed on mount:', err);
@@ -727,7 +731,7 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
           applicationServerKey: urlBase64ToUint8Array(vapidKey),
         });
         console.debug('[push] subscribed:', sub.endpoint.slice(0, 60) + '…');
-        const ok = await saveSubscriptionToServer(sub);
+        const ok = await saveSubscriptionToServer(sub, sessionRef.current);
         if (ok) setPushStatus('ok');
       }
       pushSubscriptionRef.current = sub;
@@ -750,7 +754,11 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
       const cancelSub = await getActivePushSubscription();
       if (cancelSub) {
         console.debug('[push] cancelling server-side schedule:', key);
-        fetch(`/xmltv/push-schedule/${encodeURIComponent(key)}`, { method: 'DELETE' }).catch(() => {});
+        fetch(`/xmltv/push-schedule/${encodeURIComponent(key)}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session: sessionRef.current, endpoint: cancelSub.endpoint }),
+        }).catch(() => {});
       }
       return;
     }
@@ -769,11 +777,12 @@ const XmltvViewer: React.FC<XmltvViewerProps> = ({ session }) => {
     const pushSub = await getActivePushSubscription();
     console.debug('[push] scheduling', key, '| pushSub:', pushSub ? pushSub.endpoint.slice(0, 40) + '…' : 'null');
     if (pushSub) {
-      await saveSubscriptionToServer(pushSub);
+      await saveSubscriptionToServer(pushSub, sessionRef.current);
       fetch('/xmltv/push-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          session: sessionRef.current,
           id: key,
           endpoint: pushSub.endpoint,
           title: prog.title,

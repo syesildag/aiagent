@@ -1,9 +1,12 @@
 import { execFile } from 'child_process';
+import { createHash } from 'crypto';
 import { Request, Response, Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
+import { z } from 'zod';
 import { config } from '../utils/config';
+import { assertPublicUrl } from '../utils/ssrfGuard';
 import { asyncHandler } from '../utils/asyncHandler';
 import Logger from '../utils/logger';
 import { isXmltvStale, XMLTV_RETRY_AFTER_MS } from '../utils/xmltvFreshness';
@@ -109,15 +112,79 @@ xmltvRouter.get('/xmltv/vapid-public-key', (_req: Request, res: Response) => {
   res.json({ publicKey: config.VAPID_PUBLIC_KEY ?? null });
 });
 
+// ── Web Push endpoints ───────────────────────────────────────────────────────
+// All three require a valid session. Push endpoints are capability URLs held by
+// one browser; the server POSTs to them, so they must be public https URLs
+// (otherwise this becomes an SSRF primitive), and notification links must stay
+// on this origin (otherwise a notification could open a phishing page).
+
+const MAX_SCHEDULE_AHEAD_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** True for an absolute path on this origin, e.g. "/xmltv" (not "//evil.com" or "https://…"). */
+function isSameOriginPath(value: string): boolean {
+  return value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/\\');
+}
+
+const PushEndpoint = z.string().url().max(2048).refine(v => v.startsWith('https://'), 'endpoint must be an https URL');
+const SameOriginPath = z.string().max(512).refine(isSameOriginPath, 'must be a path on this site');
+
+const PushSubscribeBody = z.object({
+  endpoint: PushEndpoint,
+  p256dh: z.string().min(1).max(256),
+  auth: z.string().min(1).max(256),
+});
+
+const PushScheduleBody = z.object({
+  id: z.string().min(1).max(512),
+  endpoint: PushEndpoint,
+  title: z.string().min(1).max(256),
+  body: z.string().min(1).max(1024),
+  icon: SameOriginPath.optional(),
+  url: SameOriginPath.optional(),
+  fireAt: z.string().max(64),
+});
+
+const PushCancelBody = z.object({ endpoint: PushEndpoint });
+
+/**
+ * Store ids per push endpoint: two browsers scheduling the same programme no
+ * longer collide, and a browser can only cancel reminders sent to itself.
+ */
+function scopedNotificationId(endpoint: string, clientId: string): string {
+  return `${createHash('sha256').update(endpoint).digest('hex').slice(0, 16)}:${clientId}`;
+}
+
+function requireSession(res: Response): boolean {
+  if (!res.locals.session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return false;
+  }
+  return true;
+}
+
+async function isPublicPushEndpoint(endpoint: string): Promise<boolean> {
+  try {
+    await assertPublicUrl(endpoint);
+    return true;
+  } catch (err) {
+    Logger.warn(`[xmltv] Rejected push endpoint: ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
+}
+
 // Store a push subscription (endpoint + keys) so the server can send pushes later
 xmltvRouter.post('/xmltv/push-subscribe', asyncHandler(async (req: Request, res: Response) => {
-  const { endpoint, p256dh, auth } = req.body ?? {};
-  Logger.debug(`[xmltv] POST /xmltv/push-subscribe endpoint=${typeof endpoint === 'string' ? endpoint.slice(0, 60) + '…' : typeof endpoint}`);
-  if (typeof endpoint !== 'string' || endpoint.length === 0 ||
-      typeof p256dh  !== 'string' || p256dh.length  === 0 ||
-      typeof auth    !== 'string' || auth.length    === 0) {
+  if (!requireSession(res)) return;
+  const parsed = PushSubscribeBody.safeParse(req.body);
+  if (!parsed.success) {
     Logger.debug('[xmltv] push-subscribe: invalid body');
-    res.status(400).json({ error: 'endpoint, p256dh and auth must be non-empty strings' });
+    res.status(400).json({ error: 'endpoint (https URL), p256dh and auth are required' });
+    return;
+  }
+  const { endpoint, p256dh, auth } = parsed.data;
+  Logger.debug(`[xmltv] POST /xmltv/push-subscribe endpoint=${endpoint.slice(0, 60)}…`);
+  if (!await isPublicPushEndpoint(endpoint)) {
+    res.status(400).json({ error: 'endpoint is not allowed' });
     return;
   }
   const existing = await aiAgentPushSubscriptionRepository.findByEndpoint(endpoint);
@@ -129,19 +196,27 @@ xmltvRouter.post('/xmltv/push-subscribe', asyncHandler(async (req: Request, res:
 
 // Schedule a push notification to fire at a specific future timestamp
 xmltvRouter.post('/xmltv/push-schedule', asyncHandler(async (req: Request, res: Response) => {
-  const { id, endpoint, title, body, icon, url, fireAt } = req.body ?? {};
-  Logger.debug(`[xmltv] POST /xmltv/push-schedule id=${id} title=${title} fireAt=${fireAt}`);
-  if (!id || !endpoint || !title || !body || !fireAt) {
-    Logger.debug('[xmltv] push-schedule: missing required fields');
-    res.status(400).json({ error: 'id, endpoint, title, body and fireAt are required' });
+  if (!requireSession(res)) return;
+  const parsed = PushScheduleBody.safeParse(req.body);
+  if (!parsed.success) {
+    Logger.debug('[xmltv] push-schedule: invalid body');
+    res.status(400).json({ error: 'id, endpoint, title, body and fireAt are required; icon and url must be paths on this site' });
     return;
   }
+  const { id: clientId, endpoint, title, body, icon, url, fireAt } = parsed.data;
+  Logger.debug(`[xmltv] POST /xmltv/push-schedule id=${clientId} fireAt=${fireAt}`);
   const fireAtDate = new Date(fireAt);
-  if (isNaN(fireAtDate.getTime())) {
+  if (isNaN(fireAtDate.getTime()) || fireAtDate.getTime() > Date.now() + MAX_SCHEDULE_AHEAD_MS) {
     Logger.debug(`[xmltv] push-schedule: invalid fireAt value: ${fireAt}`);
-    res.status(400).json({ error: 'fireAt must be a valid ISO timestamp' });
+    res.status(400).json({ error: 'fireAt must be a valid ISO timestamp within the next 30 days' });
     return;
   }
+  // Only schedule for a browser that registered a (validated) subscription.
+  if (!await aiAgentPushSubscriptionRepository.findByEndpoint(endpoint)) {
+    res.status(400).json({ error: 'unknown push subscription; call /xmltv/push-subscribe first' });
+    return;
+  }
+  const id = scopedNotificationId(endpoint, clientId);
   const existing = await aiAgentScheduledPushNotificationRepository.getById(id);
   if (existing) {
     Logger.debug(`[xmltv] push-schedule: notification ${id} already scheduled, skipping`);
@@ -154,9 +229,15 @@ xmltvRouter.post('/xmltv/push-schedule', asyncHandler(async (req: Request, res: 
   res.json({ ok: true });
 }));
 
-// Cancel a previously scheduled push notification
+// Cancel a previously scheduled push notification (only the browser it targets may cancel it)
 xmltvRouter.delete('/xmltv/push-schedule/:id', asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  if (!requireSession(res)) return;
+  const parsed = PushCancelBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'endpoint (https URL) is required' });
+    return;
+  }
+  const id = scopedNotificationId(parsed.data.endpoint, req.params.id);
   Logger.debug(`[xmltv] DELETE /xmltv/push-schedule/${id}`);
   const n = await aiAgentScheduledPushNotificationRepository.getById(id);
   if (n) {

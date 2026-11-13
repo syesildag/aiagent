@@ -10,6 +10,7 @@ import aiagentconversationsRepository from '../entities/ai-agent-conversations';
 import aiagentconversationmessagesRepository from '../entities/ai-agent-conversation-messages';
 import aiagentsessionRepository from '../entities/ai-agent-session';
 import { queryDatabase } from './pgClient';
+import { hashPassword } from './hashPassword';
 
 export class DbConversationHistory implements IConversationHistory {
   private _currentConversationId: string | null = null;
@@ -327,9 +328,11 @@ export class DbConversationHistory implements IConversationHistory {
       // we still need a row for the foreign key; use a random UUID as a locked/unusable password.
       const userExists = await queryDatabase('SELECT id FROM ai_agent_user WHERE login = $1', [userLogin]);
       if (userExists.length === 0) {
-        const placeholderPassword = config.DEFAULT_PASSWORD ?? randomUUID();
+        // Never store a plaintext password: hash DEFAULT_PASSWORD, or a random
+        // value nobody knows so the placeholder account cannot be logged into.
+        const placeholderPassword = await hashPassword(config.DEFAULT_PASSWORD ?? randomUUID(), config.BCRYPT_ROUNDS);
         await queryDatabase(
-          'INSERT INTO ai_agent_user (login, password) VALUES ($1, $2)',
+          "INSERT INTO ai_agent_user (login, password, hash_version) VALUES ($1, $2, 'bcrypt')",
           [userLogin, placeholderPassword]
         );
         Logger.info(`Created placeholder user for sessions: ${userLogin}`);

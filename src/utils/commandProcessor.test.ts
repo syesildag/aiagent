@@ -137,6 +137,72 @@ describe('processCommand — bash execution', () => {
   });
 });
 
+// ── Security: arguments are untrusted user input ──────────────────────────────
+
+describe('processCommand — argument injection', () => {
+  const skills = new Map<string, Skill>();
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-sec-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('never executes a bash capture supplied as an argument', () => {
+    const marker = path.join(tmpDir, 'pwned');
+    const cmd = makeCommand('Store the following note: **$ARGUMENTS**');
+    const payload = `!\`touch\${IFS}${marker}\``;
+    const result = processCommand(cmd, [payload], skills);
+    expect(fs.existsSync(marker)).toBe(false);
+    expect(result).toBe(`Store the following note: **${payload}**`);
+  });
+
+  it('never executes a bash capture supplied as a positional argument', () => {
+    const marker = path.join(tmpDir, 'pwned');
+    const cmd = makeCommand('Note: $1');
+    processCommand(cmd, [`!\`touch\${IFS}${marker}\``], skills);
+    expect(fs.existsSync(marker)).toBe(false);
+  });
+
+  it('never includes a file whose path is supplied as an argument', () => {
+    const secret = path.join(tmpDir, 'secret.txt');
+    fs.writeFileSync(secret, 'TOP-SECRET');
+    const cmd = makeCommand('Note: $ARGUMENTS');
+    const result = processCommand(cmd, [`@${secret}`], skills);
+    expect(result).not.toContain('TOP-SECRET');
+    expect(result).toBe(`Note: @${secret}`);
+  });
+
+  it('never reads a file path built from an argument in the template', () => {
+    const secret = path.join(tmpDir, 'secret.txt');
+    fs.writeFileSync(secret, 'TOP-SECRET');
+    const cmd = makeCommand('Include @$1');
+    const result = processCommand(cmd, [secret], skills);
+    expect(result).not.toContain('TOP-SECRET');
+  });
+
+  it('passes arguments to a template bash capture as data, not shell code', () => {
+    const marker = path.join(tmpDir, 'pwned');
+    const cmd = makeCommand('Echo: !`echo $1`');
+    const result = processCommand(cmd, [`$(touch${'${IFS}'}${marker});id`], skills);
+    expect(fs.existsSync(marker)).toBe(false);
+    expect(result).toBe(`Echo: $(touch\${IFS}${marker});id`);
+  });
+
+  it('still word-splits $ARGUMENTS inside a template bash capture', () => {
+    const cmd = makeCommand('Count: !`set -- $ARGUMENTS; echo $#`');
+    expect(processCommand(cmd, ['a', 'b', 'c'], skills)).toBe('Count: 3');
+  });
+
+  it('does not treat argument text as $IF/$ENDIF syntax inside branches', () => {
+    const cmd = makeCommand('$IF $1\nValue: $1\n$ENDIF');
+    expect(processCommand(cmd, ['$2'], skills)).toBe('Value: $2\n');
+  });
+});
+
 // ── Skill injection ────────────────────────────────────────────────────────────
 
 describe('processCommand — skill injection', () => {

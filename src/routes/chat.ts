@@ -66,9 +66,16 @@ const approvalRateLimit = rateLimit({
 // Approve / deny a pending tool execution (called by the browser when the user decides).
 // IMPORTANT: must be registered BEFORE /:agent to avoid the wildcard swallowing this path.
 chatRouter.post("/approve/:approvalId", approvalRateLimit, asyncHandler(async (req: Request, res: Response) => {
+   // Only the authenticated owner of the chat that raised the request may decide it.
+   const sessionEntity: AiAgentSession | undefined = res.locals.session;
+   const requesterLogin = sessionEntity?.getUserLogin();
+   if (!requesterLogin) {
+      sendAuthenticationRequired(res);
+      return;
+   }
    const { approvalId } = req.params;
    const { approved } = z.object({ approved: z.boolean() }).parse(req.body);
-   const resolved = approvalManager.resolve(approvalId, approved);
+   const resolved = approvalManager.resolve(approvalId, approved, requesterLogin);
    if (!resolved) {
       res.status(404).json({ error: 'Approval request not found or already resolved' });
       return;
@@ -78,19 +85,19 @@ chatRouter.post("/approve/:approvalId", approvalRateLimit, asyncHandler(async (r
 }));
 
 chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res: Response) => {
-   const { prompt, imageBase64, imageMimeType, files, conversationId: incomingConversationId } = Query.parse(req.body);
-   const agent = await getAgentFromName(req.params.agent);
    const sessionEntity: AiAgentSession | undefined = res.locals.session;
-   if (!sessionEntity) {
+   const userLogin = sessionEntity?.getUserLogin();
+   if (!sessionEntity || !userLogin) {
       sendAuthenticationRequired(res);
       return;
    }
+   const { prompt, imageBase64, imageMimeType, files, conversationId: incomingConversationId } = Query.parse(req.body);
+   const agent = await getAgentFromName(req.params.agent);
    agent.setSession(sessionEntity);
 
-   // Look up isAdmin here, in a per-request local variable, before any awaits that could
-   // race with concurrent requests overwriting the shared singleton agent's session.
-   const sessionUserLogin = sessionEntity?.getUserLogin();
-   const sessionUser = sessionUserLogin ? await aiagentuserRepository.findByLogin(sessionUserLogin) : null;
+   // The agent is a shared singleton: concurrent requests overwrite its session.
+   // Keep this request's identity in locals and pass it explicitly to every call below.
+   const sessionUser = await aiagentuserRepository.findByLogin(userLogin);
    const isAdminUser = sessionUser?.getIsAdmin() ?? false;
 
    // Build the image-data array, merging legacy single-image fields and the new multi-file array
@@ -139,7 +146,7 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
      schema?: { properties?: Record<string, { type?: string; description?: string; [key: string]: unknown }>; required?: string[] },
    ): Promise<boolean> => {
      const request = approvalManager.buildRequest(toolName, args, description);
-     const decision = approvalManager.register(request.id);
+     const decision = approvalManager.register(request.id, userLogin);
      // Emit the approval event as an NDJSON line
      res.write(
        JSON.stringify({
@@ -169,7 +176,6 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
    };
 
    // ── Conversation persistence ───────────────────────────────────────────────
-   const userLogin = sessionEntity?.getUserLogin();
    const incomingId = incomingConversationId ?? null;
    const { conversationId: activeConversationId, conversationUuid: activeConversationUuid } =
       await conversationService.resolveOrCreateConversation(sessionEntity, incomingId, prompt);
@@ -179,7 +185,10 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
       await conversationService.persistUserMessage(activeConversationId, prompt);
    }
 
-   await conversationService.syncAgentHistory(agent, incomingId, activeConversationId, userLogin ?? undefined, activeConversationUuid);
+   // Sync against the *validated* conversation id: an id the user does not own was
+   // replaced by a new conversation and must never be loaded into the LLM context.
+   const ownedIncomingId = incomingId !== null && incomingId === activeConversationId ? incomingId : null;
+   await conversationService.syncAgentHistory(agent, ownedIncomingId, activeConversationId, userLogin, activeConversationUuid);
    // ── End conversation persistence ──────────────────────────────────────────
 
    try {
@@ -191,6 +200,7 @@ chatRouter.post("/:agent", chatRateLimit, asyncHandler(async (req: Request, res:
          onContextUpdate,
          onCompact,
          isAdmin: isAdminUser,
+         userLogin,
          toolNameFilter,
          maxIterations: cmdMaxIterations,
          freshContext: cmdFreshContext,

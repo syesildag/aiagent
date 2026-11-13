@@ -96,6 +96,7 @@ export default abstract class AbstractAgent implements Agent {
       onCompact?: (info: { summarized: number; kept: number; tokensBefore: number; tokensAfter: number }) => void,
       isAdmin?: boolean,
       interactive?: boolean,
+      userLoginOverride?: string | null,
    ): Promise<ReadableStream<string> | string | ImageGenerationResult | MixedContentResult> {
       if (!this.mcpManager) {
          throw new Error('MCP manager not initialized');
@@ -128,12 +129,16 @@ export default abstract class AbstractAgent implements Agent {
             ? [...new Set([...(similarityServers ?? []), ...filteredSkillTools])]
             : similarityServers;
          Logger.debug(`[Agent] "${this.getName()}" final server list after filtering and skill injection: ${serverNames ? serverNames.join(', ') : 'all'}`);
-         const userLogin = this.session?.getUserLogin();
+         // The agent is a shared singleton: this.session is whatever the last caller set,
+         // so a concurrent request may have replaced it. Prefer the identity the caller
+         // passed for this turn; null means an explicit "no user" (system context).
+         const userLogin = userLoginOverride !== undefined
+            ? userLoginOverride ?? undefined
+            : this.session?.getUserLogin();
          Logger.debug(`[Agent] "${this.getName()}" user login: ${userLogin ?? '<<none>>'}`);
-         // If isAdmin was not provided by the caller (e.g. AgentJob), fall back to a DB
-         // lookup from the stored session. When provided (web chat route), we trust the
-         // caller's value, which was captured before any awaits that could race with
-         // concurrent requests overwriting the singleton agent's session.
+         // If isAdmin was not provided by the caller, fall back to a DB lookup for the
+         // resolved userLogin. When provided (web chat route, jobs), we trust the
+         // caller's value, which was captured per request.
          if (isAdmin === undefined) {
             isAdmin = false;
             if (userLogin) {

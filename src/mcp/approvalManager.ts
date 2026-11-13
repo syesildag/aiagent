@@ -33,6 +33,8 @@ export type ToolApprovalCallback = (
 interface PendingEntry {
   resolve: (approved: boolean) => void;
   timer: ReturnType<typeof setTimeout>;
+  /** Login of the user whose chat raised the request; only they may decide it. */
+  ownerLogin: string;
 }
 
 /**
@@ -47,8 +49,11 @@ interface PendingEntry {
 class ApprovalManager {
   private pending = new Map<string, PendingEntry>();
 
-  /** Create a new pending approval entry; returns its unique id. */
-  register(id: string): Promise<boolean> {
+  /**
+   * Create a new pending approval entry owned by `ownerLogin`.
+   * Resolves with the owner's decision, or false on timeout.
+   */
+  register(id: string, ownerLogin: string): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       const timer = setTimeout(() => {
         if (this.pending.has(id)) {
@@ -57,17 +62,19 @@ class ApprovalManager {
         }
       }, config.APPROVAL_TIMEOUT_MS);
 
-      this.pending.set(id, { resolve, timer });
+      this.pending.set(id, { resolve, timer, ownerLogin });
     });
   }
 
   /**
    * Resolve a pending approval with the user's decision.
-   * Returns false if the id was not found (already resolved / timed out).
+   * Returns false if the id was not found (already resolved / timed out) or if
+   * `requesterLogin` is not the user who owns the request — another user must
+   * never be able to approve a dangerous tool call on someone else's behalf.
    */
-  resolve(id: string, approved: boolean): boolean {
+  resolve(id: string, approved: boolean, requesterLogin: string): boolean {
     const entry = this.pending.get(id);
-    if (!entry) return false;
+    if (!entry || entry.ownerLogin !== requesterLogin) return false;
     clearTimeout(entry.timer);
     this.pending.delete(id);
     entry.resolve(approved);
