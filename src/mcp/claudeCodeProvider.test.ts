@@ -331,6 +331,25 @@ describe('ClaudeCodeProvider.chat (non-streaming)', () => {
     await expect(makeProvider(spawnFn).chat(request())).rejects.toThrow('Not logged in · Please run /login');
   });
 
+  it('explains how to fix an expired OAuth login', async () => {
+    const child = new FakeChild();
+    const spawnFn = fakeSpawn(child, c => {
+      c.out(resultJson('Failed to authenticate: OAuth session expired and could not be refreshed', true));
+      c.exit(1);
+    });
+
+    const error = makeProvider(spawnFn).chat(request());
+    await expect(error).rejects.toThrow('OAuth session expired and could not be refreshed');
+    await expect(error).rejects.toThrow('claude setup-token');
+  });
+
+  it('does not add the sign-in hint to unrelated errors', async () => {
+    const child = new FakeChild();
+    const spawnFn = fakeSpawn(child, c => { c.out(resultJson('Usage limit reached', true)); c.exit(1); });
+
+    await expect(makeProvider(spawnFn).chat(request())).rejects.toThrow(/^Claude Code error: Usage limit reached$/);
+  });
+
   it('throws with stderr when the process fails without a JSON result', async () => {
     const child = new FakeChild();
     const spawnFn = fakeSpawn(child, c => { c.err('Error: something broke\n'); c.exit(2); });
