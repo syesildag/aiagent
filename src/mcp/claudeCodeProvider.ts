@@ -278,6 +278,7 @@ function textDelta(value: unknown): string | undefined {
   return undefined;
 }
 
+const SETUP_TOKEN_PREFIX = 'sk-ant-oat';
 const AUTH_FAILURE_PATTERN = /failed to authenticate|oauth|not logged in|\/login|authentication_error|invalid api key|401/i;
 
 /**
@@ -287,18 +288,30 @@ const AUTH_FAILURE_PATTERN = /failed to authenticate|oauth|not logged in|\/login
  * request fails until someone signs in again. A `claude setup-token` token lasts a year and
  * is never refreshed, so it is the reliable choice for a server.
  */
-export function authFailureHint(hasOauthToken: boolean): string {
-  return hasOauthToken
-    ? 'The CLAUDE_CODE_OAUTH_TOKEN token was rejected (expired or revoked). Run `claude setup-token` ' +
-      'and put the new token in CLAUDE_CODE_OAUTH_TOKEN, then restart the server.'
-    : 'The claude CLI login on the server has expired. Run `claude setup-token` and set ' +
+export function authFailureHint(oauthToken?: string): string {
+  if (!oauthToken) {
+    return 'The claude CLI login on the server has expired. Run `claude setup-token` and set ' +
       'CLAUDE_CODE_OAUTH_TOKEN to the token it prints (valid for a year, never needs refreshing), ' +
       'then restart the server. Signing in again with `claude auth login` also works, but can expire again.';
+  }
+  return `The CLAUDE_CODE_OAUTH_TOKEN token was rejected (${describeToken(oauthToken)}). ` +
+    'Check that the server uses the full token printed by `claude setup-token` (copied in one piece, ' +
+    'without < > or quotes), that no older CLAUDE_CODE_OAUTH_TOKEN is set in the server\'s own ' +
+    'environment (it takes precedence over .env), and restart the server.';
 }
 
-function resultError(result: ResultMessage, hasOauthToken: boolean): Error {
+/**
+ * Safe facts about the token, for spotting a bad copy: its length and whether it has
+ * the `claude setup-token` prefix. Never includes any part of the token itself.
+ */
+export function describeToken(token: string): string {
+  const prefixOk = token.startsWith(SETUP_TOKEN_PREFIX);
+  return `${token.length} characters, ${prefixOk ? 'starts' : 'does not start'} with ${SETUP_TOKEN_PREFIX}`;
+}
+
+function resultError(result: ResultMessage, oauthToken?: string): Error {
   const message = result.result ?? result.subtype ?? 'unknown error';
-  const hint = AUTH_FAILURE_PATTERN.test(message) ? ` — ${authFailureHint(hasOauthToken)}` : '';
+  const hint = AUTH_FAILURE_PATTERN.test(message) ? ` — ${authFailureHint(oauthToken)}` : '';
   return new Error(`Claude Code error: ${message}${hint}`);
 }
 
@@ -309,7 +322,7 @@ export class ClaudeCodeProvider implements LLMProvider, UserRestrictedProvider {
   private readonly binaryPath: string;
   private readonly workDir: string;
   private readonly env: NodeJS.ProcessEnv;
-  private readonly hasOauthToken: boolean;
+  private readonly oauthToken?: string;
   private readonly spawnFn: SpawnFn;
   private readonly interactiveSpawnFn: InteractiveSpawnFn;
   private readonly isUserAllowed: (ctx: ProviderUserContext) => boolean;
@@ -319,7 +332,10 @@ export class ClaudeCodeProvider implements LLMProvider, UserRestrictedProvider {
     this.workDir = options.workDir ?? DEFAULT_WORK_DIR;
     // The child needs PATH, HOME, etc.; secrets that would bypass the subscription are stripped.
     this.env = buildChildEnv(process.env, options);
-    this.hasOauthToken = Boolean(options.oauthToken);
+    this.oauthToken = options.oauthToken;
+    if (this.oauthToken && !this.oauthToken.startsWith(SETUP_TOKEN_PREFIX)) {
+      Logger.warn(`CLAUDE_CODE_OAUTH_TOKEN looks wrong (${describeToken(this.oauthToken)}); use the token printed by \`claude setup-token\`.`);
+    }
     this.spawnFn = options.spawnFn ?? ((command, args, spawnOptions) => spawn(command, args, spawnOptions));
     this.interactiveSpawnFn = options.interactiveSpawnFn
       ?? ((command, args, spawnOptions) => spawn(command, args, { ...spawnOptions, stdio: 'inherit' }));
@@ -488,7 +504,7 @@ export class ClaudeCodeProvider implements LLMProvider, UserRestrictedProvider {
     const parsed = parseJson(stdout.trim())
       ?? lines.reverse().map(line => parseJson(line)).find(isResultMessage);
     if (isResultMessage(parsed)) {
-      if (parsed.is_error) throw resultError(parsed, this.hasOauthToken);
+      if (parsed.is_error) throw resultError(parsed, this.oauthToken);
       return parsed.result ?? '';
     }
     const detail = (stderr || stdout).trim() || 'no output';
@@ -551,7 +567,7 @@ export class ClaudeCodeProvider implements LLMProvider, UserRestrictedProvider {
         child.on('close', (code: number | null) => {
           handleLine(buffer + decoder.end());
           if (result?.is_error) {
-            finish(resultError(result, this.hasOauthToken));
+            finish(resultError(result, this.oauthToken));
           } else if (!result && code !== 0) {
             finish(new Error(`Claude Code exited with code ${code}: ${stderr.trim() || 'no output'}`));
           } else {

@@ -58,7 +58,12 @@ const envSchema = z.object({
   // Absolute path is safest: servers often start without ~/.local/bin on PATH.
   CLAUDE_CODE_PATH: z.string().min(1).default('claude'),
   // Long-lived token from `claude setup-token`. Optional when `claude` is already logged in.
-  CLAUDE_CODE_OAUTH_TOKEN: z.string().min(1).optional(),
+  // The terminal wraps the long token, so a copied value often picks up line breaks or
+  // spaces; the token itself never contains whitespace.
+  CLAUDE_CODE_OAUTH_TOKEN: z.preprocess(
+    v => (typeof v === 'string' ? v.replace(/\s+/g, '') || undefined : v),
+    z.string().min(1).optional(),
+  ),
   // Dedicated Claude Code config dir (CLAUDE_CONFIG_DIR) so your personal setup stays separate.
   CLAUDE_CODE_CONFIG_DIR: z.string().min(1).optional(),
 

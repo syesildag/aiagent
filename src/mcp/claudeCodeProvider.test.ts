@@ -7,6 +7,7 @@ import {
   buildCliArgs,
   buildStreamJsonInput,
   buildChildEnv,
+  describeToken,
   isAllowedSubscriptionUser,
   type SpawnFn,
 } from './claudeCodeProvider';
@@ -235,6 +236,13 @@ describe('buildCliArgs', () => {
   });
 });
 
+describe('describeToken', () => {
+  it('reports length and prefix only', () => {
+    expect(describeToken('sk-ant-oat01-abc')).toBe('16 characters, starts with sk-ant-oat');
+    expect(describeToken('abc')).toBe('3 characters, does not start with sk-ant-oat');
+  });
+});
+
 describe('buildChildEnv', () => {
   it('removes API credentials that would override the subscription login', () => {
     const env = buildChildEnv({ PATH: '/bin', ANTHROPIC_API_KEY: 'sk-x', ANTHROPIC_AUTH_TOKEN: 't' }, {});
@@ -341,6 +349,19 @@ describe('ClaudeCodeProvider.chat (non-streaming)', () => {
     const error = makeProvider(spawnFn).chat(request());
     await expect(error).rejects.toThrow('OAuth session expired and could not be refreshed');
     await expect(error).rejects.toThrow('claude setup-token');
+  });
+
+  it('describes a rejected OAuth token without revealing it', async () => {
+    const child = new FakeChild();
+    const spawnFn = fakeSpawn(child, c => {
+      c.out(resultJson('Failed to authenticate. API Error: 401 OAuth access token is invalid.', true));
+      c.exit(1);
+    });
+    const token = '<sk-ant-oat01-secretvalue>';
+
+    const error = await makeProvider(spawnFn, { oauthToken: token }).chat(request()).catch((e: Error) => e);
+    expect(error.message).toContain(`${token.length} characters, does not start with sk-ant-oat`);
+    expect(error.message).not.toContain('secretvalue');
   });
 
   it('does not add the sign-in hint to unrelated errors', async () => {
